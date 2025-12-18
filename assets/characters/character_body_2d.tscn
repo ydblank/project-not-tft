@@ -513,7 +513,7 @@ libraries = {
 tree_root = SubResource("AnimationNodeStateMachine_2u5n8")
 anim_player = NodePath("../AnimationPlayer")
 parameters/attack/blend_position = Vector2(0.48284113, -0.015015006)
-parameters/idle/blend_position = Vector2(-0.68874705, -0.12912917)
+parameters/idle/blend_position = Vector2(-0.010309279, 0.1748879)
 parameters/walk/blend_position = Vector2(0, -0.02242148)
 
 [node name="AttackHitBox" type="Area2D" parent="."]

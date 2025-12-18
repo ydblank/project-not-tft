@@ -1,5 +1,6 @@
-[gd_scene load_steps=9 format=3 uid="uid://4pqund3nukl7"]
+[gd_scene load_steps=10 format=3 uid="uid://4pqund3nukl7"]
 
+[ext_resource type="Script" uid="uid://dlim0qxqc85a4" path="res://assets/levels/MultiplayerManager.gd" id="1_57ibc"]
 [ext_resource type="AudioStream" uid="uid://b3dn02b21e7fn" path="res://assets/audio/1. Twilight - Electric Light Orchestra .mp3" id="1_mipta"]
 [ext_resource type="Script" uid="uid://cx8tiiy40p1ec" path="res://assets/audio/audio_stream_player.gd" id="2_57ibc"]
 [ext_resource type="Texture2D" uid="uid://7tiou37vox65" path="res://assets/art/2 Dungeon Tileset/1 Tiles/Tileset.png" id="3_8ovt2"]
@@ -124,6 +125,7 @@ sources/0 = SubResource("TileSetAtlasSource_kdubu")
 
 [node name="Node2D" type="Node2D"]
 material = SubResource("CanvasItemMaterial_0e48y")
+script = ExtResource("1_57ibc")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(27, 6)
@@ -176,4 +178,32 @@ offset_top = 586.0
 offset_right = 944.0
 offset_bottom = 615.0
 
+[node name="HostButton" type="Button" parent="CanvasLayer"]
+anchors_preset = -1
+anchor_left = -0.11000001
+anchor_top = 0.157
+anchor_right = -0.11000001
+anchor_bottom = 0.157
+offset_left = 148.72
+offset_top = -79.736
+offset_right = 192.72002
+offset_bottom = -48.736
+text = "Host"
+
+[node name="JoinButton" type="Button" parent="CanvasLayer"]
+offset_left = 188.0
+offset_top = 19.0
+offset_right = 226.0
+offset_bottom = 50.0
+text = "Join"
+
+[node name="IPInput" type="LineEdit" parent="CanvasLayer"]
+offset_left = 90.0
+offset_top = 24.0
+offset_right = 158.5625
+offset_bottom = 55.0
+
 [node name="AudioStreamPlayer2" type="AudioStreamPlayer" parent="."]
+
+[connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
+[connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]
