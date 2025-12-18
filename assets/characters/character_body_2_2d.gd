@@ -1,11 +1,13 @@
 extends CharacterBody2D
 
+@onready var sync := $MultiplayerSync
+
 # Movement
 const SPEED = 100.0
 const DASH_SPEED = 200.0
 const DASH_DURATION = 0.2
 const DASH_COOLDOWN = 0.8
-const OUTER_TILE_SLOW_FACTOR = 0.5   # 50% slower
+const OUTER_TILE_SLOW_FACTOR = 0.5
 
 # Attack
 const ATTACK_HITBOX_TIME = 0.1
@@ -32,20 +34,20 @@ const OUTER_DAMAGE_AMOUNT := 1.0
 
 @export var damage_label: Label
 @export var respawn_position: Vector2
-@export var stocks: int = 3   # ✅ NEW — editable in Inspector
+@export var stocks: int = 3
 
-var is_attacking: bool = false
-var is_dead: bool = false
-var last_direction: Vector2 = Vector2.DOWN
-var dash_timer: float = 0.0
-var dash_active: float = 0.0
-var last_printed_second: int = -1
-var knockback_timer: float = 0.0
-
-var hp: float = MAX_HP
-var damage_percent: float = 0.0
+# ✅ Exported so MultiplayerSynchronizer can see them
+@export var is_attacking: bool = false
+@export var is_dead: bool = false
+@export var last_direction: Vector2 = Vector2.DOWN
+@export var dash_timer: float = 0.0
+@export var dash_active: float = 0.0
+@export var knockback_timer: float = 0.0
+@export var hp: float = MAX_HP
+@export var damage_percent: float = 0.0
 
 var outer_damage_timer: float = 0.0
+var last_printed_second: int = -1
 
 
 func _ready() -> void:
@@ -53,9 +55,17 @@ func _ready() -> void:
 	hitbox.monitoring = false
 	_update_label()
 
+	# ✅ Non-authority players still need physics to interpolate
+	if not is_multiplayer_authority():
+		set_process_input(false)
+		set_physics_process(true)
+		return
+
 
 func _physics_process(delta: float) -> void:
-	# ✅ Stop all gameplay while dead OR out of stocks
+	if not is_multiplayer_authority():
+		return
+
 	if is_dead or stocks <= 0:
 		return
 
@@ -123,17 +133,14 @@ func _physics_process(delta: float) -> void:
 	var current_speed = SPEED
 
 	if atlas_coords == Vector2i(15, 2):
-		# Damage over time
 		if outer_damage_timer <= 0.0:
 			take_outer_damage(OUTER_DAMAGE_AMOUNT)
 			outer_damage_timer = OUTER_DAMAGE_INTERVAL
 
-		# Slow movement
 		current_speed = SPEED * OUTER_TILE_SLOW_FACTOR
 	else:
 		outer_damage_timer = 0.0
 
-	# Apply movement with adjusted speed
 	velocity = input_vector * current_speed
 	move_and_slide()
 
@@ -222,7 +229,6 @@ func take_outer_damage(amount: float) -> void:
 	print(name, "took OUTER TILE damage | HP:", hp)
 
 
-# ✅ DEATH + STOCK LOSS + RESPAWN
 func die() -> void:
 	is_dead = true
 	visible = false
@@ -232,7 +238,6 @@ func die() -> void:
 	stocks -= 1
 	print(name, "lost a stock! Remaining:", stocks)
 
-	# ✅ No respawn if out of stocks
 	if stocks <= 0:
 		print(name, "is OUT OF STOCKS — GAME OVER")
 		return

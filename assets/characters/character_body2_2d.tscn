@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3 uid="uid://d0b105jkfs4cf"]
+[gd_scene load_steps=41 format=3 uid="uid://d0b105jkfs4cf"]
 
 [ext_resource type="Script" uid="uid://c5cal0bmgt4hr" path="res://assets/characters/character_body_2_2d.gd" id="1_7eqks"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_7eqks"]
@@ -481,6 +481,26 @@ graph_offset = Vector2(-89, 42)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_7eqks"]
 size = Vector2(11, 8)
 
+[sub_resource type="SceneReplicationConfig" id="SceneReplicationConfig_sutla"]
+properties/0/path = NodePath(".:hp")
+properties/0/spawn = true
+properties/0/replication_mode = 1
+properties/1/path = NodePath(".:damage_percent")
+properties/1/spawn = true
+properties/1/replication_mode = 1
+properties/2/path = NodePath(".:is_attacking")
+properties/2/spawn = true
+properties/2/replication_mode = 1
+properties/3/path = NodePath(".:is_dead")
+properties/3/spawn = true
+properties/3/replication_mode = 1
+properties/4/path = NodePath(".:last_direction")
+properties/4/spawn = true
+properties/4/replication_mode = 1
+properties/5/path = NodePath(".:stocks")
+properties/5/spawn = true
+properties/5/replication_mode = 1
+
 [node name="CharacterBody2D" type="CharacterBody2D"]
 script = ExtResource("1_7eqks")
 
@@ -512,3 +532,6 @@ collision_mask = 2
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackHitBox"]
 shape = SubResource("RectangleShape2D_7eqks")
 debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
+
+[node name="MultiplayerSync" type="MultiplayerSynchronizer" parent="."]
+replication_config = SubResource("SceneReplicationConfig_sutla")
