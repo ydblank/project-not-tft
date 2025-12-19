@@ -1,22 +1,19 @@
 extends CharacterBody2D
 
-@export var projectile_speed = 250
-@export var dmg = 4
-
-var dir: float
-var spawnPos: Vector2
-var spawnRot: float
+@export var projectile_speed: float = 250
+@export var dmg: float = 4
+var shooter: Node = null
 
 func _ready() -> void:
-	global_position = spawnPos
-	global_rotation = spawnRot
+	velocity = Vector2.RIGHT.rotated(rotation) * projectile_speed
 
-func _physics_process(_delta: float) -> void:
-	velocity = Vector2.RIGHT.rotated(dir) * projectile_speed
-	move_and_slide()
-
-func _on_area_2d_body_entered(body: Node2D) -> void:
-	if body.has_method("take_hit"):
-		var direction = (body.global_position - global_position).normalized()
-		body.take_hit(direction, dmg)
-	queue_free()
+func _physics_process(delta: float) -> void:
+	var collision = move_and_collide(velocity * delta)
+	if collision:
+		var body = collision.get_collider()
+		if body == shooter:
+			return  # skip collision with shooter
+		if body and body.has_method("take_hit"):
+			var direction = (body.global_position - global_position).normalized()
+			body.take_hit(direction, dmg)
+		queue_free()
