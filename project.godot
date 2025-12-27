@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Noray="*res://addons/netfox.noray/noray.gd"
 PacketHandshake="*res://addons/netfox.noray/packet-handshake.gd"
+Combat="*res://assets/commons/combat.gd"
 
 [editor_plugins]
 

@@ -1,10 +1,10 @@
 [gd_scene load_steps=40 format=3 uid="uid://dwk3apd8gpdh6"]
 
 [ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
-[ext_resource type="Texture2D" uid="uid://yfmwaes40378" path="res://assets/art/1 Characters/3/3.png" id="2_uq0cv"]
+[ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
-size = Vector2(14, 14)
+size = Vector2(14, 9)
 
 [sub_resource type="Animation" id="Animation_ghijl"]
 length = 0.001
@@ -475,7 +475,7 @@ transitions = ["Start", "Idle", SubResource("AnimationNodeStateMachineTransition
 graph_offset = Vector2(-89, 42)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_7eqks"]
-size = Vector2(11, 8)
+size = Vector2(12, 14)
 
 [node name="CharacterBody2D" type="CharacterBody2D"]
 collision_layer = 4
@@ -484,12 +484,13 @@ motion_mode = 1
 script = ExtResource("1_uq0cv")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
 texture = ExtResource("2_uq0cv")
 hframes = 8
 vframes = 15
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-position = Vector2(0, -2)
+position = Vector2(0, 0.5)
 shape = SubResource("RectangleShape2D_ij6vw")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="."]
@@ -504,10 +505,11 @@ parameters/Attack/blend_position = Vector2(0.0039904118, 0.02222228)
 parameters/Idle/blend_position = Vector2(-0.22745413, -0.29113925)
 parameters/Walk/blend_position = Vector2(-0.017543852, 0.12322283)
 
-[node name="AttackHitBox" type="Area2D" parent="."]
+[node name="PlayerHitbox" type="Area2D" parent="."]
 collision_layer = 8
 collision_mask = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackHitBox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerHitbox"]
+position = Vector2(0, -3)
 shape = SubResource("RectangleShape2D_7eqks")
 debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)

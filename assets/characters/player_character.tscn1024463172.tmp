@@ -1,7 +1,7 @@
-[gd_scene load_steps=39 format=3 uid="uid://d0b105jkfs4cf"]
+[gd_scene load_steps=40 format=3 uid="uid://dwk3apd8gpdh6"]
 
-[ext_resource type="Script" uid="uid://c5cal0bmgt4hr" path="res://assets/characters/character_body_2_2d.gd" id="1_7eqks"]
-[ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_7eqks"]
+[ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
+[ext_resource type="Texture2D" uid="uid://yfmwaes40378" path="res://assets/art/1 Characters/3/3.png" id="2_uq0cv"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(14, 14)
@@ -36,7 +36,6 @@ tracks/1/keys = {
 [sub_resource type="Animation" id="Animation_uyvxy"]
 resource_name = "attack_down"
 length = 0.25
-loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -65,7 +64,6 @@ tracks/1/keys = {
 [sub_resource type="Animation" id="Animation_02psr"]
 resource_name = "attack_left"
 length = 0.25
-loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -94,7 +92,6 @@ tracks/1/keys = {
 [sub_resource type="Animation" id="Animation_2ee4m"]
 resource_name = "attack_right"
 length = 0.25
-loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -123,7 +120,6 @@ tracks/1/keys = {
 [sub_resource type="Animation" id="Animation_7eqks"]
 resource_name = "attack_up"
 length = 0.25
-loop_mode = 1
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -467,26 +463,29 @@ advance_mode = 2
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_02psr"]
 
 [sub_resource type="AnimationNodeStateMachine" id="AnimationNodeStateMachine_2u5n8"]
+states/Attack/node = SubResource("AnimationNodeBlendSpace2D_6a5hm")
+states/Attack/position = Vector2(251, 233)
 states/End/position = Vector2(896, 100)
+states/Idle/node = SubResource("AnimationNodeBlendSpace2D_sxias")
+states/Idle/position = Vector2(251, 100)
 states/Start/position = Vector2(101, 100)
-states/attack/node = SubResource("AnimationNodeBlendSpace2D_6a5hm")
-states/attack/position = Vector2(251, 233)
-states/idle/node = SubResource("AnimationNodeBlendSpace2D_sxias")
-states/idle/position = Vector2(251, 100)
-states/walk/node = SubResource("AnimationNodeBlendSpace2D_skrk8")
-states/walk/position = Vector2(510, 100)
-transitions = ["Start", "idle", SubResource("AnimationNodeStateMachineTransition_ye16i"), "idle", "walk", SubResource("AnimationNodeStateMachineTransition_75u2t"), "walk", "idle", SubResource("AnimationNodeStateMachineTransition_7qa1u"), "idle", "attack", SubResource("AnimationNodeStateMachineTransition_7eqks"), "attack", "idle", SubResource("AnimationNodeStateMachineTransition_02psr")]
+states/Walk/node = SubResource("AnimationNodeBlendSpace2D_skrk8")
+states/Walk/position = Vector2(510, 100)
+transitions = ["Start", "Idle", SubResource("AnimationNodeStateMachineTransition_ye16i"), "Idle", "Walk", SubResource("AnimationNodeStateMachineTransition_75u2t"), "Walk", "Idle", SubResource("AnimationNodeStateMachineTransition_7qa1u"), "Idle", "Attack", SubResource("AnimationNodeStateMachineTransition_7eqks"), "Attack", "Idle", SubResource("AnimationNodeStateMachineTransition_02psr")]
 graph_offset = Vector2(-89, 42)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_7eqks"]
+size = Vector2(11, 8)
 
 [node name="CharacterBody2D" type="CharacterBody2D"]
 collision_layer = 4
 collision_mask = 7
 motion_mode = 1
-script = ExtResource("1_7eqks")
+script = ExtResource("1_uq0cv")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture_filter = 1
-texture = ExtResource("2_7eqks")
+texture = ExtResource("2_uq0cv")
 hframes = 8
 vframes = 15
 
@@ -502,6 +501,14 @@ libraries = {
 [node name="AnimationTree" type="AnimationTree" parent="."]
 tree_root = SubResource("AnimationNodeStateMachine_2u5n8")
 anim_player = NodePath("../AnimationPlayer")
-parameters/attack/blend_position = Vector2(0.0039904118, 0.02222228)
-parameters/idle/blend_position = Vector2(-0.22745413, -0.29113925)
-parameters/walk/blend_position = Vector2(-0.017543852, 0.12322283)
+parameters/Attack/blend_position = Vector2(0.0039904118, 0.02222228)
+parameters/Idle/blend_position = Vector2(-0.22745413, -0.29113925)
+parameters/Walk/blend_position = Vector2(-0.017543852, 0.12322283)
+
+[node name="AttackHitBox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 2
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="AttackHitBox"]
+shape = SubResource("RectangleShape2D_7eqks")
+debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)

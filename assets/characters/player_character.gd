@@ -1,11 +1,11 @@
 extends CharacterBody2D
 
+@export var player_class_name: String = "knight"
+@export var player_weapon_name: String = "sword"
+
 @export var move_speed: float = 100
 @export var starting_direction: Vector2 = Vector2(0, 1)
-@export var hp: float = 20
-@export var dmg: float = 4
-@export var attack_speed: float = 1
-
+@export var team: int = 1
 @export var lunge_distance: float = 10
 @export var lunge_duration: float = 0.08
 
@@ -15,7 +15,21 @@ extends CharacterBody2D
 @onready var main = get_tree().get_root().get_node("Node2D")
 @onready var arrow_projectile = load("res://assets/objects/arrow_projectile.tscn")
 
-const animation_attack_time := 0.6
+# preloads
+const attack_effect_preload = preload("res://assets/effects/slash.tscn")
+var classes_preload: ClassesDB = preload("res://assets/resources/classes.tres")
+var weapons_preload: WeaponsDB = preload("res://assets/resources/weapons.tres")
+
+var CombatClass = Combat
+
+# global variables
+var player_stats = {
+	"move_speed": move_speed,
+	"lunge_distance": lunge_distance,
+	"lunge_duration": lunge_duration
+}
+
+var player_weapon
 
 var last_direction: Vector2 = Vector2.ZERO
 var _can_attack := true
@@ -27,16 +41,19 @@ var _lunge_velocity: Vector2 = Vector2.ZERO
 var _lunge_time_left: float = 0.0
 
 func _ready() -> void:
+	ready_new_player()
 	last_direction = starting_direction
 	update_animation_parameters(starting_direction)
 
 	_attack_timer = Timer.new()
-	_attack_timer.wait_time = animation_attack_time / max(attack_speed, 0.001)
 	_attack_timer.one_shot = true
 	_attack_timer.timeout.connect(_on_attack_timer_timeout)
 	add_child(_attack_timer)
 
-	animation_tree.set("parameters/Attack/scale", attack_speed)
+func ready_new_player():
+	player_stats = CombatClass.calculations.assign_player_stats(player_stats, classes_preload.classes[player_class_name])
+	player_weapon_name = classes_preload.classes[player_class_name]["starting_weapon"]
+	player_weapon = weapons_preload.weapons[player_weapon_name]
 
 func _physics_process(delta: float) -> void:
 	var input_direction = Vector2(
@@ -93,7 +110,7 @@ func _play_attack() -> void:
 
 	var anim_name := _attack_animation_name_for_dir(attack_dir)
 	_play_attack_animation(anim_name)
-	_attack_timer.wait_time = _attack_anim_length_seconds(anim_name) / max(attack_speed, 0.001)
+	_attack_timer.wait_time = _attack_anim_length_seconds(anim_name) / max(CombatClass.calculations.calculate_attack_speed(player_stats, player_weapon), 0.001)
 	_attack_timer.start()
 
 
@@ -126,14 +143,13 @@ func _play_attack_animation(anim_name: StringName) -> void:
 	if animation_player == null:
 		return
 	if animation_player.has_animation(anim_name):
+		animation_tree.set("parameters/Attack/scale", player_stats.get("attack_speed", 1.0))
 		animation_player.play(anim_name)
 
 
 func _attack_anim_length_seconds(anim_name: StringName) -> float:
-	if animation_player == null:
-		return animation_attack_time
 	var anim: Animation = animation_player.get_animation(anim_name)
-	return anim.length if anim != null else animation_attack_time
+	return anim.length
 
 
 func _start_lunge_toward_mouse() -> void:
@@ -154,7 +170,6 @@ func _on_attack_timer_timeout() -> void:
 	_attack_effect_spawned = false
 	_lunge_time_left = 0.0
 	
-const attack_effect_preload = preload("res://assets/slash.tscn")
 func spawn_attack_effect():
 	var attack_effect = attack_effect_preload.instantiate()
 	attack_effect.global_position = global_position
