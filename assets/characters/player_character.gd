@@ -11,6 +11,7 @@ extends CharacterBody2D
 
 @onready var animation_player = $AnimationPlayer
 @onready var animation_tree = $AnimationTree
+@onready var sprite = $Sprite2D
 @onready var state_machine = animation_tree.get("parameters/playback")
 @onready var main = get_tree().get_root().get_node("Node2D")
 @onready var arrow_projectile = load("res://assets/objects/arrow_projectile.tscn")
@@ -41,6 +42,7 @@ var _lunge_velocity: Vector2 = Vector2.ZERO
 var _lunge_time_left: float = 0.0
 
 func _ready() -> void:
+	add_to_group("team " + str(team))
 	ready_new_player()
 	last_direction = starting_direction
 	update_animation_parameters(starting_direction)
@@ -54,6 +56,9 @@ func ready_new_player():
 	player_stats = CombatClass.calculations.assign_player_stats(player_stats, classes_preload.classes[player_class_name])
 	player_weapon_name = classes_preload.classes[player_class_name]["starting_weapon"]
 	player_weapon = weapons_preload.weapons[player_weapon_name]
+	var texture = load(classes_preload.classes[player_class_name]["sprite_path"])
+	sprite.texture = texture
+	
 
 func _physics_process(delta: float) -> void:
 	var input_direction = Vector2(
