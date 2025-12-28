@@ -188,7 +188,6 @@ offset_bottom = 55.0
 
 [node name="CharacterBody2D" parent="." instance=ExtResource("6_8ovt2")]
 position = Vector2(-44, 1)
-player_class_name = "archer"
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]
