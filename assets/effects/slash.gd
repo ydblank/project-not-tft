@@ -19,11 +19,13 @@ func _ready():
 	
 	animation_player.play(slash_effect)
 
-#func _on_area_2d_body_entered(body: Node2D) -> void:
-	#pass
-	##body.take_damage(weapon_damage)
-
 
 func _on_animation_player_animation_finished(anim_name: StringName) -> void:
 	if anim_name == slash_effect:
 		queue_free()
+
+
+func _on_area_2d_area_entered(area: Area2D) -> void:
+	var dummy := area.get_parent()
+	if dummy != null and dummy.has_method("take_damage"):
+		dummy.take_damage(weapon_damage)

@@ -178,5 +178,6 @@ func _on_attack_timer_timeout() -> void:
 func spawn_attack_effect():
 	var attack_effect = attack_effect_preload.instantiate()
 	attack_effect.global_position = global_position
+	attack_effect.weapon_damage = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
 	# Match the existing slash effect behavior: it looks at the mouse on spawn.
 	get_parent().add_child(attack_effect)
