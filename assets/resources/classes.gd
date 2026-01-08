@@ -4,7 +4,7 @@ class_name ClassesDB
 @export var classes = {
 	"knight": {
 		"hp": 100,
-		"dmg": 10,
+		"str": 1.0,
 		"def": 20,
 		"knockback_res": 20,
 		"attack_speed": 0.85,
@@ -13,7 +13,7 @@ class_name ClassesDB
 	},
 	"rogue": {
 		"hp": 100,
-		"dmg": 5,
+		"str": 1.0,
 		"def": 10,
 		"knockback_res": 10,
 		"attack_speed": 1.25,
@@ -22,7 +22,7 @@ class_name ClassesDB
 	},
 	"archer": {
 		"hp": 100,
-		"dmg": 10,
+		"str": 1.0,
 		"def": 5,
 		"knockback_res": 5,
 		"attack_speed": 1.10,
