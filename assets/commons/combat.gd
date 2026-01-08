@@ -23,8 +23,6 @@ class calculations:
 	static func calculate_attack_damage(entity_stats: Dictionary, weapon_stats: Dictionary):
 		var entity_str: float = float(entity_stats.get("str", 1.0))
 		var weapon_dmg: float = float(weapon_stats.get("dmg", 0))
-		print(weapon_dmg)
-		print(entity_str)
 		
 		var total_dmg = entity_str * weapon_dmg
 		print(total_dmg)

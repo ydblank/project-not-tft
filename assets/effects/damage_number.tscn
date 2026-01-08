@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3 uid="uid://4v5ivwy5c4wo"]
+
+[ext_resource type="Script" uid="uid://c1vy1b5xp5rjk" path="res://assets/effects/damage_number.gd" id="1_1"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_ecfrx"]
+font_size = 8
+
+[node name="DamageNumber" type="Node2D"]
+script = ExtResource("1_1")
+
+[node name="Label" type="Label" parent="."]
+texture_filter = 1
+offset_left = -32.0
+offset_top = -10.0
+offset_right = 32.0
+offset_bottom = 10.0
+text = "0"
+label_settings = SubResource("LabelSettings_ecfrx")
+horizontal_alignment = 1
+vertical_alignment = 1
