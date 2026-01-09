@@ -81,10 +81,10 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_pressed("Primary") and _can_attack:
 		_play_attack()
 
-	# If we're in the middle of the attack animation, spawn the slash once.
+	# If we're in the middle of the attack animation, spawn the attack once.
 	if _is_attacking and not _attack_effect_spawned:
 		_attack_effect_spawned = true
-		spawn_attack_effect()
+		_spawn_attack_payload()
 	
 	var animation_direction = velocity.normalized() if velocity != Vector2.ZERO else last_direction
 	update_animation_parameters(animation_direction)
@@ -111,7 +111,11 @@ func _play_attack() -> void:
 	_attack_effect_spawned = false
 	var attack_dir := _mouse_cardinal_direction()
 	last_direction = attack_dir
-	_start_lunge_toward_mouse()
+	if _weapon_type() != "range":
+		_start_lunge_toward_mouse()
+	else:
+		_lunge_time_left = 0.0
+		_lunge_velocity = Vector2.ZERO
 
 	var anim_name := _attack_animation_name_for_dir(attack_dir)
 	_play_attack_animation(anim_name)
@@ -175,9 +179,38 @@ func _on_attack_timer_timeout() -> void:
 	_attack_effect_spawned = false
 	_lunge_time_left = 0.0
 	
-func spawn_attack_effect():
+
+func _weapon_type() -> String:
+	if player_weapon == null:
+		return ""
+	var t = player_weapon.get("type", "")
+	return str(t)
+
+
+func _spawn_attack_payload() -> void:
+	# Melee => slash hitbox. Range => projectile.
+	if _weapon_type() == "range":
+		spawn_projectile()
+	else:
+		spawn_attack_effect()
+
+
+func spawn_attack_effect() -> void:
 	var attack_effect = attack_effect_preload.instantiate()
 	attack_effect.global_position = global_position
 	attack_effect.weapon_damage = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
 	# Match the existing slash effect behavior: it looks at the mouse on spawn.
 	get_parent().add_child(attack_effect)
+
+
+func spawn_projectile() -> void:
+	# Currently only supports the arrow projectile scene.
+	# If later you add per-weapon scenes, we can read player_weapon["projectile"] here.
+	if arrow_projectile == null:
+		return
+	var projectile = arrow_projectile.instantiate()
+	projectile.global_position = global_position
+	projectile.rotation = (get_global_mouse_position() - global_position).angle()
+	projectile.weapon_damage = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	projectile.shooter = self
+	get_parent().add_child(projectile)
