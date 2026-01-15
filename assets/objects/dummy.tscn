@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://x50qjtctt5e"]
+[gd_scene load_steps=6 format=3 uid="uid://x50qjtctt5e"]
 
 [ext_resource type="Script" uid="uid://mnoke4gyxgf2" path="res://assets/objects/dummy.gd" id="1_215xv"]
 [ext_resource type="Texture2D" uid="uid://btxk4c37yglrd" path="res://assets/art/1 Characters/Dummy/dummy.png" id="1_nc0bl"]
+[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_42tql"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_215xv"]
 size = Vector2(20, 19)
@@ -28,3 +29,9 @@ collision_layer = 2
 light_mask = 2
 shape = SubResource("RectangleShape2D_42tql")
 debug_color = Color(0.8000455, 0.38247117, 0.47344965, 0.41960785)
+
+[node name="Healthbar" parent="." instance=ExtResource("3_42tql")]
+offset_left = -22.0
+offset_top = -25.0
+offset_right = 20.0
+offset_bottom = -22.0

@@ -29,6 +29,7 @@ extends CharacterBody2D
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var state_machine = animation_tree.get("parameters/playback")
 @onready var player_hitbox: Area2D = $PlayerHitbox
+@onready var player_healthbar: ProgressBar = $CanvasLayer/Healthbar
 
 const ATTACK_EFFECT = preload("res://assets/effects/slash.tscn")
 @export var arrow_projectile: PackedScene = preload("res://assets/objects/arrow_projectile.tscn")
@@ -129,6 +130,9 @@ func _ready() -> void:
 
 	# Setup hitboxes
 	_setup_hitboxes()
+	
+	# Healthbar
+	player_healthbar.init_health(hp)
 
 func ready_new_player() -> void:
 	player_stats = CombatClass.calculations.assign_player_stats(
@@ -634,6 +638,7 @@ func take_hit(direction: Vector2, hp_damage: float) -> void:
 	
 	hp -= hp_damage
 	hp = max(hp, 0)
+	player_healthbar.health = hp
 	
 	damage_percent += HIT_DAMAGE_PERCENT
 	var scaled_knockback = BASE_KNOCKBACK * (1.0 + damage_percent / 100.0)
