@@ -23,6 +23,9 @@ extends CharacterBody2D
 @export var combo_chain_speed_multiplier: float = 0.6
 @export var combo_final_cooldown: float = 0.5
 @export var combo_chain_window: float = 0.5
+@export var combo_stagger_duration: float = 0.2
+@export var combo_pre_final_delay_multiplier: float = 1.15
+@export var melee_slash_spawn_delay: float = 0.1
 
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
@@ -70,6 +73,7 @@ const ATTACK_HITBOX_TIME = 0.1
 var hp: float = 100.0
 var damage_percent: float = 0.0
 var knockback_timer: float = 0.0
+var stagger_timer: float = 0.0
 var attack_hitbox: Area2D
 var _attack_hitbox_enabled := false
 var is_dead := false
@@ -155,7 +159,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		_sync_state()
 		return
-
+	
 	var raw_input_dir := Vector2(
 		Input.get_action_strength("D") - Input.get_action_strength("A"),
 		Input.get_action_strength("S") - Input.get_action_strength("W")
@@ -170,6 +174,11 @@ func _physics_process(delta: float) -> void:
 
 	if _dash_cooldown_left > 0.0:
 		_dash_cooldown_left = max(_dash_cooldown_left - delta, 0.0)
+
+	# Stagger: lock movement briefly (but allow dash to escape)
+	if stagger_timer > 0.0:
+		stagger_timer = max(stagger_timer - delta, 0.0)
+		input_dir = Vector2.ZERO
 
 	if input_dir != Vector2.ZERO:
 		last_direction = input_dir.normalized()
@@ -196,6 +205,8 @@ func _physics_process(delta: float) -> void:
 		_play_attack()
 
 	if Input.is_action_just_pressed("dash") and not _is_dashing and _dash_cooldown_left <= 0.0:
+		# Allow escaping stagger by dashing.
+		stagger_timer = 0.0
 		_start_dash(input_dir)
 
 	var animation_direction = velocity.normalized() if velocity != Vector2.ZERO else last_direction
@@ -296,9 +307,21 @@ func _play_attack() -> void:
 	_attack_timer.stop()
 	_combo_window_timer.stop()
 
-	# Spawn attack effect
-	_spawn_attack_payload()
-	_attack_effect_spawned = true
+	# Spawn attack payload (delay melee a bit so lunge starts first).
+	var step_for_payload := _combo_step
+	if _weapon_type() != "range" and melee_slash_spawn_delay > 0.0:
+		var t := get_tree().create_timer(melee_slash_spawn_delay)
+		t.timeout.connect(func() -> void:
+			if is_dead:
+				return
+			if _attack_effect_spawned:
+				return
+			_spawn_attack_payload(step_for_payload)
+			_attack_effect_spawned = true
+		)
+	else:
+		_spawn_attack_payload(step_for_payload)
+		_attack_effect_spawned = true
 
 	# Start attack/combo timers (this used to be in here; without it, you get "freeze")
 	var attack_speed: float = max(
@@ -306,11 +329,16 @@ func _play_attack() -> void:
 		0.001
 	)
 	var base_time: float = 0.3 / attack_speed
+	var max_hits := _combo_total_hits()
 
-	if _combo_step < combo_max_hits - 1:
+	if _combo_step < max_hits - 1:
 		# Normal chained hit → use attack timer
-		_attack_timer.wait_time = base_time * combo_chain_speed_multiplier
-		_combo_window_timer.wait_time = max(combo_chain_window, base_time * 0.8)
+		var chain_wait := base_time * combo_chain_speed_multiplier
+		# Make the transition into the final hit slightly slower than the first two.
+		if _combo_step == max_hits - 2:
+			chain_wait *= combo_pre_final_delay_multiplier
+		_attack_timer.wait_time = chain_wait
+		_combo_window_timer.wait_time = max(combo_chain_window, chain_wait * 1.25)
 		_combo_window_timer.start()
 		_attack_timer.start()
 	else:
@@ -362,7 +390,8 @@ func _stop_attack_hitbox() -> void:
 func _on_attack_timer_timeout() -> void:
 	_lunge_time_left = 0.0
 
-	if _combo_step < combo_max_hits - 1:
+	var max_hits := _combo_total_hits()
+	if _combo_step < max_hits - 1:
 		_combo_step += 1
 		_can_attack = true
 	else:
@@ -391,21 +420,12 @@ func _mouse_cardinal_direction() -> Vector2:
 func _attack_combo_animation(step: int) -> StringName:
 	var to_mouse := get_global_mouse_position() - global_position
 	var is_left := to_mouse.x < 0.0
-
+	# Always alternate (works for any combo length):
+	# Left:  slash_2, slash, slash_2, slash, ...
+	# Right: slash,   slash_2, slash,   slash_2, ...
 	if is_left:
-		# Left side combo pattern: slash_2 → slash → slash_2
-		match step:
-			0: return &"slash_2"
-			1: return &"slash"
-			2: return &"slash_2"
-	else:
-		# Right side (default) combo pattern: slash → slash_2 → slash
-		match step:
-			0: return &"slash"
-			1: return &"slash_2"
-			2: return &"slash"
-
-	return &"slash"  # fallback
+		return &"slash_2" if (step % 2 == 0) else &"slash"
+	return &"slash" if (step % 2 == 0) else &"slash_2"
 
 
 func _play_attack_animation(anim_name: StringName) -> void:
@@ -448,16 +468,33 @@ func _weapon_type() -> String:
 		return ""
 	return str(player_weapon.get("type", ""))
 
+func _combo_total_hits() -> int:
+	if player_weapon != null and player_weapon.has("quick_attack") and (player_weapon["quick_attack"] is Array):
+		var arr: Array = player_weapon["quick_attack"]
+		return maxi(arr.size(), 1)
+	return maxi(combo_max_hits, 1)
 
-func _spawn_attack_payload() -> void:
+func _weapon_combo_damage_multiplier(step: int) -> float:
+	# Weapon-driven combo multipliers (array length == combo length).
+	if player_weapon != null and player_weapon.has("quick_attack") and (player_weapon["quick_attack"] is Array):
+		var arr: Array = player_weapon["quick_attack"]
+		if arr.is_empty():
+			return 1.0
+		var idx: int = clampi(step, 0, arr.size() - 1)
+		return float(arr[idx])
+	# Fallback (older weapons): treat as no multiplier.
+	return 1.0
+
+
+func _spawn_attack_payload(step: int) -> void:
 	# Melee => slash hitbox. Range => projectile.
 	if _weapon_type() == "range":
-		spawn_projectile()
+		spawn_projectile(step)
 	else:
-		spawn_attack_effect()
+		spawn_attack_effect(step)
 
 
-func spawn_projectile() -> void:
+func spawn_projectile(step: int) -> void:
 	# Currently only supports the arrow projectile scene.
 	# If later you add per-weapon scenes, we can read player_weapon["projectile"] here.
 	if arrow_projectile == null:
@@ -465,28 +502,33 @@ func spawn_projectile() -> void:
 	var projectile = arrow_projectile.instantiate()
 	projectile.global_position = global_position
 	projectile.rotation = (get_global_mouse_position() - global_position).angle()
-	projectile.weapon_damage = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var base_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var mult: float = _weapon_combo_damage_multiplier(step)
+	projectile.weapon_damage = max(base_damage * mult, 1.0)
 	projectile.shooter = self
 	get_parent().add_child(projectile)
 
 
-func spawn_attack_effect() -> void:
+func spawn_attack_effect(step: int) -> void:
 	var fx = ATTACK_EFFECT.instantiate()
 	fx.global_position = global_position
 
 	# Use the combo animation helper to decide which animation to play
-	var anim_name := _attack_combo_animation(_combo_step)
+	var anim_name := _attack_combo_animation(step)
 	fx.slash_effect = str(anim_name)  # assign to the effect scene
 
 	# Pass combat info for hit/knockback
-	var total_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var base_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var mult: float = _weapon_combo_damage_multiplier(step)
+	var total_damage: float = max(base_damage * mult, 1.0)
+	var total_hits: int = _combo_total_hits()
 	if fx.has_method("set_attack_context"):
 		var attacker_id := -1
 		if _net_active():
 			attacker_id = get_multiplayer_authority()
 		elif name.is_valid_int():
 			attacker_id = int(name)
-		fx.set_attack_context(attacker_id, team, total_damage)
+		fx.set_attack_context(attacker_id, team, total_damage, step, total_hits)
 	print("[ATTACK] spawn_slash by=", name, " team=", team, " dmg=", total_damage, " anim=", fx.slash_effect)
 
 	get_parent().add_child(fx)
@@ -603,6 +645,19 @@ func receive_hit(direction: Vector2, damage: float) -> void:
 	print("[HIT] receive_hit on=", name, " dmg=", damage)
 	take_hit(direction, damage)
 
+@rpc("reliable", "any_peer", "call_local")
+func receive_combo_hit(direction: Vector2, damage: float, combo_step: int, combo_total_hits: int) -> void:
+	# First two combo hits stagger only; final hit applies knockback.
+	if not _local_is_authority():
+		return
+	print("[HIT] receive_combo_hit on=", name, " dmg=", damage, " step=", combo_step, " total=", combo_total_hits)
+	var max_hits: int = maxi(combo_total_hits, 1)
+	var is_final: bool = combo_step >= (max_hits - 1)
+	if is_final:
+		take_hit(direction, damage, true)
+	else:
+		take_hit(direction, damage, false, combo_stagger_duration)
+
 @rpc("reliable", "any_peer")
 func apply_hit_to_server(target_id: int, direction: Vector2, damage: float) -> void:
 	# Only server processes this - route to manager
@@ -626,7 +681,7 @@ func apply_hit_to_server(target_id: int, direction: Vector2, damage: float) -> v
 		print("[RPC] manager missing apply_hit_to_player; manager=", manager)
 
 
-func take_hit(direction: Vector2, hp_damage: float) -> void:
+func take_hit(direction: Vector2, hp_damage: float, apply_knockback: bool = true, p_stagger_time: float = 0.0) -> void:
 	if not _local_is_authority():
 		return
 	if is_dead:
@@ -638,15 +693,32 @@ func take_hit(direction: Vector2, hp_damage: float) -> void:
 	damage_percent += HIT_DAMAGE_PERCENT
 	var scaled_knockback = BASE_KNOCKBACK * (1.0 + damage_percent / 100.0)
 	
-	# Apply knockback velocity immediately
-	velocity = direction.normalized() * scaled_knockback
-	knockback_timer = KNOCKBACK_DURATION
+	if apply_knockback:
+		# Apply knockback velocity immediately
+		velocity = direction.normalized() * scaled_knockback
+		knockback_timer = KNOCKBACK_DURATION
+		stagger_timer = 0.0
+	else:
+		# Stagger: no push, just lock movement for a bit
+		velocity = Vector2.ZERO
+		knockback_timer = 0.0
+		stagger_timer = max(stagger_timer, max(p_stagger_time, 0.0))
 	
 	# Stop any ongoing attacks/movement
 	_lunge_time_left = 0.0
 	_is_dashing = false
 	
-	print(name, " took hit | HP:", hp, " | %:", damage_percent, " | KB:", scaled_knockback)
+	print(
+		name,
+		" took hit | HP:",
+		hp,
+		" | %:",
+		damage_percent,
+		" | KB:",
+		(scaled_knockback if apply_knockback else 0.0),
+		" | stagger:",
+		(stagger_timer if not apply_knockback else 0.0)
+	)
 	
 	if hp <= 0:
 		die()
@@ -658,6 +730,7 @@ func die() -> void:
 	visible = false
 	velocity = Vector2.ZERO
 	knockback_timer = 0.0
+	stagger_timer = 0.0
 	_lunge_time_left = 0.0
 	_is_dashing = false
 	_is_attacking = false
@@ -687,6 +760,7 @@ func respawn() -> void:
 	velocity = Vector2.ZERO
 	damage_percent = 0.0
 	knockback_timer = 0.0
+	stagger_timer = 0.0
 	_is_attacking = false
 	_can_attack = true
 	_combo_step = 0

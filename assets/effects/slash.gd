@@ -6,6 +6,8 @@ const DEBUG_HITS := false
 @export var attacker_id: int = -1
 @export var attacker_team: int = -1
 @export var damage: float = 0.0
+@export var combo_step: int = 0
+@export var combo_total_hits: int = 1
 @onready var animation_player = $AnimationPlayer
 @onready var sprite = $Sprite2D
 @onready var area: Area2D = $Area2D
@@ -13,13 +15,26 @@ const DEBUG_HITS := false
 var weapon_damage: float = 1.0
 var _hit_targets: Dictionary = {}
 
-func set_attack_context(p_attacker_id: int, p_attacker_team: int, p_damage: float) -> void:
+func set_attack_context(p_attacker_id: int, p_attacker_team: int, p_damage: float, p_combo_step: int, p_combo_total_hits: int) -> void:
 	attacker_id = p_attacker_id
 	attacker_team = p_attacker_team
 	damage = p_damage
+	combo_step = p_combo_step
+	combo_total_hits = p_combo_total_hits
 
 func _ready():
-	print("[SLASH] ready attacker_id=", attacker_id, " team=", attacker_team, " dmg=", damage)
+	print(
+		"[SLASH] ready attacker_id=",
+		attacker_id,
+		" team=",
+		attacker_team,
+		" dmg=",
+		damage,
+		" step=",
+		combo_step,
+		"/",
+		combo_total_hits
+	)
 	# Ensure we log hits whether the target is a PhysicsBody or an Area2D hitbox.
 	if area:
 		area.monitoring = true
@@ -75,7 +90,7 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 		return
 	if owner.has_method("get") and int(owner.get("team")) == attacker_team:
 		return
-	if not owner.has_method("receive_hit"):
+	if not owner.has_method("receive_combo_hit"):
 		return
 
 	# Avoid multi-hit spam for a single slash animation.
@@ -96,11 +111,11 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 	var mp := multiplayer.multiplayer_peer
 	if mp == null or mp.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		# Offline / not connected: apply locally (player script treats local as authority)
-		owner.receive_hit(dir, dmg)
+		owner.receive_combo_hit(dir, dmg, combo_step, combo_total_hits)
 		return
 	if target_auth <= 0:
 		return
-	owner.receive_hit.rpc_id(target_auth, dir, dmg)
+	owner.receive_combo_hit.rpc_id(target_auth, dir, dmg, combo_step, combo_total_hits)
 
 
 func _on_animation_player_animation_finished(anim_name: StringName) -> void:
