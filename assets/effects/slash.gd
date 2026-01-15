@@ -56,9 +56,21 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 			(owner.get_class() if owner else "null")
 		)
 
-	# Apply knockback/damage via the player's RPC handler (runs on target authority).
 	if owner == null:
 		return
+
+	# Dummy / destructible targets: apply local damage.
+	# (These targets don't participate in player authority RPCs.)
+	if owner.has_method("take_damage"):
+		var key_dummy := str(owner.get_instance_id())
+		if _hit_targets.has(key_dummy):
+			return
+		_hit_targets[key_dummy] = true
+		var dmg_dummy := damage if damage > 0.0 else weapon_damage
+		owner.call("take_damage", dmg_dummy)
+		return
+
+	# Player targets: apply knockback/damage via the player's RPC handler (runs on target authority).
 	if owner.name.is_valid_int() and owner.name == str(attacker_id):
 		return
 	if owner.has_method("get") and int(owner.get("team")) == attacker_team:
@@ -94,9 +106,3 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 func _on_animation_player_animation_finished(anim_name: StringName) -> void:
 	if anim_name == slash_effect:
 		queue_free()
-
-
-func _on_area_2d_area_entered(area: Area2D) -> void:
-	var dummy := area.get_parent()
-	if dummy != null and dummy.has_method("take_damage"):
-		dummy.take_damage(weapon_damage)
