@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://4pqund3nukl7"]
+[gd_scene load_steps=11 format=3 uid="uid://4pqund3nukl7"]
 
 [ext_resource type="Script" uid="uid://dlim0qxqc85a4" path="res://assets/levels/MultiplayerManager.gd" id="1_57ibc"]
 [ext_resource type="AudioStream" uid="uid://b3dn02b21e7fn" path="res://assets/audio/1. Twilight - Electric Light Orchestra .mp3" id="1_mipta"]
@@ -6,6 +6,7 @@
 [ext_resource type="Texture2D" uid="uid://7tiou37vox65" path="res://assets/art/2 Dungeon Tileset/1 Tiles/Tileset.png" id="3_8ovt2"]
 [ext_resource type="PackedScene" uid="uid://dwk3apd8gpdh6" path="res://assets/characters/player_character.tscn" id="6_8ovt2"]
 [ext_resource type="PackedScene" uid="uid://x50qjtctt5e" path="res://assets/objects/dummy.tscn" id="6_57ibc"]
+[ext_resource type="Script" uid="uid://drmhjgqpudjh" path="res://assets/ui/dialogue_ui.gd" id="7_dialogue_ui"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -194,6 +195,15 @@ player_weapon_name = "bow"
 
 [node name="CharacterBody2D2" parent="." instance=ExtResource("6_57ibc")]
 position = Vector2(43, -5)
+
+[node name="CanvasLayer2" type="CanvasLayer" parent="."]
+script = ExtResource("7_dialogue_ui")
+
+[node name="DialogueBox" type="Label" parent="CanvasLayer2"]
+offset_left = 43.0
+offset_top = 470.0
+offset_right = 1115.0
+offset_bottom = 616.0
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]
