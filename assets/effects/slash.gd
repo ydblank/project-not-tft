@@ -94,3 +94,9 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 func _on_animation_player_animation_finished(anim_name: StringName) -> void:
 	if anim_name == slash_effect:
 		queue_free()
+
+
+func _on_area_2d_area_entered(area: Area2D) -> void:
+	var dummy := area.get_parent()
+	if dummy != null and dummy.has_method("take_damage"):
+		dummy.take_damage(weapon_damage)

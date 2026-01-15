@@ -31,6 +31,7 @@ extends CharacterBody2D
 @onready var player_hitbox: Area2D = $PlayerHitbox
 
 const ATTACK_EFFECT = preload("res://assets/effects/slash.tscn")
+@export var arrow_projectile: PackedScene = preload("res://assets/objects/arrow_projectile.tscn")
 var classes_preload: ClassesDB = preload("res://assets/resources/classes.tres")
 var weapons_preload: WeaponsDB = preload("res://assets/resources/weapons.tres")
 
@@ -194,13 +195,11 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("Primary") and _can_attack and not _combo_lockout:
 		_play_attack()
 
-
 	if Input.is_action_just_pressed("dash") and not _is_dashing and _dash_cooldown_left <= 0.0:
 		_start_dash(input_dir)
 
-	# Attack effect is spawned from `_play_attack()` to avoid double-spawning (and RPC spam).
-
-	update_animation_parameters(velocity.normalized() if velocity != Vector2.ZERO else last_direction)
+	var animation_direction = velocity.normalized() if velocity != Vector2.ZERO else last_direction
+	update_animation_parameters(animation_direction)
 	pick_new_state()
 
 	_sync_state()
@@ -286,15 +285,19 @@ func _play_attack() -> void:
 	# _start_attack_hitbox()
 
 	# Start lunge if not already moving
-	if _lunge_time_left <= 0.0:
-		_start_lunge_toward_mouse()
+	if _weapon_type() != "range":
+		if _lunge_time_left <= 0.0:
+			_start_lunge_toward_mouse()
+	else:
+		_lunge_time_left = 0.0
+		_lunge_velocity = Vector2.ZERO
 
 	# Stop any running timers
 	_attack_timer.stop()
 	_combo_window_timer.stop()
 
 	# Spawn attack effect
-	spawn_attack_effect()
+	_spawn_attack_payload()
 	_attack_effect_spawned = true
 
 	# Start attack/combo timers (this used to be in here; without it, you get "freeze")
@@ -440,17 +443,43 @@ func pick_new_state() -> void:
 	else:
 		state_machine.travel("Idle")
 
-func spawn_attack_effect():
+func _weapon_type() -> String:
+	if player_weapon == null:
+		return ""
+	return str(player_weapon.get("type", ""))
+
+
+func _spawn_attack_payload() -> void:
+	# Melee => slash hitbox. Range => projectile.
+	if _weapon_type() == "range":
+		spawn_projectile()
+	else:
+		spawn_attack_effect()
+
+
+func spawn_projectile() -> void:
+	# Currently only supports the arrow projectile scene.
+	# If later you add per-weapon scenes, we can read player_weapon["projectile"] here.
+	if arrow_projectile == null:
+		return
+	var projectile = arrow_projectile.instantiate()
+	projectile.global_position = global_position
+	projectile.rotation = (get_global_mouse_position() - global_position).angle()
+	projectile.weapon_damage = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	projectile.shooter = self
+	get_parent().add_child(projectile)
+
+
+func spawn_attack_effect() -> void:
 	var fx = ATTACK_EFFECT.instantiate()
 	fx.global_position = global_position
 
 	# Use the combo animation helper to decide which animation to play
 	var anim_name := _attack_combo_animation(_combo_step)
 	fx.slash_effect = str(anim_name)  # assign to the effect scene
+
 	# Pass combat info for hit/knockback
-	var class_dmg: float = float(player_stats.get("dmg", 0))
-	var weapon_dmg: float = float(player_weapon.get("dmg", 0))
-	var total_damage: float = class_dmg + weapon_dmg
+	var total_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
 	if fx.has_method("set_attack_context"):
 		var attacker_id := -1
 		if _net_active():
@@ -663,6 +692,8 @@ func respawn() -> void:
 	_combo_step = 0
 	_combo_lockout = false
 	_attack_effect_spawned = false
+	_lunge_time_left = 0.0
+	_lunge_velocity = Vector2.ZERO
 
 	# Restore HP to class HP if available
 	hp = float(player_stats.get("hp", 100.0))

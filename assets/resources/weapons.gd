@@ -4,6 +4,7 @@ class_name WeaponsDB
 @export var weapons = {
 	"sword": {
 		"type": "melee",
+		"sprite": "",
 		"dmg": 10,
 		"q_attack": 0.8,
 		"h_attack_min": 1.0,
@@ -15,6 +16,7 @@ class_name WeaponsDB
 	},
 	"dagger": {
 		"type": "melee",
+		"sprite": "",
 		"dmg": 5,
 		"q_attack": 0.8,
 		"h_attack_min": 1.0,
@@ -26,6 +28,8 @@ class_name WeaponsDB
 	},
 	"bow": {
 		"type": "range",
+		"sprite": "",
+		"projectile": "",
 		"dmg": 10,
 		"q_attack": 0.8,
 		"h_attack_min": 0.5,
