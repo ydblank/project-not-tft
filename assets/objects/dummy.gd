@@ -3,19 +3,32 @@ extends CharacterBody2D
 @export var def = 0
 
 @export var damage_number_scene: PackedScene = preload("res://assets/effects/damage_number.tscn")
+@onready var healthbar = $Healthbar
 
 var dummy_stats: Dictionary = {}
 
 var CombatClass = Combat
 
+var max_hp = 500
+var hp = 0
+
+
 func _ready() -> void:
 	dummy_stats = {
-		"def": def
+		"def": def,
 	}
+	hp = max_hp
+	healthbar.init_health(hp)
 
 func take_damage(damage: float):
 	var dmg: float = Combat.calculations.calculate_receive_damage(dummy_stats, damage)
 	_show_damage_number(int(round(dmg)))
+	hp -= dmg
+	print(hp)
+	healthbar.health = hp
+	
+	if hp < 0:
+		hp = max_hp
 
 func _show_damage_number(amount: int) -> void:
 	if amount <= 0:

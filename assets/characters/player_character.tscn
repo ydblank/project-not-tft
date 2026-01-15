@@ -1,7 +1,8 @@
-[gd_scene load_steps=40 format=3 uid="uid://dwk3apd8gpdh6"]
+[gd_scene load_steps=41 format=3 uid="uid://dwk3apd8gpdh6"]
 
 [ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
+[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55vje"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(14, 9)
@@ -513,3 +514,19 @@ collision_mask = 0
 position = Vector2(0, -3)
 shape = SubResource("RectangleShape2D_7eqks")
 debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Label" type="Label" parent="CanvasLayer"]
+texture_filter = 1
+offset_left = 33.0
+offset_top = 60.0
+offset_right = 82.0
+offset_bottom = 83.0
+text = "Player"
+
+[node name="Healthbar" parent="CanvasLayer" instance=ExtResource("3_55vje")]
+offset_left = 31.0
+offset_top = 89.0
+offset_right = 364.0
+offset_bottom = 104.0
