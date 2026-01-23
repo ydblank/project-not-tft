@@ -24,6 +24,10 @@ extends CharacterBody2D
 @export var combo_final_cooldown: float = 0.5
 @export var combo_chain_window: float = 0.5
 
+# UI
+@export var player_healthbar: HealthBarComponent
+
+
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
 @onready var sprite: Sprite2D = $Sprite2D
