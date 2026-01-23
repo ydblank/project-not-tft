@@ -4,7 +4,7 @@ class calculations:
 	static func assign_player_stats(player_stats: Dictionary, class_stats: Dictionary):
 		var new_stats = {
 			"hp": float(player_stats.get("hp", 0)) + float(class_stats.get("hp", 0)),
-			"str": float(player_stats.get("str", 1)) + float(class_stats.get("str", 0)),
+			"str": float(player_stats.get("str", 0)) + float(class_stats.get("str", 0)),
 			"def": float(player_stats.get("def", 0)) + float(class_stats.get("def", 0)),
 			"knockback_res": float(player_stats.get("knockback_res", 0)) + float(class_stats.get("knockback_res", 0)),
 			"attack_speed": float(player_stats.get("attack_speed", 0)) + float(class_stats.get("attack_speed", 0))
