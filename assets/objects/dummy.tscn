@@ -1,6 +1,6 @@
 [gd_scene load_steps=5 format=3 uid="uid://x50qjtctt5e"]
 
-[ext_resource type="Script" uid="uid://mnoke4gyxgf2" path="res://assets/objects/dummy.gd" id="1_215xv"]
+[ext_resource type="Script" path="res://assets/objects/dummy.gd" id="1_215xv"]
 [ext_resource type="Texture2D" uid="uid://btxk4c37yglrd" path="res://assets/art/1 Characters/Dummy/dummy.png" id="1_nc0bl"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_215xv"]

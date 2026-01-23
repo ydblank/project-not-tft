@@ -431,7 +431,9 @@ func _attack_combo_animation(step: int) -> StringName:
 func _play_attack_animation(anim_name: StringName) -> void:
 	update_animation_parameters(last_direction)
 	if animation_player.has_animation(anim_name):
-		animation_player.play(anim_name)
+		state_machine.travel("Attack")
+		animation_tree.set("parameters/Attack/current_time", 0.0)
+
 
 func _start_lunge_toward_mouse() -> void:
 	var dir := (get_global_mouse_position() - global_position).normalized()
