@@ -1,8 +1,9 @@
-[gd_scene load_steps=41 format=3 uid="uid://dwk3apd8gpdh6"]
+[gd_scene load_steps=42 format=3 uid="uid://dwk3apd8gpdh6"]
 
 [ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55vje"]
+[ext_resource type="Script" uid="uid://cvstau2ipedlj" path="res://assets/characters/Attack.gd" id="4_kdlwy"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(14, 9)
@@ -36,7 +37,7 @@ tracks/1/keys = {
 
 [sub_resource type="Animation" id="Animation_uyvxy"]
 resource_name = "attack_down"
-length = 0.25
+length = 0.6
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -44,10 +45,10 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.06666667, 0.13333334, 0.2),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
 "update": 1,
-"values": [96, 97, 98, 99]
+"values": [96, 97, 98, 99, 24]
 }
 tracks/1/type = "value"
 tracks/1/imported = false
@@ -64,7 +65,7 @@ tracks/1/keys = {
 
 [sub_resource type="Animation" id="Animation_02psr"]
 resource_name = "attack_left"
-length = 0.25
+length = 0.6
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -72,10 +73,10 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.06666667, 0.13333334, 0.2),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.4, 0.5013911),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
 "update": 1,
-"values": [112, 113, 114, 115]
+"values": [112, 113, 114, 115, 113, 10]
 }
 tracks/1/type = "value"
 tracks/1/imported = false
@@ -92,7 +93,7 @@ tracks/1/keys = {
 
 [sub_resource type="Animation" id="Animation_2ee4m"]
 resource_name = "attack_right"
-length = 0.3
+length = 0.6
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -100,10 +101,10 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.06666667, 0.13333334, 0.2, 0.24353187),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.5),
 "transitions": PackedFloat32Array(1, 1, 1, 1, 1),
 "update": 1,
-"values": [112, 113, 114, 115, 113]
+"values": [115, 112, 114, 115, 16]
 }
 tracks/1/type = "value"
 tracks/1/imported = false
@@ -120,7 +121,7 @@ tracks/1/keys = {
 
 [sub_resource type="Animation" id="Animation_7eqks"]
 resource_name = "attack_up"
-length = 0.1
+length = 0.6
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -128,38 +129,10 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.016666668, 0.033333335, 0.05, 0.06666667, 0.083333336),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
+"times": PackedFloat32Array(0, 0.1, 0.2, 0.3, 0.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
 "update": 1,
-"values": [104, 105, 106, 107, 105, 104]
-}
-tracks/1/type = "value"
-tracks/1/imported = false
-tracks/1/enabled = true
-tracks/1/path = NodePath("Sprite2D:flip_h")
-tracks/1/interp = 1
-tracks/1/loop_wrap = true
-tracks/1/keys = {
-"times": PackedFloat32Array(0.016666668),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [false]
-}
-
-[sub_resource type="Animation" id="Animation_uq0cv"]
-resource_name = "attack_up_2"
-length = 0.2
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.033333335, 0.06666667, 0.1, 0.13333333, 0.16666666),
-"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1),
-"update": 1,
-"values": [104, 105, 106, 107, 105, 104]
+"values": [104, 105, 106, 107, 8]
 }
 tracks/1/type = "value"
 tracks/1/imported = false
@@ -401,7 +374,6 @@ _data = {
 &"attack_left": SubResource("Animation_02psr"),
 &"attack_right": SubResource("Animation_2ee4m"),
 &"attack_up": SubResource("Animation_7eqks"),
-&"attack_up_2": SubResource("Animation_uq0cv"),
 &"idle_down": SubResource("Animation_ij6vw"),
 &"idle_left": SubResource("Animation_6a5hm"),
 &"idle_right": SubResource("Animation_xuiqj"),
@@ -512,29 +484,6 @@ collision_layer = 2
 collision_mask = 7
 motion_mode = 1
 script = ExtResource("1_uq0cv")
-player_class_name = null
-player_weapon_name = null
-move_speed = null
-starting_direction = null
-team = null
-respawn_position = null
-stocks = null
-respawn_delay = null
-lunge_distance = null
-lunge_duration = null
-lunge_burst_time = null
-lunge_pause_time = null
-dash_speed = null
-dash_duration = null
-dash_cooldown = null
-combo_max_hits = null
-combo_chain_speed_multiplier = null
-combo_final_cooldown = null
-combo_chain_window = null
-combo_stagger_duration = null
-combo_pre_final_delay_multiplier = null
-melee_slash_spawn_delay = null
-arrow_projectile = null
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture_filter = 1
@@ -582,3 +531,13 @@ offset_left = 31.0
 offset_top = 89.0
 offset_right = 364.0
 offset_bottom = 104.0
+
+[node name="AttackTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="ComboWindowTimer" type="Timer" parent="."]
+
+[node name="LockoutTimer" type="Timer" parent="."]
+
+[node name="Node" type="Node" parent="."]
+script = ExtResource("4_kdlwy")
