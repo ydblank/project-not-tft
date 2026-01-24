@@ -8,6 +8,8 @@ const DEBUG_HITS := false
 @export var damage: float = 0.0
 @export var combo_step: int = 0
 @export var combo_total_hits: int = 1
+@export var hits_players: bool = true
+@export var hits_dummies: bool = true
 @onready var animation_player = $AnimationPlayer
 @onready var sprite = $Sprite2D
 @onready var area: Area2D = $Area2D
@@ -23,18 +25,18 @@ func set_attack_context(p_attacker_id: int, p_attacker_team: int, p_damage: floa
 	combo_total_hits = p_combo_total_hits
 
 func _ready():
-	print(
-		"[SLASH] ready attacker_id=",
-		attacker_id,
-		" team=",
-		attacker_team,
-		" dmg=",
-		damage,
-		" step=",
-		combo_step,
-		"/",
-		combo_total_hits
-	)
+	#print(
+		#"[SLASH] ready attacker_id=",
+		#attacker_id,
+		#" team=",
+		#attacker_team,
+		#" dmg=",
+		#damage,
+		#" step=",
+		#combo_step,
+		#"/",
+		#combo_total_hits
+	#)
 	# Ensure we log hits whether the target is a PhysicsBody or an Area2D hitbox.
 	if area:
 		area.monitoring = true
@@ -53,6 +55,11 @@ func _ready():
 	else:
 		sprite.rotation = 90.0
 	
+	# 🔑 Scale up the slash if this is the final hit
+	if combo_step >= combo_total_hits - 1:
+		sprite.scale = Vector2(1.2, 1.2)   # adjust multiplier as needed
+		area.scale = Vector2(1.2, 1.2)     # enlarge hitbox too, if desired
+
 	animation_player.play(slash_effect)
 
 func _on_area_2d_body_entered(body: Node2D) -> void:
@@ -77,6 +84,8 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 	# Dummy / destructible targets: apply local damage.
 	# (These targets don't participate in player authority RPCs.)
 	if owner.has_method("take_damage"):
+		if not hits_dummies:
+			return
 		var key_dummy := str(owner.get_instance_id())
 		if _hit_targets.has(key_dummy):
 			return
@@ -86,6 +95,8 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 		return
 
 	# Player targets: apply knockback/damage via the player's RPC handler (runs on target authority).
+	if not hits_players:
+		return
 	if owner.name.is_valid_int() and owner.name == str(attacker_id):
 		return
 	if owner.has_method("get") and int(owner.get("team")) == attacker_team:
