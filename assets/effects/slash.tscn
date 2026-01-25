@@ -202,16 +202,15 @@ _data = {
 }
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mkobs"]
-size = Vector2(6, 19)
+size = Vector2(18, 22)
 
 [node name="slash" type="Node2D"]
-rotation = -0.14486232
 script = ExtResource("1_h7bka")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 modulate = Color(1, 1, 1, 0)
 texture_filter = 1
-position = Vector2(25, 0)
+position = Vector2(12, 0)
 rotation = 0.7853982
 scale = Vector2(0.5, 0.5)
 texture = ExtResource("2_h7bka")
@@ -229,7 +228,7 @@ collision_layer = 0
 collision_mask = 10
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
-position = Vector2(26, -1)
+position = Vector2(12, -1)
 shape = SubResource("RectangleShape2D_mkobs")
 
 [connection signal="animation_finished" from="AnimationPlayer" to="." method="_on_animation_player_animation_finished"]

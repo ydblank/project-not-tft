@@ -4,7 +4,7 @@ class_name HealthBarComponent
 @onready var timer = $Timer
 @onready var damage_bar = $Damagebar
 
-var health: float = 0 : set = _set_health
+var health: float = 0: set = _set_health
 
 func _set_health(new_health):
 	var prev_health = health

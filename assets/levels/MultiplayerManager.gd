@@ -15,7 +15,6 @@ func _on_peer_connected(id):
 	if multiplayer.is_server():
 		add_player(id)
 
-
 func _on_peer_disconnected(id):
 	print("Peer disconnected:", id)
 	if has_node(str(id)):
