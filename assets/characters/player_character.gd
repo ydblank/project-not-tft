@@ -31,13 +31,11 @@ extends CharacterBody2D
 # UI
 @export var player_healthbar: HealthBarComponent
 
-
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var state_machine = animation_tree.get("parameters/playback")
 @onready var player_hitbox: Area2D = $PlayerHitbox
-@onready var player_healthbar: ProgressBar = $CanvasLayer/Healthbar
 @onready var attack_timer: Timer = get_node_or_null("AttackTimer")
 
 const ATTACK_EFFECT = preload("res://assets/effects/slash.tscn")
