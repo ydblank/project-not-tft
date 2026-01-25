@@ -1,12 +1,9 @@
-[gd_scene load_steps=7 format=3 uid="uid://bley13nvxx3pd"]
+[gd_scene load_steps=6 format=3 uid="uid://bley13nvxx3pd"]
 
 [ext_resource type="Script" uid="uid://b7guoo3aq6y8h" path="res://assets/objects/arrow_projectile.gd" id="1_kune3"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="2_0vtlw"]
 [ext_resource type="Texture2D" uid="uid://bnk7oy4bgoe8s" path="res://assets/art/1 Characters/Other/Arrow.png" id="2_jbqp3"]
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="3_81uip"]
-
-[sub_resource type="RectangleShape2D" id="RectangleShape2D_jbqp3"]
-size = Vector2(12, 4)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_kune3"]
 size = Vector2(12, 4)
@@ -17,15 +14,6 @@ collision_mask = 5
 motion_mode = 1
 script = ExtResource("1_kune3")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-texture_filter = 1
-scale = Vector2(1.4, 1.4)
-texture = ExtResource("2_jbqp3")
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
-shape = SubResource("RectangleShape2D_jbqp3")
-disabled = true
-
 [node name="MovementComponent" parent="." instance=ExtResource("2_0vtlw")]
 
 [node name="HitboxComponent" parent="." instance=ExtResource("3_81uip")]
@@ -33,3 +21,8 @@ disabled = true
 [node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
 scale = Vector2(0.99999994, 0.99999994)
 shape = SubResource("RectangleShape2D_kune3")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture_filter = 1
+scale = Vector2(1.4, 1.4)
+texture = ExtResource("2_jbqp3")

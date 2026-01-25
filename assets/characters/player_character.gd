@@ -28,6 +28,10 @@ extends CharacterBody2D
 @export var melee_slash_spawn_delay: float = 0.1
 @export var combo_pause_time: float = 0.25  # new pause duration
 
+# UI
+@export var player_healthbar: HealthBarComponent
+
+
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
 @onready var sprite: Sprite2D = $Sprite2D

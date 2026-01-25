@@ -1,9 +1,12 @@
-[gd_scene load_steps=42 format=3 uid="uid://dwk3apd8gpdh6"]
+[gd_scene load_steps=45 format=3 uid="uid://dwk3apd8gpdh6"]
 
 [ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
-[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55vje"]
-[ext_resource type="Script" uid="uid://cvstau2ipedlj" path="res://assets/characters/Attack.gd" id="4_kdlwy"]
+[ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
+[ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
+[ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
+[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
+[ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_tn02o"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(14, 9)
@@ -479,11 +482,12 @@ graph_offset = Vector2(-1, 48)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_7eqks"]
 size = Vector2(12, 14)
 
-[node name="PlayerCharacter" type="CharacterBody2D"]
+[node name="PlayerCharacter" type="CharacterBody2D" node_paths=PackedStringArray("player_healthbar")]
 collision_layer = 2
 collision_mask = 7
 motion_mode = 1
 script = ExtResource("1_uq0cv")
+player_healthbar = NodePath("CanvasLayer/Healthbar")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture_filter = 1
@@ -507,15 +511,6 @@ parameters/Attack/blend_position = Vector2(-0.3992933, 0.1748879)
 parameters/Idle/blend_position = Vector2(-0.22745413, -0.29113925)
 parameters/Walk/blend_position = Vector2(-0.017543852, 0.12322283)
 
-[node name="PlayerHitbox" type="Area2D" parent="."]
-collision_layer = 2
-collision_mask = 0
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="PlayerHitbox"]
-position = Vector2(0, -3)
-shape = SubResource("RectangleShape2D_7eqks")
-debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
-
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
 [node name="Label" type="Label" parent="CanvasLayer"]
@@ -526,18 +521,20 @@ offset_right = 82.0
 offset_bottom = 83.0
 text = "Player"
 
-[node name="Healthbar" parent="CanvasLayer" instance=ExtResource("3_55vje")]
-offset_left = 31.0
-offset_top = 89.0
-offset_right = 364.0
-offset_bottom = 104.0
+[node name="Healthbar" parent="CanvasLayer" instance=ExtResource("8_tn02o")]
 
-[node name="AttackTimer" type="Timer" parent="."]
-one_shot = true
+[node name="HitboxComponent" parent="." node_paths=PackedStringArray("health_component") instance=ExtResource("4_o4qoj")]
+health_component = NodePath("../CanvasLayer/Healthbar")
 
-[node name="ComboWindowTimer" type="Timer" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+position = Vector2(0, -3)
+shape = SubResource("RectangleShape2D_7eqks")
+debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
 
-[node name="LockoutTimer" type="Timer" parent="."]
+[node name="MovementComponent" parent="." instance=ExtResource("5_088tr")]
 
-[node name="Node" type="Node" parent="."]
-script = ExtResource("4_kdlwy")
+[node name="AnimationComponent" parent="." instance=ExtResource("6_sheqp")]
+
+[node name="AttackComponent" parent="." instance=ExtResource("7_tc657")]
+
+[node name="HealthComponent" parent="." instance=ExtResource("8_tn02o")]
