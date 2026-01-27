@@ -103,66 +103,56 @@ func _on_area_2d_body_entered(body: Node2D) -> void:
 		print("[SLASH] body_entered:", body.name, " type=", body.get_class())
 
 func _on_area_2d_area_entered(hit_area: Area2D) -> void:
-	var owner := hit_area.get_parent() as Node2D
-	if DEBUG_HITS:
-		print(
-			"[SLASH] area_entered:",
-			hit_area.name,
-			" owner=",
-			(owner.name if owner else "null"),
-			" owner_type=",
-			(owner.get_class() if owner else "null")
-		)
+	var hit_owner := hit_area.get_parent() as Node2D
 
-	if owner == null:
+	if hit_owner == null:
 		return
 
 	# Dummy / destructible targets: apply local damage.
-	# (These targets don't participate in player authority RPCs.)
-	if owner.has_method("take_damage"):
+	if hit_owner.has_method("take_damage"):
 		if not hits_dummies:
 			return
-		var key_dummy := str(owner.get_instance_id())
+		var key_dummy := str(hit_owner.get_instance_id())
 		if _hit_targets.has(key_dummy):
 			return
 		_hit_targets[key_dummy] = true
 		var dmg_dummy := damage if damage > 0.0 else weapon_damage
-		owner.call("take_damage", dmg_dummy)
+		hit_owner.call("take_damage", dmg_dummy)
 		return
 
 	# Player targets: apply knockback/damage via the player's RPC handler (runs on target authority).
 	if not hits_players:
 		return
-	if owner.name.is_valid_int() and owner.name == str(attacker_id):
+	if hit_owner.name.is_valid_int() and hit_owner.name == str(attacker_id):
 		return
-	if owner.has_method("get") and int(owner.get("team")) == attacker_team:
+	if hit_owner.has_method("get") and int(hit_owner.get("team")) == attacker_team:
 		return
-	if not owner.has_method("receive_combo_hit"):
+	if not hit_owner.has_method("receive_combo_hit"):
 		return
 
 	# Avoid multi-hit spam for a single slash animation.
-	var key := owner.name
+	var key := hit_owner.name
 	if _hit_targets.has(key):
 		return
 	_hit_targets[key] = true
 	print("[SLASH] HIT confirmed target=", key, " dmg=", (damage if damage > 0.0 else weapon_damage))
 
-	var dir: Vector2 = (owner.global_position - global_position).normalized()
+	var dir: Vector2 = (hit_owner.global_position - global_position).normalized()
 	if dir == Vector2.ZERO:
 		dir = Vector2.RIGHT
 
 	var dmg := damage if damage > 0.0 else weapon_damage
-	var target_auth := owner.get_multiplayer_authority()
-	print("[SLASH] applying hit target=", owner.name, " target_auth=", target_auth, " dmg=", dmg)
+	var target_auth := hit_owner.get_multiplayer_authority()
+	print("[SLASH] applying hit target=", hit_owner.name, " target_auth=", target_auth, " dmg=", dmg)
 	# Guard: don't call RPCs when multiplayer isn't active (or authority is invalid).
 	var mp := multiplayer.multiplayer_peer
 	if mp == null or mp.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		# Offline / not connected: apply locally (player script treats local as authority)
-		owner.receive_combo_hit(dir, dmg, combo_step, combo_total_hits)
+		hit_owner.receive_combo_hit(dir, dmg, combo_step, combo_total_hits)
 		return
 	if target_auth <= 0:
 		return
-	owner.receive_combo_hit.rpc_id(target_auth, dir, dmg, combo_step, combo_total_hits)
+	hit_owner.receive_combo_hit.rpc_id(target_auth, dir, dmg, combo_step, combo_total_hits)
 
 
 func _on_animation_player_animation_finished(anim_name: StringName) -> void:
