@@ -1,4 +1,4 @@
-[gd_scene load_steps=46 format=3 uid="uid://dwk3apd8gpdh6"]
+[gd_scene load_steps=47 format=3 uid="uid://dwk3apd8gpdh6"]
 
 [ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
 [ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
 [ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_tn02o"]
+[ext_resource type="PackedScene" uid="uid://cys71e6y2rg41" path="res://assets/scenes/shield_component.tscn" id="9_088tr"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(14, 9)
@@ -542,3 +543,5 @@ debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
 [node name="AttackComponent" parent="." instance=ExtResource("7_tc657")]
 
 [node name="HealthComponent" parent="." instance=ExtResource("8_tn02o")]
+
+[node name="ShieldComponent" parent="." instance=ExtResource("9_088tr")]

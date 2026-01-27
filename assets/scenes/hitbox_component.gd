@@ -18,8 +18,6 @@ signal hitbox_body_entered(body: Node2D)
 var CombatClass = Combat
 
 func _ready():
-	area_entered.connect(_on_area_entered)
-	body_entered.connect(_on_body_entered)
 	
 	if not health_component:
 		health_component = _find_health_component()

@@ -1,0 +1,31 @@
+[gd_scene load_steps=6 format=3 uid="uid://cys71e6y2rg41"]
+
+[ext_resource type="Script" uid="uid://dpr8cltp1bms5" path="res://assets/scenes/shield_component.gd" id="1_ng2v0"]
+[ext_resource type="Texture2D" uid="uid://b2o3vbctjv3nx" path="res://assets/art/4 GUI/3 Icons/Icon_14.png" id="2_31faw"]
+[ext_resource type="Script" uid="uid://cy1447c0fssmo" path="res://assets/scenes/hitbox_component.gd" id="3_mprmg"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_8nmc1"]
+radius = 3.0
+height = 22.0
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_v50ra"]
+radius = 3.0
+height = 22.0
+
+[node name="ShieldComponent" type="Node2D"]
+script = ExtResource("1_ng2v0")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(-2.3841858e-07, 0)
+scale = Vector2(0.6, 2.8)
+texture = ExtResource("2_31faw")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CapsuleShape2D_8nmc1")
+
+[node name="HitboxComponent" type="Area2D" parent="."]
+script = ExtResource("3_mprmg")
+metadata/_custom_type_script = "uid://cy1447c0fssmo"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+shape = SubResource("CapsuleShape2D_v50ra")

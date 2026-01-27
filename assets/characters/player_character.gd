@@ -35,15 +35,22 @@ extends CharacterBody2D
 @onready var animation_tree: AnimationTree = $AnimationTree
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var state_machine = animation_tree.get("parameters/playback")
-@onready var player_hitbox: Area2D = $PlayerHitbox
+@onready var player_hitbox: Area2D = $HitboxComponent
 @onready var attack_timer: Timer = get_node_or_null("AttackTimer")
+@export var arrow_projectile: PackedScene = preload("res://assets/objects/arrow_projectile.tscn")
+@onready var shield: Node = $ShieldComponent
 
 const ATTACK_EFFECT = preload("res://assets/effects/slash.tscn")
-@export var arrow_projectile: PackedScene = preload("res://assets/objects/arrow_projectile.tscn")
 var classes_preload: ClassesDB = preload("res://assets/resources/classes.tres")
 var weapons_preload: WeaponsDB = preload("res://assets/resources/weapons.tres")
-
 var CombatClass = Combat
+
+# Local offsets (relative to aim direction)
+const SLASH_OFFSETS := {
+	"slash": Vector2(0, -10),   # above the swing
+	"slash_2": Vector2(0, 10)   # below the swing
+}
+
 
 # ---------------- STATE ----------------
 var player_stats: Dictionary
@@ -52,6 +59,8 @@ var player_weapon: Dictionary
 var last_direction: Vector2 = Vector2.DOWN
 
 var _movement_locked := false
+var _movement_slowed: float = 0.25   # 25% of normal speed
+
 var _attack_effect_spawned := false
 var _attack_hit_targets: Dictionary = {}
 
@@ -64,7 +73,8 @@ var combo_step := 0
 var buffered_attack := false
 var _lunge_velocity := Vector2.ZERO
 var _lunge_time_left := 0.0
-
+var _combo_directions: Array = []
+var _heavy_attack_angle: float = 0.0
 # ---------------- CHARGE LOGIC ----------------
 var _shake_strength: float = 0.1
 var _shake_time: float = 0.0
@@ -166,6 +176,12 @@ func ready_new_player() -> void:
 func _physics_process(delta: float) -> void:
 	# Only process input if this is the authority player (when multiplayer is active).
 	# Avoid calling multiplayer APIs when no peer exists (they spam errors).
+	if Input.is_action_pressed("Block"):
+		shield.activate_shield(self)
+	else:
+		shield.deactivate_shield()
+
+
 	if _net_active() and not is_multiplayer_authority():
 		_sync_state()
 		return
@@ -184,6 +200,20 @@ func _physics_process(delta: float) -> void:
 	)
 
 	var input_dir := raw_input_dir
+
+	# Early return if nothing is happening
+	if input_dir == Vector2.ZERO and \
+	   not _is_dashing and \
+	   _lunge_time_left <= 0.0 and \
+	   not attack_is_holding and \
+	   stagger_timer <= 0.0 and \
+	   knockback_timer <= 0.0:
+		
+		# Update animation / state so we don't get stuck walking
+		update_animation_parameters(last_direction)
+		if attack_state == AttackState.IDLE:
+			state_machine.travel("Idle")
+		return
 
 	# LOCK MOVEMENT DURING LUNGE, DASH, OR CHARGE
 	if _lunge_time_left > 0.0 or _is_dashing or is_charging:
@@ -220,12 +250,13 @@ func _physics_process(delta: float) -> void:
 		if _movement_locked:
 			velocity = Vector2.ZERO
 		else:
-			velocity = input_dir * move_speed
+			var current_speed := move_speed
+			# ✅ Slow down if charging heavy attack
+			if attack_is_holding and attack_hold_time >= heavy_threshold:
+				current_speed *= _movement_slowed
+			velocity = input_dir * current_speed
+
 	move_and_slide()
-
-
-	if Input.is_action_just_pressed("Light Attack"):
-		handle_attack_input(AttackType.LIGHT)		
 
 	if Input.is_action_just_pressed("dash") and not _is_dashing and _dash_cooldown_left <= 0.0:
 		# Allow escaping stagger by dashing.
@@ -241,40 +272,67 @@ func _physics_process(delta: float) -> void:
 func handle_attack_input(attack: AttackType) -> void:
 	if is_dead:
 		return
-		
+
 	current_attack_type = attack
-	
+
 	match attack_state:
 		AttackState.IDLE:
+			# Starting a new attack
+			combo_step = 0
+			buffered_attack = false
 			if attack == AttackType.LIGHT:
 				start_attack()
 			elif attack == AttackType.HEAVY:
 				start_heavy_attack()
+
 		AttackState.COMBO_WINDOW:
+			# Allow chaining into next combo step
 			var max_hits := _combo_total_hits()
 			if combo_step < max_hits - 1:
 				combo_step += 1
+				buffered_attack = false
 				if attack == AttackType.LIGHT:
 					start_attack()
 				elif attack == AttackType.HEAVY:
 					start_heavy_attack()
-		_:
+			else:
+				# Already at final step, reset
+				combo_step = 0
+				buffered_attack = false
+				attack_state = AttackState.IDLE
+
+		AttackState.RECOVERY:
+			# Buffer input during recovery so it fires when combo window opens
 			buffered_attack = true
+
+		_:
+			# Any other state (startup/active), buffer input
+			buffered_attack = true
+
+var attack_hold_time: float = 0.0
+var attack_is_holding: bool = false
+var heavy_threshold: float = 0.25   # seconds to trigger heavy attack
+var _heavy_attack_direction: Vector2 = Vector2.ZERO
 
 func _input(event):
 	if is_dead:
 		return
 
-	# Only allow charging when idle (not mid-combo/attack)
-	if attack_state != AttackState.IDLE:
-		return
+	if event.is_action_pressed("Attack"):
+		attack_is_holding = true
+		attack_hold_time = 0.0
+		_shake_time = 0.0   # reset visuals
 
-	if event.is_action_pressed("Heavy Attack"):
-		is_charging = true
-		charge_time = 0.0
-	elif event.is_action_released("Heavy Attack") and is_charging:
-		is_charging = false
-		charge_heavy_attack()
+	elif event.is_action_released("Attack") and attack_is_holding:
+		attack_is_holding = false
+		if attack_hold_time >= heavy_threshold:
+			# Heavy attack
+			charge_time = attack_hold_time
+			charge_heavy_attack()
+		else:
+			# Light attack
+			handle_attack_input(AttackType.LIGHT)
+
 
 func charge_heavy_attack() -> void:
 	var charge_ratio := charge_time / max_charge_time
@@ -303,34 +361,25 @@ func charge_heavy_attack() -> void:
 	handle_attack_input(AttackType.HEAVY)
 
 func _process(delta):
-	if is_charging:
-		charge_time = min(charge_time + delta, max_charge_time)
+	if attack_is_holding:
+		attack_hold_time = min(attack_hold_time + delta, max_charge_time)
 		_shake_time += delta
 
-		var ratio: float = clamp(charge_time / max_charge_time, 0.0, 1.0)
+		var ratio: float = clamp(attack_hold_time / max_charge_time, 0.0, 1.0)
 
-		# --- Shake (gentle ramp) ---
-		if charge_time >= 0.2:
+		# Shake feedback
+		if attack_hold_time >= 0.2:
 			var shake_intensity: float = _shake_strength * (1.0 + ratio)
-			var freq_x: float = 10.0 + 10.0 * ratio
-			var freq_y: float = 15.0 + 15.0 * ratio
-			sprite.position.x = sin(_shake_time * freq_x) * shake_intensity
-			sprite.position.y = cos(_shake_time * freq_y) * shake_intensity
+			sprite.position.x = sin(_shake_time * (10.0 + 10.0 * ratio)) * shake_intensity
+			sprite.position.y = cos(_shake_time * (15.0 + 15.0 * ratio)) * shake_intensity
 
-		# --- Simple blink ---
-		# Blink speed ramps up with charge, but capped
-		var blink_speed: float = lerp(4.0, 8.0, ratio)  # starts at 4 Hz, max ~8 Hz
+		# Blink feedback
+		var blink_speed: float = lerp(4.0, 8.0, ratio)
 		var blink_phase: int = int(_shake_time * blink_speed) % 2
-
-		if blink_phase == 0:
-			sprite.self_modulate = Color(1, 1, 1, 1)
-		else:
-			var glow_strength: float = lerp(1.2, 1.8, ratio)
-			sprite.self_modulate = Color(glow_strength, glow_strength, glow_strength, 1)
-
+		sprite.self_modulate = Color(1,1,1,1) if blink_phase == 0 else Color(1.5,1.5,1.5,1)
 	else:
 		sprite.position = Vector2.ZERO
-		sprite.self_modulate = Color(1, 1, 1, 1)
+		sprite.self_modulate = Color(1,1,1,1)
 
 func start_attack() -> void:
 	attack_state = AttackState.STARTUP
@@ -338,42 +387,85 @@ func start_attack() -> void:
 	_attack_effect_spawned = false
 	_attack_hit_targets.clear()
 
-	# Determine attack direction (also used for hitbox placement + animation blend).
-	last_direction = _mouse_cardinal_direction()
-	update_animation_parameters(last_direction)
-	
-	# Lunge only for melee weapons.
+	# Raw mouse direction (continuous vector)
+	var raw_dir := (get_global_mouse_position() - global_position).normalized()
+	# Cardinal snapped direction (4-way)
+	var cardinal_dir := _mouse_cardinal_direction()
+
+	last_direction = cardinal_dir
+	update_animation_parameters(cardinal_dir)
+
+	# ✅ Record both raw + cardinal directions
+	_combo_directions.append({
+		"step": combo_step,
+		"raw": raw_dir,
+		"cardinal": cardinal_dir
+	})
+
+	# Lunge only for melee weapons
 	if _weapon_type() != "range":
 		_start_lunge_toward_mouse()
 
 	attack_timer.wait_time = get_startup_time()
 	attack_timer.start()
-	
+
 func start_heavy_attack() -> void:
-	print("heavy")
-	var startup_time := get_startup_time()
-
-	if combo_step == 0:
-		# First heavy hit: big wind‑up
-		await get_tree().create_timer(0.05).timeout
-	else:
-		# Second heavy hit: snappier follow‑through
-		await get_tree().create_timer(0.08).timeout
-
 	attack_state = AttackState.STARTUP
 	buffered_attack = false
 	_attack_effect_spawned = false
 	_attack_hit_targets.clear()
 
-	last_direction = _mouse_cardinal_direction()
-	update_animation_parameters(last_direction)
+	# Determine raw direction for lunge
+	var raw_dir: Vector2
 
-	if _weapon_type() != "range":
-		_start_lunge_toward_mouse(1.5)
+	if combo_step == 0:
+		# First heavy hit: lock raw direction for the combo
+		raw_dir = (get_global_mouse_position() - global_position).normalized()
+		if raw_dir == Vector2.ZERO:
+			raw_dir = last_direction
+		_heavy_attack_direction = raw_dir
 
-	attack_timer.wait_time = startup_time
+		# Also store for visual effects
+		_combo_directions.clear()
+		_combo_directions.append({
+			"step": combo_step,
+			"raw": raw_dir,
+			"cardinal": _mouse_cardinal_direction()
+		})
+	else:
+		# Following hits: reuse locked raw direction for lunge
+		raw_dir = _heavy_attack_direction
+		if raw_dir == Vector2.ZERO:
+			raw_dir = last_direction
+
+		# Visual effects still use the first hit's locked raw
+		if _combo_directions.size() == 0:
+			_combo_directions.append({
+				"step": 0,
+				"raw": raw_dir,
+				"cardinal": _mouse_cardinal_direction()
+			})
+
+	# Snap cardinal for animation only
+	var cardinal_dir: Vector2
+	if abs(raw_dir.x) > abs(raw_dir.y):
+		cardinal_dir = Vector2.RIGHT if raw_dir.x > 0 else Vector2.LEFT
+	else:
+		cardinal_dir = Vector2.DOWN if raw_dir.y > 0 else Vector2.UP
+
+	last_direction = cardinal_dir
+	update_animation_parameters(cardinal_dir)
+
+	# Lunge uses raw_dir (locked first hit direction)
+	var distance := lunge_distance * 1.5
+	if _is_final_combo_step():
+		distance *= 2
+	_lunge_velocity = raw_dir * (distance / max(lunge_burst_time, 0.001))
+	_lunge_time_left = lunge_burst_time + lunge_pause_time
+
+	# Start attack timer
+	attack_timer.wait_time = get_startup_time()
 	attack_timer.start()
-
 
 
 # ---------------- MULTIPLAYER SYNC ----------------
@@ -465,70 +557,59 @@ func _on_attack_timer_timeout() -> void:
 	match attack_state:
 		AttackState.STARTUP:
 			if current_attack_type == AttackType.HEAVY:
-				# Add predelay before hitbox turns on
-				var pre_delay := 0.25   # tune this value
+				var pre_delay := 0.25
 				attack_timer.wait_time = pre_delay
 				attack_state = AttackState.ACTIVE
-
 				attack_timer.start()
-
 			else:
 				enable_hitbox()
 				attack_timer.wait_time = get_active_time()
 				attack_state = AttackState.ACTIVE
 				attack_timer.start()
+
 		AttackState.ACTIVE:
 			attack_state = AttackState.RECOVERY
 			disable_hitbox()
 			var t := get_recovery_time()
 			attack_timer.wait_time = t
 			attack_timer.start()
+
 		AttackState.RECOVERY:
 			if current_attack_type == AttackType.HEAVY and combo_step < _combo_total_hits() - 1:
-				# Still chaining heavy hits
-				combo_step += 1
+				combo_step += 1   # ✅ advance step here
 				start_heavy_attack()
 			else:
 				if _is_final_combo_step():
 					buffered_attack = false
 					combo_step = 0
 					attack_state = AttackState.IDLE
-					# Reset charge multipliers after the final heavy hit
 					_charge_damage_mult = 1.0
 					_charge_knockback_mult = 1.0
+					_heavy_attack_direction = Vector2.ZERO
 				else:
 					attack_state = AttackState.COMBO_WINDOW
 					attack_timer.wait_time = combo_chain_window
 					attack_timer.start()
+					if buffered_attack:
+						buffered_attack = false
+						handle_attack_input(current_attack_type)
+
 		AttackState.COMBO_WINDOW:
-			if current_attack_type == AttackType.HEAVY:
-				# Auto‑chain heavy attacks
-				var max_hits := _combo_total_hits()
-				if combo_step < max_hits - 1:
-					combo_step += 1
-					start_heavy_attack()
-				else:
-					combo_step = 0
-					attack_state = AttackState.IDLE
-			elif buffered_attack:
+			var max_hits := _combo_total_hits()
+			if buffered_attack:
 				buffered_attack = false
-				var max_hits := _combo_total_hits()
 				if combo_step < max_hits - 1:
 					combo_step += 1
 					if current_attack_type == AttackType.LIGHT:
 						start_attack()
+					elif current_attack_type == AttackType.HEAVY:
+						start_heavy_attack()
 				else:
 					combo_step = 0
 					attack_state = AttackState.IDLE
 			else:
 				combo_step = 0
 				attack_state = AttackState.IDLE
-
-
-#func _on_combo_window_timeout() -> void:
-	#if _is_attacking:
-		#_combo_step = 0
-		#_is_attacking = false
 
 # ---------------- HELPERS ----------------
 func _mouse_cardinal_direction() -> Vector2:
@@ -538,22 +619,26 @@ func _mouse_cardinal_direction() -> Vector2:
 	return Vector2.DOWN if to_mouse.y > 0.0 else Vector2.UP
 
 func _attack_combo_animation(step: int) -> StringName:
-	var to_mouse := get_global_mouse_position() - global_position
-	var is_left := to_mouse.x < 0.0
+	var is_left: bool
+
+	if current_attack_type == AttackType.HEAVY and _heavy_attack_direction != Vector2.ZERO:
+		# ✅ Use locked heavy direction
+		is_left = _heavy_attack_direction.x < 0.0
+	else:
+		# Default: use mouse direction
+		var to_mouse := get_global_mouse_position() - global_position
+		is_left = to_mouse.x < 0.0
 
 	if current_attack_type == AttackType.HEAVY:
 		match step:
 			0: return &"slash_2"   # first heavy hit
-			1: return &"slash"     # second heavy hit (or &"slash_3" if you prefer)
-			_: return &"slash"     # fallback
+			1: return &"slash"     # second heavy hit
+			_: return &"slash"
 	else:
 		if is_left:
 			return &"slash_2" if step % 2 == 0 else &"slash"
 		else:
 			return &"slash" if step % 2 == 0 else &"slash_2"
-
-func _play_attack_animation() -> void:
-	update_animation_parameters(last_direction)
 
 func _start_lunge_toward_mouse(multiplier: float = 1.0) -> void:
 	var dir := (get_global_mouse_position() - global_position).normalized()
@@ -667,16 +752,41 @@ func spawn_projectile(step: int) -> void:
 
 func spawn_attack_effect(step: int) -> void:
 	var fx = ATTACK_EFFECT.instantiate()
-	fx.global_position = global_position
 
-	# Use the combo animation helper to decide which animation to play
-	var anim_name := _attack_combo_animation(step)
-	fx.slash_effect = str(anim_name)  # assign to the effect scene
-	# When using the timer-driven hitbox system, this slash effect should not hit players
-	# (otherwise we'd double-apply damage). Keep dummy damage enabled.
+	if current_attack_type == AttackType.HEAVY and _combo_directions.size() > 0:
+		var locked_raw: Vector2 = _combo_directions[0]["raw"] as Vector2
+		fx.follow_mouse = false
+
+		var angle_deg: float = rad_to_deg(locked_raw.angle()) + 250.0
+		if step == 1:
+			angle_deg += 220.0
+		fx.fixed_rotation = angle_deg
+
+		_heavy_attack_angle = deg_to_rad(angle_deg)
+
+		var offset_distance: float = 20.0
+		var anim_name := _attack_combo_animation(step)
+		fx.slash_effect = str(anim_name)
+
+		var base_pos: Vector2 = global_position + locked_raw.normalized() * offset_distance
+		var local_offset: Vector2 = SLASH_OFFSETS.get(anim_name, Vector2.ZERO)
+		var rotated_offset: Vector2 = local_offset.rotated(locked_raw.angle())
+
+		fx.global_position = base_pos + rotated_offset
+
+		# 🔹 Minimal debug
+		print("[DEBUG] Heavy step=", step,
+			  " raw_angle=", rad_to_deg(locked_raw.angle()),
+			  " corrected_angle=", angle_deg,
+			  " pos=", fx.global_position)
+
+	else:
+		fx.global_position = global_position
+		fx.follow_mouse = true
+		fx.slash_effect = str(_attack_combo_animation(step))
+
 	fx.hits_players = false
 
-	# Pass combat info for hit/knockback
 	var base_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
 	var mult: float = _weapon_combo_damage_multiplier(step)
 	var total_damage: float = max(base_damage * mult * _charge_damage_mult, 1.0)
@@ -688,7 +798,6 @@ func spawn_attack_effect(step: int) -> void:
 		elif name.is_valid_int():
 			attacker_id = int(name)
 		fx.set_attack_context(attacker_id, team, total_damage, step, total_hits)
-	#print("[ATTACK] spawn_slash by=", name, " team=", team, " dmg=", total_damage, " anim=", fx.slash_effect)
 
 	get_parent().add_child(fx)
 
@@ -718,22 +827,6 @@ func _setup_hitboxes() -> void:
 	attack_hitbox.add_child(attack_shape)
 
 	attack_hitbox.area_entered.connect(_on_attack_hitbox_area_entered)
-
-func _update_attack_hitbox_position() -> void:
-	if not attack_hitbox:
-		return
-	var shape = attack_hitbox.get_node_or_null("CollisionShape2D")
-	if not shape:
-		return
-
-	if last_direction.x < 0:
-		attack_hitbox.position = Vector2(-6, -4)
-	elif last_direction.x > 0:
-		attack_hitbox.position = Vector2(6, -4)
-	elif last_direction.y < 0:
-		attack_hitbox.position = Vector2(0, -12)
-	elif last_direction.y > 0:
-		attack_hitbox.position = Vector2(0, 7)
 
 func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	if not is_multiplayer_authority():
@@ -942,7 +1035,6 @@ func respawn() -> void:
 
 func enable_hitbox() -> void:
 	_attack_hit_targets.clear()
-	_update_attack_hitbox_position()
 	if _weapon_type() != "range":
 		_start_attack_hitbox()
 
@@ -952,9 +1044,9 @@ func disable_hitbox() -> void:
 func get_startup_time() -> float:
 	var atk_speed: float = max(
 		float(CombatClass.calculations.calculate_attack_speed(player_stats, player_weapon)),
-		0.001
+		0.00001
 	)
-	return 0.05 / atk_speed
+	return 0.01 / atk_speed
 
 func get_active_time() -> float:
 	return 0.10
@@ -962,7 +1054,7 @@ func get_active_time() -> float:
 func get_recovery_time() -> float:
 	if current_attack_type == AttackType.HEAVY:
 		return 0.1
-	return 0.01   # default for light
+	return 0.15   # default for light
 
 
 func _is_final_combo_step() -> bool:
