@@ -1,14 +1,14 @@
-[gd_scene load_steps=47 format=3 uid="uid://dwk3apd8gpdh6"]
+[gd_scene load_steps=47 format=3 uid="uid://u70q18a0ttgt"]
 
-[ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
-[ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
-[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_o4qoj"]
-[ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
-[ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
-[ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
-[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
-[ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_tn02o"]
-[ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="10_tc657"]
+[ext_resource type="Script" uid="uid://cg3hqt8v34pbq" path="res://assets/characters/component_character.gd" id="1_38w3h"]
+[ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_prvjx"]
+[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_rwbet"]
+[ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_e3xsg"]
+[ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_qxlet"]
+[ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_8a1ug"]
+[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_js133"]
+[ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_n0klf"]
+[ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_ucxfk"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(14, 9)
@@ -484,16 +484,15 @@ graph_offset = Vector2(-1, 48)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_7eqks"]
 size = Vector2(12, 14)
 
-[node name="PlayerCharacter" type="CharacterBody2D" node_paths=PackedStringArray("stats")]
+[node name="PlayerCharacter" type="CharacterBody2D"]
 collision_layer = 2
 collision_mask = 7
 motion_mode = 1
-script = ExtResource("1_uq0cv")
-stats = NodePath("ComponentGroup/StatsComponent")
+script = ExtResource("1_38w3h")
 
 [node name="Sprite2D" type="Sprite2D" parent="."]
 texture_filter = 1
-texture = ExtResource("2_uq0cv")
+texture = ExtResource("2_prvjx")
 hframes = 8
 vframes = 15
 
@@ -523,7 +522,7 @@ offset_right = 82.0
 offset_bottom = 83.0
 text = "Player"
 
-[node name="Healthbar" parent="CanvasLayer" instance=ExtResource("3_o4qoj")]
+[node name="Healthbar" parent="CanvasLayer" instance=ExtResource("3_rwbet")]
 offset_left = 28.0
 offset_top = 86.0
 offset_right = 305.0
@@ -531,19 +530,26 @@ offset_bottom = 99.0
 
 [node name="ComponentGroup" type="Node2D" parent="."]
 
-[node name="HitboxComponent" parent="ComponentGroup" instance=ExtResource("4_o4qoj")]
+[node name="HitboxComponent" parent="ComponentGroup" node_paths=PackedStringArray("stats", "health") instance=ExtResource("4_e3xsg")]
+team = 1
+stats = NodePath("../StatsComponent")
+health = NodePath("../HealthComponent")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent"]
 position = Vector2(0, -3)
 shape = SubResource("RectangleShape2D_7eqks")
 debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
 
-[node name="MovementComponent" parent="ComponentGroup" instance=ExtResource("5_088tr")]
+[node name="MovementComponent" parent="ComponentGroup" instance=ExtResource("5_qxlet")]
 
-[node name="AnimationComponent" parent="ComponentGroup" instance=ExtResource("6_sheqp")]
+[node name="AnimationComponent" parent="ComponentGroup" instance=ExtResource("6_8a1ug")]
 
-[node name="AttackComponent" parent="ComponentGroup" instance=ExtResource("7_tc657")]
+[node name="AttackComponent" parent="ComponentGroup" instance=ExtResource("7_js133")]
 
-[node name="HealthComponent" parent="ComponentGroup" instance=ExtResource("8_tn02o")]
+[node name="HealthComponent" parent="ComponentGroup" node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_n0klf")]
+healthbar = NodePath("../../CanvasLayer/Healthbar")
+stats = NodePath("../StatsComponent")
 
-[node name="StatsComponent" parent="ComponentGroup" instance=ExtResource("10_tc657")]
+[node name="StatsComponent" parent="ComponentGroup" instance=ExtResource("9_ucxfk")]
+entity_class = 1
+entity_weapon = 1

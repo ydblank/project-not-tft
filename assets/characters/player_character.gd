@@ -1,9 +1,8 @@
 extends CharacterBody2D
 
-@export var player_class_name: String = "knight"
-@export var player_weapon_name: String = "sword"
+@export var stats: StatsComponent
 
-@export var move_speed: float = 100.0
+var move_speed: float = 100.0
 @export var starting_direction: Vector2 = Vector2(0, 1)
 @export var team: int = 1
 @export var respawn_position: Vector2 = Vector2.ZERO
@@ -11,25 +10,22 @@ extends CharacterBody2D
 @export var respawn_delay: float = 3.0
 @export var lunge_distance: float = 5.0
 @export var lunge_duration: float = 0.5
-@export var lunge_burst_time: float = 0.1   # how long the burst lasts
-@export var lunge_pause_time: float = 0.2   # pause after burst
+@export var lunge_burst_time: float = 0.1 # how long the burst lasts
+@export var lunge_pause_time: float = 0.2 # pause after burst
 # Dash
-@export var dash_speed: float = 300.0
-@export var dash_duration: float = 0.2
-@export var dash_cooldown: float = 0.5
+var dash_speed: float = 300.0
+var dash_duration: float = 0.2
+var dash_cooldown: float = 0.5
 
 # Combo
-@export var combo_max_hits: int = 3
-@export var combo_chain_speed_multiplier: float = 0.6
-@export var combo_final_cooldown: float = .5
-@export var combo_chain_window: float = 0.5
-@export var combo_stagger_duration: float = 0.2
-@export var combo_pre_final_delay_multiplier: float = 1.15
-@export var melee_slash_spawn_delay: float = 0.1
-@export var combo_pause_time: float = 0.25  # new pause duration
-
-# UI
-@export var player_healthbar: HealthBarComponent
+var combo_max_hits: int = 3
+var combo_chain_speed_multiplier: float = 0.6
+var combo_final_cooldown: float = .5
+var combo_chain_window: float = 0.5
+var combo_stagger_duration: float = 0.2
+var combo_pre_final_delay_multiplier: float = 1.15
+var melee_slash_spawn_delay: float = 0.1
+var combo_pause_time: float = 0.25 # new pause duration
 
 @onready var animation_player: AnimationPlayer = $AnimationPlayer
 @onready var animation_tree: AnimationTree = $AnimationTree
@@ -37,13 +33,10 @@ extends CharacterBody2D
 @onready var state_machine = animation_tree.get("parameters/playback")
 @onready var player_hitbox: Area2D = $PlayerHitbox
 @onready var attack_timer: Timer = get_node_or_null("AttackTimer")
+@onready var health_component: HealthComponent = $HealthComponent
 
 const ATTACK_EFFECT = preload("res://assets/effects/slash.tscn")
 @export var arrow_projectile: PackedScene = preload("res://assets/objects/arrow_projectile.tscn")
-var classes_preload: ClassesDB = preload("res://assets/resources/classes.tres")
-var weapons_preload: WeaponsDB = preload("res://assets/resources/weapons.tres")
-
-var CombatClass = Combat
 
 # ---------------- STATE ----------------
 var player_stats: Dictionary
@@ -56,8 +49,8 @@ var _attack_effect_spawned := false
 var _attack_hit_targets: Dictionary = {}
 
 # ---------------- ATTACK STATE MACHINE ----------------
-enum AttackState { IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW }
-enum AttackType { LIGHT, HEAVY }
+enum AttackState {IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW}
+enum AttackType {LIGHT, HEAVY}
 var current_attack_type: AttackType = AttackType.LIGHT
 var attack_state: AttackState = AttackState.IDLE
 var combo_step := 0
@@ -70,7 +63,7 @@ var _shake_strength: float = 0.1
 var _shake_time: float = 0.0
 var is_charging := false
 var charge_time := 0.0
-var max_charge_time := 1.5   # seconds
+var max_charge_time := 1.5 # seconds
 var _charge_damage_mult: float = 1.0
 var _charge_knockback_mult: float = 1.0
 
@@ -84,9 +77,6 @@ var _dash_velocity := Vector2.ZERO
 const BASE_KNOCKBACK = 200.0
 const KNOCKBACK_DURATION = 0.3
 const HIT_DAMAGE_PERCENT = 10.0
-const ATTACK_HITBOX_TIME = 0.1
-
-var hp: float = 100.0
 var damage_percent: float = 0.0
 var knockback_timer: float = 0.0
 var stagger_timer: float = 0.0
@@ -117,6 +107,7 @@ func _ready() -> void:
 		set_process_input(false)
 		set_physics_process(true)
 
+	_apply_stats_resource()
 	player_stats = {
 		"move_speed": move_speed,
 		"lunge_distance": lunge_distance,
@@ -126,8 +117,9 @@ func _ready() -> void:
 	ready_new_player()
 	
 	# Set HP from class stats (after ready_new_player assigns it)
-	if player_stats.has("hp"):
-		hp = float(player_stats["hp"])
+	if health_component and player_stats.has("hp"):
+		health_component.set_max_hp(float(player_stats["hp"]))
+		health_component.set_hp(float(player_stats["hp"]))
 
 	# Default respawn position to where we started (if not set in scene)
 	_initial_spawn_pos = global_position
@@ -148,19 +140,44 @@ func _ready() -> void:
 
 	# Setup hitboxes
 	_setup_hitboxes()
-	
-	# Healthbar
-	player_healthbar.init_health(hp)
+
+func _apply_stats_resource() -> void:
+	if stats == null:
+		push_error("PlayerCharacter: 'stats' is not assigned. Assign a Stats resource in the inspector.")
+		return
+
+	# Pull gameplay-tuned numbers from the Stats resource
+	var s_player_stats: Dictionary = stats.get_entity_stats()
+	move_speed = float(s_player_stats.get("move_speed", move_speed))
+
+	dash_speed = stats.dash_speed
+	dash_duration = stats.dash_duration
+	dash_cooldown = stats.dash_cooldown
+
+	combo_max_hits = stats.combo_max_hits
+	combo_chain_speed_multiplier = stats.combo_chain_speed_multiplier
+	combo_final_cooldown = stats.combo_final_cooldown
+	combo_chain_window = stats.combo_chain_window
+	combo_stagger_duration = stats.combo_stagger_duration
+	combo_pre_final_delay_multiplier = stats.combo_pre_final_delay_multiplier
+	melee_slash_spawn_delay = stats.melee_slash_spawn_delay
+	combo_pause_time = stats.combo_pause_time
 
 func ready_new_player() -> void:
-	player_stats = CombatClass.calculations.assign_player_stats(
-		player_stats,
-		classes_preload.classes[player_class_name]
-	)
+	if stats == null:
+		return
 
-	player_weapon_name = classes_preload.classes[player_class_name]["starting_weapon"]
-	player_weapon = weapons_preload.weapons[player_weapon_name]
-	sprite.texture = load(classes_preload.classes[player_class_name]["sprite_path"])
+	player_stats = stats.get_entity_stats()
+	player_stats["lunge_distance"] = lunge_distance
+	player_stats["lunge_duration"] = lunge_duration
+
+	player_weapon = stats.get_entity_weapon()
+
+	var sprite_path := ""
+	if stats.class_obj is Dictionary:
+		sprite_path = str(stats.class_obj.get("sprite_path", ""))
+	if sprite_path != "":
+		sprite.texture = load(sprite_path)
 
 # ---------------- PROCESS ----------------
 func _physics_process(delta: float) -> void:
@@ -209,9 +226,9 @@ func _physics_process(delta: float) -> void:
 	elif _lunge_time_left > 0.0:
 		_lunge_time_left -= delta
 		if _lunge_time_left > lunge_pause_time:
-			velocity = _lunge_velocity   # burst phase
+			velocity = _lunge_velocity # burst phase
 		else:
-			velocity = Vector2.ZERO      # pause phase
+			velocity = Vector2.ZERO # pause phase
 			if _lunge_time_left <= (lunge_pause_time) and not _attack_effect_spawned:
 				_spawn_attack_payload(combo_step)
 				_attack_effect_spawned = true
@@ -225,7 +242,7 @@ func _physics_process(delta: float) -> void:
 
 
 	if Input.is_action_just_pressed("Light Attack"):
-		handle_attack_input(AttackType.LIGHT)		
+		handle_attack_input(AttackType.LIGHT)
 
 	if Input.is_action_just_pressed("dash") and not _is_dashing and _dash_cooldown_left <= 0.0:
 		# Allow escaping stagger by dashing.
@@ -295,7 +312,7 @@ func charge_heavy_attack() -> void:
 
 	# Reset visuals immediately
 	sprite.position = Vector2.ZERO
-	sprite.self_modulate = Color(1,1,1,1)
+	sprite.self_modulate = Color(1, 1, 1, 1)
 	is_charging = false
 	charge_time = 0.0
 	_shake_time = 0.0
@@ -319,7 +336,7 @@ func _process(delta):
 
 		# --- Simple blink ---
 		# Blink speed ramps up with charge, but capped
-		var blink_speed: float = lerp(4.0, 8.0, ratio)  # starts at 4 Hz, max ~8 Hz
+		var blink_speed: float = lerp(4.0, 8.0, ratio) # starts at 4 Hz, max ~8 Hz
 		var blink_phase: int = int(_shake_time * blink_speed) % 2
 
 		if blink_phase == 0:
@@ -375,7 +392,6 @@ func start_heavy_attack() -> void:
 	attack_timer.start()
 
 
-
 # ---------------- MULTIPLAYER SYNC ----------------
 func _sync_state() -> void:
 	if not _net_active():
@@ -390,7 +406,7 @@ func _sync_state() -> void:
 		attack_state != AttackState.IDLE,
 		_is_dashing,
 		_lunge_time_left,
-		hp,
+		health_component.get_hp() if health_component else 0.0,
 		damage_percent,
 		knockback_timer,
 		is_dead,
@@ -420,7 +436,8 @@ func sync_remote_state(
 	attack_state = (AttackState.ACTIVE if remote_is_attacking else AttackState.IDLE)
 	_is_dashing = remote_is_dashing
 	_lunge_time_left = remote_lunge_time_left
-	hp = remote_hp
+	if health_component:
+		health_component.set_hp(remote_hp)
 	damage_percent = remote_damage_percent
 	knockback_timer = remote_knockback_timer
 	is_dead = remote_is_dead
@@ -466,7 +483,7 @@ func _on_attack_timer_timeout() -> void:
 		AttackState.STARTUP:
 			if current_attack_type == AttackType.HEAVY:
 				# Add predelay before hitbox turns on
-				var pre_delay := 0.25   # tune this value
+				var pre_delay := 0.25 # tune this value
 				attack_timer.wait_time = pre_delay
 				attack_state = AttackState.ACTIVE
 
@@ -543,9 +560,9 @@ func _attack_combo_animation(step: int) -> StringName:
 
 	if current_attack_type == AttackType.HEAVY:
 		match step:
-			0: return &"slash_2"   # first heavy hit
-			1: return &"slash"     # second heavy hit (or &"slash_3" if you prefer)
-			_: return &"slash"     # fallback
+			0: return &"slash_2" # first heavy hit
+			1: return &"slash" # second heavy hit (or &"slash_3" if you prefer)
+			_: return &"slash" # fallback
 	else:
 		if is_left:
 			return &"slash_2" if step % 2 == 0 else &"slash"
@@ -641,7 +658,6 @@ func _weapon_combo_damage_multiplier(step: int) -> float:
 	return 1.0
 
 
-
 func _spawn_attack_payload(step: int) -> void:
 	# Melee => slash hitbox. Range => projectile.
 	if _weapon_type() == "range":
@@ -658,7 +674,7 @@ func spawn_projectile(step: int) -> void:
 	var projectile = arrow_projectile.instantiate()
 	projectile.global_position = global_position
 	projectile.rotation = (get_global_mouse_position() - global_position).angle()
-	var base_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var base_damage: float = CombatGlobal.calculate_attack_damage(stats)
 	var mult: float = _weapon_combo_damage_multiplier(step)
 	projectile.weapon_damage = max(base_damage * mult, 1.0)
 	projectile.shooter = self
@@ -671,13 +687,13 @@ func spawn_attack_effect(step: int) -> void:
 
 	# Use the combo animation helper to decide which animation to play
 	var anim_name := _attack_combo_animation(step)
-	fx.slash_effect = str(anim_name)  # assign to the effect scene
+	fx.slash_effect = str(anim_name) # assign to the effect scene
 	# When using the timer-driven hitbox system, this slash effect should not hit players
 	# (otherwise we'd double-apply damage). Keep dummy damage enabled.
 	fx.hits_players = false
 
 	# Pass combat info for hit/knockback
-	var base_damage: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var base_damage: float = CombatGlobal.calculate_attack_damage(stats)
 	var mult: float = _weapon_combo_damage_multiplier(step)
 	var total_damage: float = max(base_damage * mult * _charge_damage_mult, 1.0)
 	var total_hits: int = _combo_total_hits()
@@ -763,7 +779,7 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 
 	# Dummy / destructible targets: apply local damage (offline or online).
 	if body.has_method("take_damage"):
-		var base_damage_dummy: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+		var base_damage_dummy: float = CombatGlobal.calculate_attack_damage(stats)
 		var mult_dummy: float = _weapon_combo_damage_multiplier(combo_step)
 		var dmg_dummy: float = max(base_damage_dummy * mult_dummy, 1.0)
 		body.call("take_damage", dmg_dummy)
@@ -775,7 +791,7 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	var direction: Vector2 = (body2d.global_position - global_position).normalized()
 	if direction == Vector2.ZERO:
 		direction = last_direction
-	var base_damage_p: float = CombatClass.calculations.calculate_attack_damage(player_stats, player_weapon)
+	var base_damage_p: float = CombatGlobal.calculate_attack_damage(stats)
 	var mult_p: float = _weapon_combo_damage_multiplier(combo_step)
 	var dmg_p: float = max(base_damage_p * mult_p, 1.0)
 	var total_hits_p: int = _combo_total_hits()
@@ -789,7 +805,7 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 		return
 	body2d.rpc_id(target_auth, "receive_combo_hit", direction, dmg_p, combo_step, total_hits_p)
 
-func _on_player_hitbox_body_entered(body: Node) -> void:
+func _on_player_hitbox_body_entered(_body: Node) -> void:
 	# This is for receiving hits - handled via RPC
 	pass
 
@@ -807,13 +823,13 @@ func receive_hit(direction: Vector2, damage: float) -> void:
 	take_hit(direction, damage)
 
 @rpc("reliable", "any_peer", "call_local")
-func receive_combo_hit(direction: Vector2, damage: float, combo_step: int, combo_total_hits: int) -> void:
+func receive_combo_hit(direction: Vector2, damage: float, p_combo_step: int, combo_total_hits: int) -> void:
 	# First two combo hits stagger only; final hit applies knockback.
 	if not _local_is_authority():
 		return
-	print("[HIT] receive_combo_hit on=", name, " dmg=", damage, " step=", combo_step, " total=", combo_total_hits)
+	print("[HIT] receive_combo_hit on=", name, " dmg=", damage, " step=", p_combo_step, " total=", combo_total_hits)
 	var max_hits: int = maxi(combo_total_hits, 1)
-	var is_final: bool = combo_step >= (max_hits - 1)
+	var is_final: bool = p_combo_step >= (max_hits - 1)
 	if is_final:
 		take_hit(direction, damage, true)
 	else:
@@ -851,9 +867,8 @@ func take_hit(direction: Vector2, hp_damage: float, apply_knockback: bool = true
 	# Getting hit cancels your attack state.
 	_reset_attack_state()
 
-	hp -= hp_damage
-	hp = max(hp, 0)
-	player_healthbar.health = hp
+	if health_component:
+		health_component.take_damage(hp_damage)
 
 	damage_percent += HIT_DAMAGE_PERCENT
 	var scaled_knockback = BASE_KNOCKBACK * (1.0 + damage_percent / 100.0) * _charge_knockback_mult
@@ -875,7 +890,7 @@ func take_hit(direction: Vector2, hp_damage: float, apply_knockback: bool = true
 	print(
 		name,
 		" took hit | HP:",
-		hp,
+		health_component.get_hp() if health_component else 0.0,
 		" | %:",
 		damage_percent,
 		" | KB:",
@@ -884,7 +899,7 @@ func take_hit(direction: Vector2, hp_damage: float, apply_knockback: bool = true
 		(stagger_timer if not apply_knockback else 0.0)
 	)
 
-	if hp <= 0:
+	if health_component and health_component.get_hp() <= 0:
 		die()
 
 func die() -> void:
@@ -931,7 +946,10 @@ func respawn() -> void:
 	_lunge_velocity = Vector2.ZERO
 
 	# Restore HP to class HP if available
-	hp = float(player_stats.get("hp", 100.0))
+	if health_component:
+		var max_hp = float(player_stats.get("hp", 100.0))
+		health_component.set_max_hp(max_hp)
+		health_component.revive(max_hp)
 	visible = true
 	if player_hitbox:
 		player_hitbox.set_deferred("monitoring", true)
@@ -951,7 +969,7 @@ func disable_hitbox() -> void:
 
 func get_startup_time() -> float:
 	var atk_speed: float = max(
-		float(CombatClass.calculations.calculate_attack_speed(player_stats, player_weapon)),
+		float(CombatGlobal.calculate_attack_speed(stats)),
 		0.001
 	)
 	return 0.05 / atk_speed
@@ -962,7 +980,7 @@ func get_active_time() -> float:
 func get_recovery_time() -> float:
 	if current_attack_type == AttackType.HEAVY:
 		return 0.1
-	return 0.01   # default for light
+	return 0.01 # default for light
 
 
 func _is_final_combo_step() -> bool:
