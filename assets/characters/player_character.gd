@@ -35,6 +35,7 @@ var combo_pause_time: float = 0.25 # new pause duration
 @onready var attack_component: AttackComponent = $AttackComponent
 @export var arrow_projectile: PackedScene = preload("res://assets/objects/arrow_projectile.tscn")
 @onready var shield: Node = $ShieldComponent
+@export var damage_number_scene: PackedScene = preload("res://assets/effects/damage_number.tscn")
 
 const ATTACK_EFFECT = preload("res://assets/effects/slash.tscn")
 var classes_preload: ClassesDB = preload("res://assets/resources/classes.tres")
@@ -70,6 +71,12 @@ var attack_hitbox: Area2D
 var _attack_hitbox_enabled := false
 var is_dead := false
 var _initial_spawn_pos: Vector2 = Vector2.ZERO
+
+# Multiplayer
+var net_last_direction: Vector2 = Vector2.DOWN
+var local_attack_facing: Vector2 = Vector2.DOWN
+var facing_direction: Vector2 = Vector2.DOWN
+
 
 # ---------------- NET HELPERS ----------------
 func _net_active() -> bool:
@@ -166,11 +173,11 @@ func ready_new_player() -> void:
 func _physics_process(delta: float) -> void:
 	# Only process input if this is the authority player (when multiplayer is active).
 	# Avoid calling multiplayer APIs when no peer exists (they spam errors).
-	if Input.is_action_pressed("Block"):
-		shield.activate_shield(self )
-	else:
-		shield.deactivate_shield()
-
+	if _local_is_authority():
+		if Input.is_action_pressed("Block"):
+			shield.activate_shield(self )
+		else:
+			shield.deactivate_shield()
 
 	if _net_active() and not is_multiplayer_authority():
 		_sync_state()
@@ -190,6 +197,21 @@ func _physics_process(delta: float) -> void:
 	)
 
 	var input_dir := raw_input_dir
+	var is_currently_attacking = attack_component and attack_component.get_attack_state() != AttackComponent.AttackState.IDLE
+	
+	if _local_is_authority():
+		if input_dir != Vector2.ZERO:
+			net_last_direction = input_dir.normalized()
+			# Only update facing direction when NOT attacking
+			if not is_currently_attacking:
+				print("[DEBUG _physics_process INPUT] Updating facing_direction from ", facing_direction, " to ", net_last_direction)
+				facing_direction = net_last_direction
+				last_direction = net_last_direction
+			else:
+				print("[DEBUG _physics_process INPUT] BLOCKED facing_direction update (attacking). input=", net_last_direction, " current facing=", facing_direction)
+		elif velocity != Vector2.ZERO and not is_currently_attacking:
+			last_direction = velocity.normalized()
+
 
 	# Early return if nothing is happening
 	if input_dir == Vector2.ZERO and \
@@ -199,7 +221,9 @@ func _physics_process(delta: float) -> void:
 	   stagger_timer <= 0.0 and \
 	   knockback_timer <= 0.0:
 		# Update animation / state so we don't get stuck walking
-		update_animation_parameters(last_direction)
+		var idle_dir := last_direction
+		update_animation_parameters(idle_dir)
+
 		if (not attack_component) or (attack_component.get_attack_state() == AttackComponent.AttackState.IDLE):
 			state_machine.travel("Idle")
 		return
@@ -216,8 +240,10 @@ func _physics_process(delta: float) -> void:
 		stagger_timer = max(stagger_timer - delta, 0.0)
 		input_dir = Vector2.ZERO
 
-	if input_dir != Vector2.ZERO:
-		last_direction = input_dir.normalized()
+	if input_dir != Vector2.ZERO and not is_currently_attacking:
+		net_last_direction = input_dir.normalized()
+		facing_direction = net_last_direction
+
 
 	if _is_dashing:
 		_dash_time_left -= delta
@@ -240,20 +266,31 @@ func _physics_process(delta: float) -> void:
 		else:
 			var current_speed := move_speed
 			# ✅ Slow down if charging heavy attack
-			if attack_component and attack_component.get_attack_is_holding() and attack_component.attack_hold_time >= attack_component.heavy_threshold:
-				current_speed *= _movement_slowed
+			if _local_is_authority():
+				if attack_component and attack_component.get_attack_is_holding() and attack_component.attack_hold_time >= attack_component.heavy_threshold:
+					current_speed *= _movement_slowed
 			velocity = input_dir * current_speed
 
 	move_and_slide()
 
-	if Input.is_action_just_pressed("dash") and not _is_dashing and _dash_cooldown_left <= 0.0:
-		# Allow escaping stagger by dashing.
+	if Input.is_action_just_pressed("dash") \
+	and not _is_dashing \
+	and _dash_cooldown_left <= 0.0 \
+	and (not attack_component or attack_component.get_attack_state() == AttackComponent.AttackState.IDLE):
+		# Allow escaping stagger by dashing, but not during attack combos
 		stagger_timer = 0.0
 		_start_dash(input_dir)
 
-	var animation_direction = velocity.normalized() if velocity != Vector2.ZERO else last_direction
+	# Use facing_direction (locked during attacks) instead of velocity for animation
+	var animation_direction = facing_direction if is_currently_attacking else (velocity.normalized() if velocity != Vector2.ZERO else facing_direction)
+	print("[DEBUG _physics_process] is_currently_attacking=", is_currently_attacking, " animation_direction=", animation_direction, " facing_direction=", facing_direction, " velocity=", velocity)
 	update_animation_parameters(animation_direction)
-	pick_new_state()
+
+	if _local_is_authority():
+		pick_new_state() # only authority decides attack state
+	else:
+		# remote players already sync animation state via sync_remote_state
+		pass
 
 	_sync_state()
 # ---------------- MULTIPLAYER SYNC ----------------
@@ -266,7 +303,7 @@ func _sync_state() -> void:
 		"sync_remote_state",
 		global_position,
 		velocity,
-		last_direction,
+		net_last_direction,
 		(attack_component and attack_component.get_attack_state() != AttackComponent.AttackState.IDLE),
 		_is_dashing,
 		_lunge_time_left,
@@ -296,7 +333,8 @@ func sync_remote_state(
 
 	global_position = pos
 	velocity = vel
-	last_direction = dir
+	if vel != Vector2.ZERO:
+		net_last_direction = dir
 	if attack_component:
 		attack_component.set_remote_attacking(remote_is_attacking)
 	_is_dashing = remote_is_dashing
@@ -320,12 +358,25 @@ func sync_remote_state(
 			player_hitbox.set_deferred("monitoring", true)
 			player_hitbox.set_deferred("monitorable", true)
 
-	update_animation_parameters(velocity.normalized() if velocity != Vector2.ZERO else last_direction)
+	update_animation_parameters(velocity.normalized() if velocity != Vector2.ZERO else net_last_direction)
 	pick_new_state()
+@rpc("reliable", "any_peer", "call_local")
+func rpc_show_damage_number(amount: int, pos: Vector2) -> void:
+	if damage_number_scene == null:
+		return
+	var dn := damage_number_scene.instantiate()
+	get_tree().current_scene.add_child(dn)
+
+	if dn.has_method("setup"):
+		dn.call("setup", amount, pos)
+	else:
+		(dn as Node2D).global_position = pos
 
 func _start_attack_hitbox() -> void:
+	print("[DEBUG _start_attack_hitbox] local_attack_facing=", local_attack_facing, " facing_direction=", facing_direction, " last_direction=", last_direction)
 	if not attack_hitbox:
 		return
+
 	_update_attack_hitbox_position()
 	var shape = attack_hitbox.get_node_or_null("CollisionShape2D")
 	if shape:
@@ -336,17 +387,19 @@ func _start_attack_hitbox() -> void:
 func _update_attack_hitbox_position() -> void:
 	if not attack_hitbox:
 		return
-	# Use last_direction (already snapped for animation) to place the hitbox.
-	if last_direction.x < 0:
+	var dir := local_attack_facing
+	print("[DEBUG _update_attack_hitbox_position] local_attack_facing=", dir)
+	if dir.x < 0:
 		attack_hitbox.position = Vector2(-6, -4)
-	elif last_direction.x > 0:
+	elif dir.x > 0:
 		attack_hitbox.position = Vector2(6, -4)
-	elif last_direction.y < 0:
+	elif dir.y < 0:
 		attack_hitbox.position = Vector2(0, -12)
-	elif last_direction.y > 0:
+	elif dir.y > 0:
 		attack_hitbox.position = Vector2(0, 7)
 
 func _stop_attack_hitbox() -> void:
+	print("[DEBUG _stop_attack_hitbox] called")
 	if not attack_hitbox:
 		return
 	var shape = attack_hitbox.get_node_or_null("CollisionShape2D")
@@ -357,12 +410,33 @@ func _stop_attack_hitbox() -> void:
 
 # ---------------- HELPERS ----------------
 func _start_dash(dir: Vector2) -> void:
+	# If no input direction, dash toward where the player is facing
 	if dir == Vector2.ZERO:
-		dir = last_direction
+		if local_attack_facing != Vector2.ZERO:
+			dir = local_attack_facing
+		elif facing_direction != Vector2.ZERO:
+			dir = facing_direction
+		else:
+			dir = last_direction # final fallback
+
 	_is_dashing = true
 	_dash_time_left = dash_duration
 	_dash_velocity = dir.normalized() * dash_speed
-	last_direction = dir
+	facing_direction = dir
+
+
+func _show_damage_number(amount: int) -> void:
+	if amount <= 0:
+		return
+
+	var spawn_pos := global_position + Vector2(0, -20)
+	var marker := get_node_or_null("DamageSpawn")
+	if marker != null and marker is Node2D:
+		spawn_pos = (marker as Node2D).global_position
+
+	# Broadcast to everyone (including self)
+	rpc("rpc_show_damage_number", amount, spawn_pos)
+
 
 func update_animation_parameters(dir: Vector2) -> void:
 	animation_tree.set("parameters/Idle/blend_position", dir)
@@ -371,12 +445,14 @@ func update_animation_parameters(dir: Vector2) -> void:
 
 func pick_new_state() -> void:
 	var astate := (attack_component.get_attack_state() if attack_component else AttackComponent.AttackState.IDLE)
+	print("[DEBUG pick_new_state] attack_state=", astate, " velocity=", velocity, " facing_direction=", facing_direction)
 	if astate == AttackComponent.AttackState.IDLE:
 		if _is_dashing or velocity != Vector2.ZERO:
 			state_machine.travel("Walk")
 		else:
 			state_machine.travel("Idle")
 	elif astate == AttackComponent.AttackState.STARTUP or astate == AttackComponent.AttackState.ACTIVE:
+		print("[DEBUG pick_new_state] Switching to Attack state")
 		state_machine.travel("Attack")
 	elif astate == AttackComponent.AttackState.RECOVERY or astate == AttackComponent.AttackState.COMBO_WINDOW:
 		# Let it fall back to Idle/Walk so next hit retriggers Attack
@@ -395,26 +471,8 @@ func _setup_hitboxes() -> void:
 		player_hitbox.body_entered.connect(_on_player_hitbox_body_entered)
 		player_hitbox.area_entered.connect(_on_player_hitbox_area_entered)
 
-	# Create attack hitbox for dealing damage
-	attack_hitbox = Area2D.new()
-	attack_hitbox.name = "AttackHitBox"
-	# Ensure our hitbox can "see" the player's hitbox layer (varies by scene setup).
-	attack_hitbox.collision_layer = 1
-	attack_hitbox.collision_mask = (player_hitbox.collision_layer if player_hitbox else 2)
-	attack_hitbox.monitoring = false
-	attack_hitbox.monitorable = false
-	add_child(attack_hitbox)
-
-	var attack_shape = CollisionShape2D.new()
-	var rect_shape = RectangleShape2D.new()
-	rect_shape.size = Vector2(14, 14)
-	attack_shape.shape = rect_shape
-	attack_hitbox.add_child(attack_shape)
-
-	if attack_component:
-		attack_hitbox.area_entered.connect(attack_component._on_attack_hitbox_area_entered)
-
-func _on_player_hitbox_body_entered(_body: Node) -> void:
+	
+func _on_player_hitbox_body_entered(body: Node) -> void:
 	# This is for receiving hits - handled via RPC
 	pass
 
@@ -476,9 +534,11 @@ func take_hit(direction: Vector2, hp_damage: float, apply_knockback: bool = true
 	# Getting hit cancels your attack state.
 	if attack_component:
 		attack_component.reset_attack_state()
-
-	if health_component:
-		health_component.take_damage(hp_damage)
+	hp -= hp_damage
+	hp = max(hp, 0)
+	player_healthbar.health = hp
+	_show_damage_number(int(round(hp_damage)))
+	print("take_hit called, damage=", hp_damage) # 🔎 Debug
 
 	damage_percent += HIT_DAMAGE_PERCENT
 	var kb_mult := (attack_component.get_knockback_mult() if attack_component else 1.0)

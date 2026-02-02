@@ -11,7 +11,7 @@
 [ext_resource type="PackedScene" uid="uid://cys71e6y2rg41" path="res://assets/scenes/shield_component.tscn" id="9_088tr"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
-size = Vector2(14, 9)
+size = Vector2(10, 7)
 
 [sub_resource type="Animation" id="Animation_ghijl"]
 length = 0.001
@@ -482,7 +482,7 @@ transitions = ["Start", "Idle", SubResource("AnimationNodeStateMachineTransition
 graph_offset = Vector2(-1, 48)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_7eqks"]
-size = Vector2(12, 14)
+size = Vector2(13, 14)
 
 [node name="PlayerCharacter" type="CharacterBody2D" node_paths=PackedStringArray("stats")]
 collision_layer = 2
@@ -529,15 +529,6 @@ offset_top = 86.0
 offset_right = 305.0
 offset_bottom = 99.0
 
-[node name="ComponentGroup" type="Node2D" parent="."]
-
-[node name="HitboxComponent" parent="ComponentGroup" instance=ExtResource("4_o4qoj")]
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent"]
-position = Vector2(0, -3)
-shape = SubResource("RectangleShape2D_7eqks")
-debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
-
 [node name="MovementComponent" parent="ComponentGroup" instance=ExtResource("5_088tr")]
 
 [node name="AnimationComponent" parent="ComponentGroup" instance=ExtResource("6_sheqp")]
@@ -547,3 +538,12 @@ debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
 [node name="HealthComponent" parent="." instance=ExtResource("8_tn02o")]
 
 [node name="ShieldComponent" parent="." instance=ExtResource("9_088tr")]
+
+[node name="HitboxComponent" parent="." instance=ExtResource("4_o4qoj")]
+collision_layer = 2
+collision_mask = 5
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+position = Vector2(-0.5, -3)
+shape = SubResource("RectangleShape2D_7eqks")
+debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
