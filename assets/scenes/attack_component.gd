@@ -168,19 +168,19 @@ func _process(delta: float) -> void:
 		attack_hold_time = min(attack_hold_time + delta, max_charge_time)
 		_shake_time += delta
 		var ratio: float = clamp(attack_hold_time / max_charge_time, 0.0, 1.0)
-
+		if player and player.has_method("_local_is_authority") and player.call("_local_is_authority"):
 		# Shake feedback
-		if attack_hold_time >= 0.2 and sprite:
-			var shake_intensity: float = _shake_strength * (1.0 + ratio)
-			sprite.position.x = sin(_shake_time * (10.0 + 10.0 * ratio)) * shake_intensity
-			sprite.position.y = cos(_shake_time * (15.0 + 15.0 * ratio)) * shake_intensity
+			if attack_hold_time >= 0.2 and sprite:
+				var shake_intensity: float = _shake_strength * (1.0 + ratio)
+				sprite.position.x = sin(_shake_time * (10.0 + 10.0 * ratio)) * shake_intensity
+				sprite.position.y = cos(_shake_time * (15.0 + 15.0 * ratio)) * shake_intensity
 
-		# Blink feedback
-		if sprite:
-			var blink_speed: float = lerp(4.0, 8.0, ratio)
-		# Avoid int() conversion (your runtime errors on it). Use a float toggle instead.
-			var blink_on := fmod(_shake_time * blink_speed, 2.0) < 1.0
-			sprite.self_modulate = (Color(1, 1, 1, 1) if blink_on else Color(1.5, 1.5, 1.5, 1))
+			# Blink feedback
+			if sprite:
+				var blink_speed: float = lerp(4.0, 8.0, ratio)
+			# Avoid int() conversion (your runtime errors on it). Use a float toggle instead.
+				var blink_on := fmod(_shake_time * blink_speed, 2.0) < 1.0
+				sprite.self_modulate = (Color(1, 1, 1, 1) if blink_on else Color(1.5, 1.5, 1.5, 1))
 	else:
 		if sprite:
 			sprite.position = Vector2.ZERO
@@ -214,6 +214,8 @@ func start_attack() -> void:
 
 	var raw_dir: Vector2 = _mouse_raw_direction()
 	var cardinal_dir: Vector2 = _mouse_cardinal_direction()
+	player.set("local_attack_facing", cardinal_dir)
+	player.set("facing_direction", cardinal_dir)
 	_set_player_last_direction(cardinal_dir)
 	_call_player_update_anim(cardinal_dir)
 
@@ -268,6 +270,9 @@ func start_heavy_attack() -> void:
 			})
 
 	var cardinal_dir: Vector2 = _cardinal_from_raw(raw_dir)
+	print("[DEBUG start_heavy_attack] combo_step=", combo_step, " raw_dir=", raw_dir, " cardinal_dir=", cardinal_dir, " _heavy_attack_direction=", _heavy_attack_direction)
+	player.set("local_attack_facing", cardinal_dir)
+	player.set("facing_direction", cardinal_dir)
 	_set_player_last_direction(cardinal_dir)
 	_call_player_update_anim(cardinal_dir)
 
@@ -509,7 +514,7 @@ func spawn_attack_effect(step: int) -> void:
 			angle_deg += 220.0
 		fx.fixed_rotation = angle_deg
 
-		var offset_distance: float = 20.0
+		var offset_distance: float = 15.0
 		var anim_name := _attack_combo_animation(step)
 		fx.slash_effect = str(anim_name)
 
@@ -523,7 +528,7 @@ func spawn_attack_effect(step: int) -> void:
 		fx.slash_effect = str(_attack_combo_animation(step))
 
 	# Never let this effect damage players (player hitbox handles player damage).
-	fx.hits_players = false
+	fx.hits_players = true
 
 	var combat = player.get("CombatClass")
 	var stats: Dictionary = player.get("player_stats")
