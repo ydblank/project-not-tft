@@ -4,3 +4,6 @@
 
 [node name="AttackComponent" type="Node2D"]
 script = ExtResource("1_ks057")
+
+[node name="AttackTimer" type="Timer" parent="."]
+one_shot = true

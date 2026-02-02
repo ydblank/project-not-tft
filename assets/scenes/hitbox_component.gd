@@ -16,8 +16,6 @@ signal hitbox_body_entered(body: Node2D)
 @export var damage_number_scene: PackedScene
 
 func _ready():
-	area_entered.connect(_on_area_entered)
-	body_entered.connect(_on_body_entered)
 	
 	if not health:
 		health = _find_health_component()
