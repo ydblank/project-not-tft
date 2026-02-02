@@ -8,13 +8,31 @@ signal healed(amount: float)
 
 @export var _max_hp: float = 100
 @export var invincible: bool = false
+@export var healthbar: HealthBarComponent
+@export var stats: StatsComponent
 
 var _hp: float = 0
 var _is_dead: bool = false
 
 func _ready():
+	_calculate_stats()
+		
 	_hp = _max_hp
 	health_changed.emit(_hp, _max_hp)
+	
+	# Connect healthbar if available
+	if healthbar:
+		healthbar.init_health(_max_hp)
+		health_changed.connect(_on_health_changed)
+
+func _calculate_stats():
+	if stats:
+		var entity_stats = stats.get_entity_stats()
+		_max_hp = entity_stats.get("hp", 100)
+
+func _on_health_changed(new_hp: float, _p_max_hp: float) -> void:
+	if healthbar:
+		healthbar.health = new_hp
 	
 func set_max_hp(max_hp: float):
 	_max_hp = max_hp
