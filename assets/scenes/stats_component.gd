@@ -7,7 +7,7 @@ enum f {FAILED, SUCCESS}
 @export var base_max_health: float = 100.0
 @export var base_phys_mult: float = 1.0
 @export var base_mag_mult: float = 1.0
-@export var base_attack: int = 0
+@export var base_str: float = 1.0
 @export var base_defense: int = 0
 @export var base_knockback_res: int = 0
 @export var base_attack_speed: float = 1.0
@@ -17,6 +17,11 @@ enum f {FAILED, SUCCESS}
 @export var dash_speed: float = 300.0
 @export var dash_duration: float = 0.2
 @export var dash_cooldown: float = 0.5
+
+# Lunge
+@export var lunge_distance: float = 10.0
+@export var lunge_burst_time: float = 0.1
+@export var lunge_pause_time: float = 0.2
 
 # Combo
 @export var combo_max_hits: int = 3
@@ -76,7 +81,7 @@ func get_entity_stats() -> Dictionary:
 	
 	return {
 		"hp": base_max_health + float(class_stats.get("bonus_hp", 0)),
-		"str": float(base_attack) + float(class_stats.get("bonus_str", 0)),
+		"str": float(base_str) + float(class_stats.get("bonus_str", 0)),
 		"def": float(base_defense) + float(class_stats.get("bonus_def", 0)),
 		"knockback_res": float(base_knockback_res) + float(class_stats.get("bonus_knockback_res", 0)),
 		"attack_speed": base_attack_speed + float(class_stats.get("bonus_attack_speed", 0.0)),

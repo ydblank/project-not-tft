@@ -29,6 +29,7 @@ func _find_health_component() -> HealthComponent:
 	return null
 
 func take_damage(damage: float, attacker: Node = null, direction: Vector2 = Vector2.ZERO) -> void:
+	print('here take damage')
 	if not can_be_hit:
 		hit_blocked.emit()
 		return

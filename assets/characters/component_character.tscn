@@ -531,6 +531,7 @@ offset_bottom = 99.0
 [node name="ComponentGroup" type="Node2D" parent="."]
 
 [node name="HitboxComponent" parent="ComponentGroup" node_paths=PackedStringArray("stats", "health") instance=ExtResource("4_e3xsg")]
+collision_layer = 2
 team = 1
 stats = NodePath("../StatsComponent")
 health = NodePath("../HealthComponent")
@@ -540,11 +541,24 @@ position = Vector2(0, -3)
 shape = SubResource("RectangleShape2D_7eqks")
 debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
 
-[node name="MovementComponent" parent="ComponentGroup" instance=ExtResource("5_qxlet")]
+[node name="MovementComponent" parent="ComponentGroup" node_paths=PackedStringArray("stats_component", "entity") instance=ExtResource("5_qxlet")]
+stats_component = NodePath("../StatsComponent")
+entity = NodePath("../..")
 
-[node name="AnimationComponent" parent="ComponentGroup" instance=ExtResource("6_8a1ug")]
+[node name="AnimationComponent" parent="ComponentGroup" node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_8a1ug")]
+movement_component = NodePath("../MovementComponent")
+attack_component = NodePath("../AttackComponent")
+animation_player_path = NodePath("../../AnimationPlayer")
+animation_tree_path = NodePath("../../AnimationTree")
+sprite_path = NodePath("../../Sprite2D")
 
-[node name="AttackComponent" parent="ComponentGroup" instance=ExtResource("7_js133")]
+[node name="AttackComponent" parent="ComponentGroup" node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity") instance=ExtResource("7_js133")]
+stats_component = NodePath("../StatsComponent")
+movement_component = NodePath("../MovementComponent")
+animation_component = NodePath("../AnimationComponent")
+health_component = NodePath("../HealthComponent")
+hitbox_component = NodePath("../HitboxComponent")
+entity = NodePath("../..")
 
 [node name="HealthComponent" parent="ComponentGroup" node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_n0klf")]
 healthbar = NodePath("../../CanvasLayer/Healthbar")

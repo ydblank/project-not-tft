@@ -23,7 +23,7 @@ static func calculate_attack_damage(stats_resource: StatsComponent) -> float:
 	var weapon_dmg: float = float(stats_resource.weapon_obj.get("dmg", 0))
 	
 	var total_dmg = entity_str * weapon_dmg
-	print("Total Damage: ", total_dmg)
+
 	return max(total_dmg, 1)
 	
 static func calculate_receive_damage(stats_resource: StatsComponent, received_damage: float) -> float:
