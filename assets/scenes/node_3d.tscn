@@ -1,0 +1,73 @@
+[gd_scene load_steps=11 format=3 uid="uid://d270126bb6skt"]
+
+[ext_resource type="Texture2D" uid="uid://bhqfq6ybpty40" path="res://assets/art/road.png" id="1_pv45m"]
+[ext_resource type="Script" uid="uid://bkn24cfi5h4rr" path="res://assets/scenes/character_body_3d.gd" id="2_mgxdr"]
+[ext_resource type="Texture2D" uid="uid://4bt5ff04ub50" path="res://assets/art/boy2.png" id="3_mgxdr"]
+[ext_resource type="Script" uid="uid://c6mqyi3gclb5a" path="res://assets/scenes/static_body_3d_2.gd" id="3_phsbv"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_u7lvm"]
+albedo_texture = ExtResource("1_pv45m")
+
+[sub_resource type="QuadMesh" id="QuadMesh_phsbv"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_phsbv"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_mgxdr"]
+size = Vector3(6.313965, 1.362793, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u7lvm"]
+size = Vector3(6.0747337, 0, 0.259)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_awjbw"]
+
+[node name="Node3D" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(0.983149, -0.003598682, 0.18277082, -0.0012943503, 0.9996441, 0.02664506, -0.18280172, -0.026432637, 0.9827944, 1.3025784, 0.4997728, 0.90268755)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Camera3D"]
+transform = Transform3D(3.9993272, -0.029915502, 0.010681778, 0.06007544, 1.9997436, -0.005661088, -0.042383194, 0.011641098, 0.9999264, -0.06808714, 0.009301931, -1.2789192)
+material_override = SubResource("StandardMaterial3D_u7lvm")
+mesh = SubResource("QuadMesh_phsbv")
+skeleton = NodePath("../..")
+
+[node name="CharacterBody3D" type="CharacterBody3D" parent="." groups=["player"]]
+transform = Transform3D(1, 0, 0, 0, 0.99999994, 0, 0, 0, 0.99999994, -0.278854, -0.18218112, -3.7725205)
+script = ExtResource("2_mgxdr")
+
+[node name="Sprite3D" type="Sprite3D" parent="CharacterBody3D"]
+transform = Transform3D(0.0781064, 0, 0.01730288, 0, 0.08, 0, -0.01730288, 0, 0.0781064, 1.102, 0.44320834, 3.847996)
+flip_h = true
+texture = ExtResource("3_mgxdr")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CharacterBody3D"]
+transform = Transform3D(0.1, 0, 0, 0, 0.09999999, 1.8626451e-09, 0, -1.8626451e-09, 0.09999999, 1.0955635, 0.3790808, 3.8442392)
+shape = SubResource("CapsuleShape3D_phsbv")
+
+[node name="StaticBody3D2" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.119475126)
+script = ExtResource("3_phsbv")
+
+[node name="CollisionShape3D2" type="CollisionShape3D" parent="StaticBody3D2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.32680857, -0.18139648, -0.56273055)
+shape = SubResource("BoxShape3D_mgxdr")
+
+[node name="Path" type="CollisionShape3D" parent="StaticBody3D2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.101, 0, 0.13233742)
+shape = SubResource("BoxShape3D_u7lvm")
+
+[node name="CollisionShape3D3" type="CollisionShape3D" parent="StaticBody3D2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.53329706, -0.36279297, 0.5651568)
+shape = SubResource("BoxShape3D_mgxdr")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.93322974, -0.19421908, 0.30226025, 0.021370217, 0.8698113, 0.49292162, -0.35864416, -0.45354974, 0.81588423, 0.2849964, 1.7028189, 1.5537412)
+
+[node name="ExitTrigger" type="Area3D" parent="." groups=["player"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.40209645, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ExitTrigger"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.3822868, 0, -0.28275925)
+shape = SubResource("BoxShape3D_awjbw")
+
+[connection signal="body_entered" from="ExitTrigger" to="CharacterBody3D" method="_on_exit_trigger_body_entered"]

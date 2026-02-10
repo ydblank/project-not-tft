@@ -25,6 +25,10 @@ Combat="*res://assets/commons/combat.gd"
 
 enabled=PackedStringArray("res://addons/netfox.internals/plugin.cfg", "res://addons/netfox.noray/plugin.cfg")
 
+[global_group]
+
+player=""
+
 [input]
 
 W={
