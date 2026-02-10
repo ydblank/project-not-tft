@@ -6,6 +6,7 @@
 font_size = 8
 
 [node name="DamageNumber" type="Node2D"]
+z_index = 99
 script = ExtResource("1_1")
 
 [node name="Label" type="Label" parent="."]

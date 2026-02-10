@@ -1,8 +1,12 @@
-[gd_scene load_steps=6 format=3 uid="uid://x50qjtctt5e"]
+[gd_scene load_steps=10 format=3 uid="uid://x50qjtctt5e"]
 
 [ext_resource type="Script" uid="uid://mnoke4gyxgf2" path="res://assets/objects/dummy.gd" id="1_215xv"]
 [ext_resource type="Texture2D" uid="uid://btxk4c37yglrd" path="res://assets/art/1 Characters/Dummy/dummy.png" id="1_nc0bl"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_42tql"]
+[ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="5_81iwf"]
+[ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="6_81iwf"]
+[ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="6_tgi7g"]
+[ext_resource type="PackedScene" uid="uid://4v5ivwy5c4wo" path="res://assets/effects/damage_number.tscn" id="7_tgi7g"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_215xv"]
 size = Vector2(20, 19)
@@ -22,16 +26,26 @@ light_mask = 2
 position = Vector2(0, 6.5)
 shape = SubResource("RectangleShape2D_215xv")
 
-[node name="Area2D" type="Area2D" parent="."]
-collision_layer = 2
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D"]
-light_mask = 2
-shape = SubResource("RectangleShape2D_42tql")
-debug_color = Color(0.8000455, 0.38247117, 0.47344965, 0.41960785)
-
 [node name="Healthbar" parent="." instance=ExtResource("3_42tql")]
 offset_left = -22.0
 offset_top = -25.0
 offset_right = 20.0
 offset_bottom = -22.0
+
+[node name="StatsComponent" parent="." instance=ExtResource("5_81iwf")]
+
+[node name="HealthComponent" parent="." node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("6_tgi7g")]
+healthbar = NodePath("../Healthbar")
+stats = NodePath("../StatsComponent")
+
+[node name="HitboxComponent" parent="." node_paths=PackedStringArray("stats", "health") instance=ExtResource("6_81iwf")]
+collision_layer = 2
+team = 9
+stats = NodePath("../StatsComponent")
+health = NodePath("../HealthComponent")
+damage_number_scene = ExtResource("7_tgi7g")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+light_mask = 2
+shape = SubResource("RectangleShape2D_42tql")
+debug_color = Color(0.8000455, 0.38247117, 0.47344965, 0.41960785)
