@@ -6,21 +6,19 @@ signal hit_blocked()
 signal hitbox_area_entered(area: Area2D)
 signal hitbox_body_entered(body: Node2D)
 
-@export var health_component: HealthComponent
 @export var team: int = 0
 @export var can_be_hit: bool = true
-@export var entity_stats: Dictionary = {}
+@export var stats: StatsComponent
+@export var health: HealthComponent
 
 @export_group("Damage Settings")
 @export var use_combat_calculations: bool = true
 @export var damage_number_scene: PackedScene
 
-var CombatClass = Combat
-
 func _ready():
 	
-	if not health_component:
-		health_component = _find_health_component()
+	if not health:
+		health = _find_health_component()
 
 func _find_health_component() -> HealthComponent:
 	var parent = get_parent()
@@ -31,26 +29,25 @@ func _find_health_component() -> HealthComponent:
 	return null
 
 func take_damage(damage: float, attacker: Node = null, direction: Vector2 = Vector2.ZERO) -> void:
+	print('here take damage')
 	if not can_be_hit:
 		hit_blocked.emit()
 		return
 	
-	if not health_component:
+	if not health:
 		push_warning("HitboxComponent: No HealthComponent found, cannot take damage")
 		return
 	
 	var final_damage = damage
 	
-	if use_combat_calculations and entity_stats.has("def"):
-		final_damage = Combat.calculations.calculate_receive_damage(entity_stats, damage)
+	if use_combat_calculations and stats != null:
+		final_damage = CombatGlobal.calculate_receive_damage(stats, damage)
 	
-	health_component.take_damage(final_damage)
+	health.take_damage(final_damage)
 	hit_received.emit(attacker, final_damage, direction)
 	
-	_show_damage_number(int(round(final_damage))) 
-
-func set_entity_stats(stats: Dictionary) -> void:
-	entity_stats = stats
+	_show_damage_number(int(round(final_damage)))
+		
 
 func set_team(new_team: int) -> void:
 	team = new_team

@@ -1,6 +1,6 @@
 extends Node2D
 
-const DEBUG_HITS := false
+const DEBUG_HITS := true
 
 @export var slash_effect = "slash"
 @export var attacker_id: int = -1
@@ -103,73 +103,49 @@ func _on_area_2d_body_entered(body: Node2D) -> void:
 		print("[SLASH] body_entered:", body.name, " type=", body.get_class())
 
 func _on_area_2d_area_entered(hit_area: Area2D) -> void:
+	print('entered')
 	var hit_owner := hit_area.get_parent() as Node2D
 	if hit_owner == null:
 		return
 
 	# Skip hitting yourself
 	if hit_owner.name.is_valid_int() and hit_owner.name == str(attacker_id):
-		print("[DEBUG] Ignored self-hit from slash")
+		if DEBUG_HITS:
+			print("[DEBUG] Ignored self-hit from slash")
 		return
 
-	# Skip teammates
-	if hit_owner.has_method("get"):
-		var team_val = hit_owner.get("team")
-		# Avoid int() conversion (your runtime errors on it). Compare safely.
-		if team_val != null:
-			var is_same_team := false
-			if team_val is int:
-				is_same_team = (team_val == attacker_team)
-			elif team_val is String and (team_val as String).is_valid_int():
-				is_same_team = ((team_val as String).to_int() == attacker_team)
-			else:
-				is_same_team = (str(team_val) == str(attacker_team))
-			if is_same_team:
-				print("[DEBUG] Ignored teammate hit")
-				return
-
-
 	# -------------------------
-	# PLAYER HITBOXES
+	# HITBOX COMPONENT (PLAYERS)
 	# -------------------------
-	if hit_area.name == "HitboxComponent" and hits_players:
-		# Prevent hitting self or teammates
-		if hit_owner.name.is_valid_int() and hit_owner.name == str(attacker_id):
+	var hitbox: HitboxComponent = hit_area as HitboxComponent
+	if hitbox != null and hits_players:
+		# Check team using HitboxComponent's method
+		if hitbox.is_same_team(attacker_team):
+			if DEBUG_HITS:
+				print("[DEBUG] Ignored teammate hit (team=", hitbox.team, ")")
 			return
-		if hit_owner.has_method("get"):
-			var t2 = hit_owner.get("team")
-			if t2 != null:
-				var same2 := false
-				if t2 is int:
-					same2 = (t2 == attacker_team)
-				elif t2 is String and (t2 as String).is_valid_int():
-					same2 = ((t2 as String).to_int() == attacker_team)
-				else:
-					same2 = (str(t2) == str(attacker_team))
-				if same2:
-					return
 
 		# Avoid multi-hit spam
-		var key := hit_owner.name
+		var key := str(hit_owner.get_instance_id())
 		if _hit_targets.has(key):
 			return
 		_hit_targets[key] = true
 
-		# Damage + direction
+		# Calculate damage and direction
 		var dmg := damage if damage > 0.0 else weapon_damage
 		var dir: Vector2 = (hit_owner.global_position - global_position).normalized()
 		if dir == Vector2.ZERO:
 			dir = Vector2.RIGHT
 
-		# Apply hit via RPC
-		if hit_owner.has_method("receive_combo_hit"):
-			var target_auth := hit_owner.get_multiplayer_authority()
-			var mp := multiplayer.multiplayer_peer
-			if mp == null or mp.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
-				# Offline/local
-				hit_owner.receive_combo_hit(dir, dmg, combo_step, combo_total_hits)
-			elif target_auth > 0:
-				hit_owner.receive_combo_hit.rpc_id(target_auth, dir, dmg, combo_step, combo_total_hits)
+		# Try to find attacker node
+		var attacker_node: Node = null
+		if attacker_id >= 0:
+			var scene_root = get_tree().current_scene
+			if scene_root:
+				attacker_node = scene_root.get_node_or_null(str(attacker_id))
+
+		# Apply damage via HitboxComponent
+		hitbox.take_damage(dmg, attacker_node, dir)
 		return
 
 	# -------------------------
