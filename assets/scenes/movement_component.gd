@@ -110,6 +110,10 @@ func _physics_process(delta: float) -> void:
 			last_direction = velocity.normalized()
 	
 	if _should_early_return(input_dir):
+		velocity = Vector2.ZERO
+		entity.velocity = velocity
+		entity.move_and_slide()
+		velocity = entity.velocity
 		return
 	
 	if _lunge_time_left > 0.0 or _is_dashing or _is_charging():
