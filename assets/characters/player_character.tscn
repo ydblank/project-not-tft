@@ -1,4 +1,4 @@
-[gd_scene load_steps=48 format=3 uid="uid://dwk3apd8gpdh6"]
+[gd_scene load_steps=49 format=3 uid="uid://dwk3apd8gpdh6"]
 
 [ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_tn02o"]
 [ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_088tr"]
 [ext_resource type="PackedScene" uid="uid://cys71e6y2rg41" path="res://assets/scenes/shield_component.tscn" id="10_sheqp"]
+[ext_resource type="PackedScene" uid="uid://cscnitipmwjuw" path="res://assets/scenes/multiplayer_component.tscn" id="11_tc657"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(10, 7)
@@ -567,3 +568,11 @@ entity_class = 1
 entity_weapon = 1
 
 [node name="ShieldComponent" parent="ComponentGroup" instance=ExtResource("10_sheqp")]
+
+[node name="MultiplayerComponent" parent="ComponentGroup" node_paths=PackedStringArray("player", "attack_component", "health_component", "hitbox_component", "stat_component", "animation_component") instance=ExtResource("11_tc657")]
+player = NodePath("../..")
+attack_component = NodePath("../AttackComponent")
+health_component = NodePath("../HealthComponent")
+hitbox_component = NodePath("../HitboxComponent")
+stat_component = NodePath("../StatsComponent")
+animation_component = NodePath("../AnimationComponent")

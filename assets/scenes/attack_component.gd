@@ -215,7 +215,6 @@ func _set_player_directions(cardinal_dir: Vector2) -> void:
 	_call_player_update_anim(cardinal_dir)
 
 func start_attack() -> void:
-	print('here start')
 	_initialize_attack_state()
 
 	var raw_dir: Vector2 = _mouse_raw_direction()
@@ -270,7 +269,6 @@ func start_heavy_attack() -> void:
 			})
 
 	var cardinal_dir: Vector2 = _cardinal_from_raw(raw_dir)
-	print("[DEBUG start_heavy_attack] combo_step=", combo_step, " raw_dir=", raw_dir, " cardinal_dir=", cardinal_dir, " _heavy_attack_direction=", _heavy_attack_direction)
 	_set_player_directions(cardinal_dir)
 
 	_start_heavy_lunge(raw_dir)
@@ -391,9 +389,7 @@ func _attack_combo_animation(step: int) -> StringName:
 func _start_lunge_toward_mouse(multiplier: float = 1.0) -> void:
 	if not movement_component:
 		return
-	
-	print('gaga')
-	
+		
 	var dir := _mouse_raw_direction()
 	if dir == Vector2.ZERO:
 		dir = _get_player_last_direction()
@@ -448,7 +444,6 @@ func _weapon_combo_damage_multiplier(step: int) -> float:
 	return float(combo_arr[clampi(step, 0, combo_arr.size() - 1)])
 
 func _spawn_attack_payload(step: int) -> void:
-	print('here spawn')
 	if _weapon_type() == "range":
 		spawn_projectile(step)
 	else:

@@ -125,6 +125,7 @@ sources/0 = SubResource("TileSetAtlasSource_kdubu")
 [node name="Node2D" type="Node2D"]
 material = SubResource("CanvasItemMaterial_0e48y")
 script = ExtResource("1_57ibc")
+multiplayer_component_path = NodePath("ComponentGroup/MultiplayerComponent")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(27, 6)

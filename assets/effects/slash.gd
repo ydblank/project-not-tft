@@ -1,6 +1,6 @@
 extends Node2D
 
-const DEBUG_HITS := true
+const DEBUG_HITS := false
 
 @export var slash_effect = "slash"
 @export var attacker_id: int = -1
@@ -34,7 +34,7 @@ func _ready():
 			area.body_entered.connect(_on_area_2d_body_entered)
 		if not area.area_entered.is_connected(_on_area_2d_area_entered):
 			area.area_entered.connect(_on_area_2d_area_entered)
-	print("[DEBUG] Slash Area2D layer:", area.collision_layer, " mask:", area.collision_mask)
+	#print("[DEBUG] Slash Area2D layer:", area.collision_layer, " mask:", area.collision_mask)
 	# -------------------------
 	# LIGHT ATTACK (mouse aim)
 	# -------------------------

@@ -48,4 +48,7 @@ func _on_exit_trigger_body_entered(body: Node3D) -> void:
 	if not body.is_in_group("player"):
 		return
 
+	call_deferred("_do_scene_change")
+
+func _do_scene_change() -> void:
 	get_tree().change_scene_to_file("res://assets/levels/node_2d.tscn")
