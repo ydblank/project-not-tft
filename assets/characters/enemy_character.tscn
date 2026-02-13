@@ -1,4 +1,4 @@
-[gd_scene load_steps=48 format=3 uid="uid://cs8ci31w8gfe"]
+[gd_scene load_steps=47 format=3 uid="uid://cs8ci31w8gfe"]
 
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_h17au"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55elk"]
@@ -8,7 +8,6 @@
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="7_4iwtk"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="8_b258x"]
 [ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_lk2kr"]
-[ext_resource type="PackedScene" uid="uid://cys71e6y2rg41" path="res://assets/scenes/shield_component.tscn" id="10_3e6a8"]
 [ext_resource type="PackedScene" uid="uid://ch7hdyokx7jqp" path="res://assets/scenes/ai_component.tscn" id="10_xhcsj"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
@@ -485,7 +484,7 @@ graph_offset = Vector2(-1, 48)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sheqp"]
 size = Vector2(10, 12)
 
-[node name="EnemyCharacter" type="CharacterBody2D"]
+[node name="EnemyCharacter" type="CharacterBody2D" groups=["enemies"]]
 collision_layer = 2
 collision_mask = 7
 motion_mode = 1
@@ -567,8 +566,6 @@ entity = NodePath("../..")
 [node name="StatsComponent" parent="ComponentGroup" instance=ExtResource("9_lk2kr")]
 entity_class = 1
 entity_weapon = 1
-
-[node name="ShieldComponent" parent="ComponentGroup" instance=ExtResource("10_3e6a8")]
 
 [node name="AIComponent" parent="ComponentGroup" node_paths=PackedStringArray("entity", "movement_component", "attack_component", "health_component", "hitbox_component", "animation_component") instance=ExtResource("10_xhcsj")]
 entity = NodePath("../..")

@@ -153,6 +153,11 @@ func _process_knockback(delta: float) -> void:
 	velocity = entity.velocity
 
 func _should_early_return(input_dir: Vector2) -> bool:
+	# Don't early return when AI is controlling (is_controllable = false)
+	# AI sets velocity directly, so we need to process it
+	if not is_controllable:
+		return false
+	
 	if input_dir == Vector2.ZERO and \
 	   not _is_dashing and \
 	   _lunge_time_left <= 0.0 and \
@@ -191,13 +196,16 @@ func _process_movement(delta: float, input_dir: Vector2) -> void:
 		if _movement_locked:
 			velocity = Vector2.ZERO
 		else:
-			var current_speed := move_speed
-			
-			if _is_authority():
-				if _is_holding_attack() and _is_past_heavy_threshold():
-					current_speed *= movement_slowed_multiplier
-			
-			velocity = input_dir * current_speed
+			# Only update velocity from input when player-controlled
+			# When AI-controlled (is_controllable = false), velocity is set by AIComponent
+			if is_controllable:
+				var current_speed := move_speed
+				
+				if _is_authority():
+					if _is_holding_attack() and _is_past_heavy_threshold():
+						current_speed *= movement_slowed_multiplier
+				
+				velocity = input_dir * current_speed
 	
 	entity.velocity = velocity
 	entity.move_and_slide()

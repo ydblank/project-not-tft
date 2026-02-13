@@ -12,7 +12,7 @@ class_name AIComponent
 @export var detection_range: float = 200.0
 @export var detection_angle: float = 360.0
 @export var target_groups: Array[String] = ["players"]
-@export var target_team: int = -1
+@export var target_team: int = 0
 
 @export_group("Behavior Settings")
 @export var attack_range: float = 50.0
@@ -53,6 +53,12 @@ var pathfinding_timer: float = 0.0
 @onready var state_timer_node: Timer = $StateTimer
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
 
+var enable_debug_logs = true
+
+func _log(...varargs: Array) -> void:
+	if enable_debug_logs:
+		print(varargs)
+
 func _ready() -> void:
 	if not entity:
 		push_error("AIComponent: Parent must be CharacterBody2D")
@@ -66,24 +72,24 @@ func _ready() -> void:
 		detection_area.body_entered.connect(_on_detection_area_body_entered)
 		detection_area.body_exited.connect(_on_detection_area_body_exited)
 		detection_area.area_entered.connect(_on_detection_area_area_entered)
-		print("[AI] DetectionArea connected")
+		_log("[AI] DetectionArea connected")
 	else:
-		print("[AI] Warning: DetectionArea not found as child")
+		_log("[AI] Warning: DetectionArea not found as child")
 	
 	if state_timer_node:
 		state_timer_node.timeout.connect(_on_state_timer_timeout)
-		print("[AI] StateTimer connected")
+		_log("[AI] StateTimer connected")
 	else:
-		print("[AI] Warning: StateTimer not found as child")
+		_log("[AI] Warning: StateTimer not found as child")
 	
 	if navigation_agent:
 		navigation_agent.path_desired_distance = 4.0
 		navigation_agent.target_desired_distance = attack_range * 0.8
 		if movement_component:
 			navigation_agent.max_speed = movement_component.move_speed
-		print("[AI] NavigationAgent2D configured")
+		_log("[AI] NavigationAgent2D configured")
 	else:
-		print("[AI] NavigationAgent2D not found (pathfinding disabled)")
+		_log("[AI] NavigationAgent2D not found (pathfinding disabled)")
 	
 	spawn_position = entity.global_position
 	wander_target = spawn_position
@@ -96,12 +102,12 @@ func _ready() -> void:
 	if hitbox_component:
 		hitbox_component.hit_received.connect(_on_hit_received)
 	
-	print("[AI] AIComponent ready - Entity: ", entity.name, " State: IDLE")
+	_log("[AI] AIComponent ready - Entity: ", entity.name, " State: IDLE")
 	set_physics_process(true)
 
 func _physics_process(delta: float) -> void:
 	if not _is_authority():
-		print('here not authority')
+		_log('here not authority')
 		return
 	
 	if _is_dead():
@@ -129,16 +135,29 @@ func _update_decision(_delta: float) -> void:
 	
 	decision_timer = 0.0
 	
-	if current_target and not _is_valid_target(current_target):
-		print("[AI] Target invalid, clearing target")
-		current_target = null
+	# Always search for the nearest/best target
+	var potential_target := _find_nearest_target()
+
+	#print('potential target', potential_target)
 	
-	if not current_target:
-		current_target = _find_nearest_target()
-		if current_target:
-			print("[AI] Found target: ", current_target.name, " Distance: ", _get_distance_to_target())
-		else:
-			print("[AI] No target found")
+	# If we found a potential target
+	if potential_target:
+		# If we have no target, use the new one
+		if not current_target:
+			current_target = potential_target
+			_log("[AI] Found new target: ", current_target.name, " Distance: ", _get_distance_to_target())
+		# If the new target is closer, switch to it
+		elif potential_target != current_target:
+			#print('here target', potential_target, current_target)
+			var current_distance := _get_distance_to_target()
+			var potential_distance := entity.global_position.distance_to(potential_target.global_position)
+			if potential_distance < current_distance:
+				_log("[AI] Switching to closer target: ", potential_target.name, " (", potential_distance, " < ", current_distance, ")")
+				current_target = potential_target
+	# Clear invalid targets
+	elif current_target and not _is_valid_target(current_target):
+		_log("[AI] Target invalid, clearing target")
+		current_target = null
 	
 	match current_state:
 		AIState.IDLE:
@@ -157,7 +176,7 @@ func _update_decision(_delta: float) -> void:
 func _update_state(_delta: float) -> void:
 	if current_state == AIState.STUNNED:
 		if state_timer <= 0.0:
-			print("[AI] Stun expired, returning to IDLE")
+			_log("[AI] Stun expired, returning to IDLE")
 			_change_state(AIState.IDLE)
 		return
 	
@@ -166,7 +185,7 @@ func _update_state(_delta: float) -> void:
 	
 	if not current_target:
 		if current_state != AIState.IDLE:
-			print("[AI] No target, changing to IDLE")
+			_log("[AI] No target, changing to IDLE")
 			_change_state(AIState.IDLE)
 		return
 	
@@ -176,77 +195,77 @@ func _update_state(_delta: float) -> void:
 	match current_state:
 		AIState.IDLE:
 			if distance_to_target <= detection_range:
-				print("[AI] IDLE -> CHASE: Target in range (", distance_to_target, " <= ", detection_range, ")")
+				_log("[AI] IDLE -> CHASE: Target in range (", distance_to_target, " <= ", detection_range, ")")
 				_change_state(AIState.CHASE)
 			else:
-				print("[AI] IDLE: Target too far (", distance_to_target, " > ", detection_range, ")")
+				_log("[AI] IDLE: Target too far (", distance_to_target, " > ", detection_range, ")")
 		
 		AIState.CHASE:
 			if distance_to_target <= attack_range and attack_cooldown_timer <= 0.0:
-				print("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
+				_log("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
 				_change_state(AIState.ATTACK)
 			elif distance_to_target > chase_range:
-				print("[AI] CHASE -> IDLE: Target out of chase range (", distance_to_target, " > ", chase_range, ")")
+				_log("[AI] CHASE -> IDLE: Target out of chase range (", distance_to_target, " > ", chase_range, ")")
 				_change_state(AIState.IDLE)
 			elif hp_percentage <= retreat_hp_threshold:
-				print("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "%)")
+				_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "%)")
 				_change_state(AIState.RETREAT)
 			else:
-				print("[AI] CHASE: Distance=", distance_to_target, " AttackRange=", attack_range, " Cooldown=", attack_cooldown_timer)
+				_log("[AI] CHASE: Distance=", distance_to_target, " AttackRange=", attack_range, " Cooldown=", attack_cooldown_timer)
 		
 		AIState.ATTACK:
 			if attack_component and attack_component.get_attack_state() == AttackComponent.AttackState.IDLE:
 				if distance_to_target <= attack_range and attack_cooldown_timer <= 0.0:
-					print("[AI] ATTACK: Still in range, attacking again")
+					_log("[AI] ATTACK: Still in range, attacking again")
 					_change_state(AIState.ATTACK)
 				elif distance_to_target <= chase_range:
-					print("[AI] ATTACK -> CHASE: Target moved away (", distance_to_target, ")")
+					_log("[AI] ATTACK -> CHASE: Target moved away (", distance_to_target, ")")
 					_change_state(AIState.CHASE)
 				else:
-					print("[AI] ATTACK -> IDLE: Target too far (", distance_to_target, " > ", chase_range, ")")
+					_log("[AI] ATTACK -> IDLE: Target too far (", distance_to_target, " > ", chase_range, ")")
 					_change_state(AIState.IDLE)
 			else:
 				var attack_state_str := "null"
 				if attack_component:
 					attack_state_str = str(attack_component.get_attack_state())
-				print("[AI] ATTACK: AttackComponent busy, state=", attack_state_str)
+				_log("[AI] ATTACK: AttackComponent busy, state=", attack_state_str)
 		
 		AIState.RETREAT:
 			if state_timer <= 0.0:
 				if distance_to_target <= attack_range:
-					print("[AI] RETREAT -> ATTACK: Target close (", distance_to_target, ")")
+					_log("[AI] RETREAT -> ATTACK: Target close (", distance_to_target, ")")
 					_change_state(AIState.ATTACK)
 				elif distance_to_target <= chase_range:
-					print("[AI] RETREAT -> CHASE: Target in range (", distance_to_target, ")")
+					_log("[AI] RETREAT -> CHASE: Target in range (", distance_to_target, ")")
 					_change_state(AIState.CHASE)
 				else:
-					print("[AI] RETREAT -> IDLE: Target far (", distance_to_target, ")")
+					_log("[AI] RETREAT -> IDLE: Target far (", distance_to_target, ")")
 					_change_state(AIState.IDLE)
 			else:
-				print("[AI] RETREAT: Timer remaining=", state_timer)
+				_log("[AI] RETREAT: Timer remaining=", state_timer)
 
 func _handle_idle_state() -> void:
 	if not movement_component:
 		return
 	
 	if idle_wander and not current_target:
-		print('hereraaa')
+		_log('hereraaa')
 		_wander_behavior()
 	else:
-		print("[AI] IDLE: Waiting for target to enter detection range")
+		_log("[AI] IDLE: Waiting for target to enter detection range")
 		movement_component.velocity = Vector2.ZERO
 
 func _handle_chase_state() -> void:
 	if not current_target:
-		print("[AI] CHASE: No target!")
+		_log("[AI] CHASE: No target!")
 		return
 	
 	if not movement_component:
-		print("[AI] CHASE: No movement_component!")
+		_log("[AI] CHASE: No movement_component!")
 		return
 	
 	if attack_component and attack_component.get_attack_state() != AttackComponent.AttackState.IDLE:
-		print("[AI] CHASE: Attack in progress, stopping movement")
+		_log("[AI] CHASE: Attack in progress, stopping movement")
 		movement_component.velocity = Vector2.ZERO
 		return
 	
@@ -257,50 +276,50 @@ func _handle_chase_state() -> void:
 		if pathfinding_timer >= pathfinding_update_interval:
 			navigation_agent.target_position = current_target.global_position
 			pathfinding_timer = 0.0
-			print("[AI] CHASE: Updated pathfinding target to ", current_target.global_position)
+			_log("[AI] CHASE: Updated pathfinding target to ", current_target.global_position)
 		
 		if navigation_agent.is_navigation_finished():
-			print("[AI] CHASE: Navigation finished, using direct movement")
+			_log("[AI] CHASE: Navigation finished, using direct movement")
 			direction = (current_target.global_position - entity.global_position).normalized()
 		else:
 			var next_path_position := navigation_agent.get_next_path_position()
 			var waypoint_distance := entity.global_position.distance_to(next_path_position)
 			
 			if waypoint_distance < 1.0:
-				print("[AI] CHASE: Waypoint too close (", waypoint_distance, "), using direct movement")
+				_log("[AI] CHASE: Waypoint too close (", waypoint_distance, "), using direct movement")
 				direction = (current_target.global_position - entity.global_position).normalized()
 			else:
 				direction = (next_path_position - entity.global_position).normalized()
-				print("[AI] CHASE: Pathfinding - Next waypoint: ", next_path_position, " Distance: ", waypoint_distance, " Direction: ", direction)
+				_log("[AI] CHASE: Pathfinding - Next waypoint: ", next_path_position, " Distance: ", waypoint_distance, " Direction: ", direction)
 	else:
 		direction = (current_target.global_position - entity.global_position).normalized()
-		print("[AI] CHASE: Direct movement - Distance: ", distance, " Direction: ", direction)
+		_log("[AI] CHASE: Direct movement - Distance: ", distance, " Direction: ", direction)
 	
 	movement_component.facing_direction = direction
 	
 	if direction != Vector2.ZERO:
 		var speed := movement_component.move_speed
 		movement_component.velocity = direction * speed
-		print("[AI] CHASE: Moving at speed ", speed, " Velocity: ", movement_component.velocity)
+		_log("[AI] CHASE: Moving at speed ", speed, " Velocity: ", movement_component.velocity)
 	else:
 		movement_component.velocity = Vector2.ZERO
-		print("[AI] CHASE: No direction, stopped")
+		_log("[AI] CHASE: No direction, stopped")
 
 func _handle_attack_state() -> void:
 	if not current_target:
-		print("[AI] ATTACK: No target!")
+		_log("[AI] ATTACK: No target!")
 		return
 	
 	if not attack_component:
-		print("[AI] ATTACK: No attack_component!")
+		_log("[AI] ATTACK: No attack_component!")
 		return
 	
 	if attack_cooldown_timer > 0.0:
-		print("[AI] ATTACK: On cooldown (", attack_cooldown_timer, "s remaining)")
+		_log("[AI] ATTACK: On cooldown (", attack_cooldown_timer, "s remaining)")
 		return
 	
 	if attack_component.get_attack_state() != AttackComponent.AttackState.IDLE:
-		print("[AI] ATTACK: AttackComponent busy, state=", attack_component.get_attack_state())
+		_log("[AI] ATTACK: AttackComponent busy, state=", attack_component.get_attack_state())
 		return
 	
 	var direction := (current_target.global_position - entity.global_position).normalized()
@@ -310,23 +329,23 @@ func _handle_attack_state() -> void:
 	
 	var distance := _get_distance_to_target()
 	if distance <= attack_range:
-		print("[AI] ATTACK: Executing attack! Distance: ", distance, " <= ", attack_range)
+		_log("[AI] ATTACK: Executing attack! Distance: ", distance, " <= ", attack_range)
 		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT)
 		attack_cooldown_timer = attack_cooldown
 	else:
-		print("[AI] ATTACK: Target out of range (", distance, " > ", attack_range, ")")
+		_log("[AI] ATTACK: Target out of range (", distance, " > ", attack_range, ")")
 
 func _handle_retreat_state() -> void:
 	if not current_target:
-		print("[AI] RETREAT: No target!")
+		_log("[AI] RETREAT: No target!")
 		return
 	
 	if not movement_component:
-		print("[AI] RETREAT: No movement_component!")
+		_log("[AI] RETREAT: No movement_component!")
 		return
 	
 	if attack_component and attack_component.get_attack_state() != AttackComponent.AttackState.IDLE:
-		print("[AI] RETREAT: Attack in progress, stopping")
+		_log("[AI] RETREAT: Attack in progress, stopping")
 		movement_component.velocity = Vector2.ZERO
 		return
 	
@@ -337,7 +356,7 @@ func _handle_retreat_state() -> void:
 		if pathfinding_timer >= pathfinding_update_interval:
 			navigation_agent.target_position = retreat_position
 			pathfinding_timer = 0.0
-			print("[AI] RETREAT: Updated pathfinding retreat position to ", retreat_position)
+			_log("[AI] RETREAT: Updated pathfinding retreat position to ", retreat_position)
 		
 		if navigation_agent.is_navigation_finished():
 			direction = Vector2.ZERO
@@ -346,23 +365,23 @@ func _handle_retreat_state() -> void:
 			direction = (next_path_position - entity.global_position).normalized()
 	else:
 		direction = (entity.global_position - current_target.global_position).normalized()
-		print("[AI] RETREAT: Direct retreat - Direction: ", direction)
+		_log("[AI] RETREAT: Direct retreat - Direction: ", direction)
 	
 	movement_component.facing_direction = direction
 	
 	if direction != Vector2.ZERO:
 		movement_component.velocity = direction * movement_component.move_speed
-		print("[AI] RETREAT: Moving away at speed ", movement_component.move_speed)
+		_log("[AI] RETREAT: Moving away at speed ", movement_component.move_speed)
 	else:
 		movement_component.velocity = Vector2.ZERO
 
 func _handle_stunned_state() -> void:
-	print("[AI] STUNNED: Timer remaining=", state_timer)
+	_log("[AI] STUNNED: Timer remaining=", state_timer)
 	if movement_component:
 		movement_component.velocity = Vector2.ZERO
 
 func _handle_dead_state() -> void:
-	print("[AI] DEAD: Cleaning up")
+	_log("[AI] DEAD: Cleaning up")
 	if movement_component:
 		movement_component.stop_all_movement()
 	if attack_component:
@@ -387,7 +406,7 @@ func _change_state(new_state: AIState) -> void:
 		AIState.DEAD:
 			state_timer = 0.0
 	
-	print("[AI] State change: ", old_state_name, " -> ", new_state_name)
+	_log("[AI] State change: ", old_state_name, " -> ", new_state_name)
 
 func _find_nearest_target() -> Node2D:
 	var nearest_target: Node2D = null
@@ -417,14 +436,23 @@ func _is_valid_target(target: Node2D) -> bool:
 	if not is_instance_valid(target):
 		return false
 	
-	var target_hitbox := _get_hitbox_from_target(target)
-	if target_hitbox:
-		if hitbox_component and hitbox_component.is_same_team(target_hitbox.team):
-			return false
-		
-		if target_team >= 0 and target_hitbox.team != target_team:
-			return false
+	# Don't target ourselves
+	if target == entity:
+		return false
 	
+	# Target must have a HitboxComponent to be attackable
+	var target_hitbox := _get_hitbox_from_target(target)
+	if not target_hitbox:
+		return false
+	
+	# Check team alignment
+	if hitbox_component and hitbox_component.is_same_team(target_hitbox.team):
+		return false
+	
+	if target_team >= 0 and target_hitbox.team != target_team:
+		return false
+	
+	# Check if target is alive
 	var target_health := _get_health_from_target(target)
 	if target_health and target_health.is_dead():
 		return false
