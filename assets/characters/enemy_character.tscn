@@ -543,6 +543,7 @@ animation_component = NodePath("../AnimationComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 entity = NodePath("../..")
+allow_player_control = false
 
 [node name="HealthComponent" parent="ComponentGroup" node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("6_5gfjf")]
 healthbar = NodePath("../../CanvasLayer/Healthbar")

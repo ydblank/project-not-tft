@@ -53,7 +53,7 @@ var pathfinding_timer: float = 0.0
 @onready var state_timer_node: Timer = $StateTimer
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
 
-var enable_debug_logs = true
+var enable_debug_logs = false
 
 func _log(...varargs: Array) -> void:
 	if enable_debug_logs:
@@ -330,7 +330,8 @@ func _handle_attack_state() -> void:
 	var distance := _get_distance_to_target()
 	if distance <= attack_range:
 		_log("[AI] ATTACK: Executing attack! Distance: ", distance, " <= ", attack_range)
-		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT)
+		attack_component.set_attack_direction = direction
+		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
 		attack_cooldown_timer = attack_cooldown
 	else:
 		_log("[AI] ATTACK: Target out of range (", distance, " > ", attack_range, ")")
