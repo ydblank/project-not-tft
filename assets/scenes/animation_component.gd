@@ -71,8 +71,8 @@ func _process(_delta: float) -> void:
 	update_animation()
 
 func update_animation() -> void:
-	if not _is_authority():
-		return
+	#if not _is_authority():
+		#return
 	
 	var animation_direction := _get_animation_direction()
 	update_animation_parameters(animation_direction)

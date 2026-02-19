@@ -53,7 +53,7 @@ var pathfinding_timer: float = 0.0
 @onready var state_timer_node: Timer = $StateTimer
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
 
-var enable_debug_logs = true
+var enable_debug_logs = false
 
 func _log(...varargs: Array) -> void:
 	if enable_debug_logs:

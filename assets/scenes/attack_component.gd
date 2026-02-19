@@ -12,7 +12,6 @@ const DEBUG_ATTACK := false
 @export var hitbox_component: HitboxComponent
 @export var entity: Node2D
 
-
 enum AttackState { IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW }
 enum AttackType { LIGHT, HEAVY }
 
@@ -52,21 +51,84 @@ var _heavy_attack_direction: Vector2 = Vector2.ZERO
 
 @onready var attack_timer: Timer = $AttackTimer
 
+
+# ---------------- NET HELPERS ----------------
+func _net_active() -> bool:
+	var mp := multiplayer.multiplayer_peer
+	return mp != null and mp.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
+
+# Spawns a slash on ALL peers (and locally). Uses the same visuals as your singleplayer slash:
+# - Light: follow_mouse = true BUT uses p_aim_pos (attacker’s mouse) instead of local mouse.
+# - Heavy: follow_mouse = false with fixed rotation.
+@rpc("reliable", "any_peer", "call_local")
+func rpc_spawn_slash(
+	p_spawn_pos: Vector2,
+	p_follow_mouse: bool,
+	p_fixed_rotation: float,
+	p_slash_effect: String,
+	p_attacker_id: int,
+	p_attacker_team: int,
+	p_damage: float,
+	p_combo_step: int,
+	p_combo_total_hits: int,
+	p_aim_pos: Vector2
+) -> void:
+	if ATTACK_EFFECT == null:
+		return
+
+	if entity == null:
+		entity = get_parent() as Node2D
+		if entity == null:
+			return
+
+	var fx = ATTACK_EFFECT.instantiate()
+	fx.global_position = p_spawn_pos
+	fx.follow_mouse = p_follow_mouse
+	fx.fixed_rotation = p_fixed_rotation
+	fx.slash_effect = p_slash_effect
+	fx.hits_players = true
+
+	# ✅ Light attack: keep follow_mouse visuals but feed attacker’s aim position
+	if p_follow_mouse:
+		fx.use_network_aim = true
+		fx.network_aim_pos = p_aim_pos
+
+
+	if fx.has_method("set_attack_context"):
+		fx.call(
+			"set_attack_context",
+			p_attacker_id,
+			p_attacker_team,
+			p_damage,
+			p_combo_step,
+			p_combo_total_hits
+		)
+
+	entity.get_parent().add_child(fx)
+
+
+# ---------------- READY ----------------
 func _ready() -> void:
 	set_process(true)
-	set_process_input(true)
+	if _is_authority():
+		set_process_input(true)
+	else:
+		set_process_input(false)
 
 	attack_timer.one_shot = true
 	var cb := Callable(self, "_on_attack_timer_timeout")
-	# Ensure we only have a single connection (avoids multi-firing state transitions).
 	while attack_timer.timeout.is_connected(cb):
 		attack_timer.timeout.disconnect(cb)
 	attack_timer.timeout.connect(cb)
+
 	if DEBUG_ATTACK:
 		print("[ATK] ready entity=", (str(entity.name) if entity else "null"), " timer=", attack_timer)
 
+
 func set_remote_attacking(is_attacking: bool) -> void:
 	attack_state = (AttackState.ACTIVE if is_attacking else AttackState.IDLE)
+
 
 func reset_attack_state() -> void:
 	attack_state = AttackState.IDLE
@@ -90,23 +152,29 @@ func reset_attack_state() -> void:
 	if attack_timer:
 		attack_timer.stop()
 
+
 func get_knockback_mult() -> float:
 	return _charge_knockback_mult
+
 
 func get_attack_state() -> AttackState:
 	return attack_state
 
+
 func get_attack_is_holding() -> bool:
 	return attack_is_holding
 
+
 func get_is_charging() -> bool:
 	return is_charging
+
 
 func maybe_spawn_payload_during_lunge_pause() -> void:
 	if _attack_effect_spawned:
 		return
 	_spawn_attack_payload(combo_step)
 	_attack_effect_spawned = true
+
 
 func handle_attack_input(p_attack: AttackType) -> void:
 	if _is_dead():
@@ -139,11 +207,13 @@ func handle_attack_input(p_attack: AttackType) -> void:
 		_:
 			buffered_attack = true
 
+
 func _start_attack_by_type(p_attack: AttackType) -> void:
 	if p_attack == AttackType.LIGHT:
 		start_attack()
 	else:
-		start_heavy_attack()
+		start_heavy_attack
+
 
 func _input(event: InputEvent) -> void:
 	if _is_dead():
@@ -164,6 +234,7 @@ func _input(event: InputEvent) -> void:
 		else:
 			handle_attack_input(AttackType.LIGHT)
 
+
 func _process(delta: float) -> void:
 	if attack_is_holding:
 		attack_hold_time = min(attack_hold_time + delta, max_charge_time)
@@ -171,23 +242,22 @@ func _process(delta: float) -> void:
 		var ratio: float = clamp(attack_hold_time / max_charge_time, 0.0, 1.0)
 		if _is_authority():
 			var sprite: Sprite2D = _get_sprite()
-			# Shake feedback
 			if attack_hold_time >= 0.2 and sprite:
 				var shake_intensity: float = _shake_strength * (1.0 + ratio)
 				sprite.position.x = sin(_shake_time * (10.0 + 10.0 * ratio)) * shake_intensity
 				sprite.position.y = cos(_shake_time * (15.0 + 15.0 * ratio)) * shake_intensity
 
-			# Blink feedback
 			if sprite:
 				var blink_speed: float = lerp(4.0, 8.0, ratio)
-				var blink_on := fmod(_shake_time * blink_speed, 2.0) < 1.0
+				var blink_on: bool = fmod(_shake_time * blink_speed, 2.0) < 1.0
 				sprite.self_modulate = (Color(1, 1, 1, 1) if blink_on else Color(1.5, 1.5, 1.5, 1))
 	else:
 		_reset_sprite_visuals()
 
+
 func charge_heavy_attack() -> void:
-	var charge_ratio := charge_time / max_charge_time
-	var threshold := heavy_threshold
+	var charge_ratio: float = charge_time / max_charge_time
+	var threshold: float = heavy_threshold
 	if charge_time < threshold:
 		_charge_damage_mult = 1.0
 		_charge_knockback_mult = 1.0
@@ -202,17 +272,20 @@ func charge_heavy_attack() -> void:
 
 	handle_attack_input(AttackType.HEAVY)
 
+
 func _initialize_attack_state() -> void:
 	attack_state = AttackState.STARTUP
 	buffered_attack = false
 	_attack_effect_spawned = false
 	_attack_hit_targets.clear()
 
+
 func _set_player_directions(cardinal_dir: Vector2) -> void:
 	if movement_component:
 		movement_component.facing_direction = cardinal_dir
 	_set_player_last_direction(cardinal_dir)
 	_call_player_update_anim(cardinal_dir)
+
 
 func start_attack() -> void:
 	_initialize_attack_state()
@@ -235,12 +308,14 @@ func start_attack() -> void:
 
 	_start_attack_timer(get_startup_time())
 
+
 func _start_attack_timer(wait_time: float) -> void:
 	if attack_timer:
 		attack_timer.wait_time = wait_time
 		attack_timer.start()
 		if DEBUG_ATTACK:
 			print("[ATK] timer started wait_time=", wait_time, " weapon_type=", _weapon_type())
+
 
 func start_heavy_attack() -> void:
 	_initialize_attack_state()
@@ -273,6 +348,7 @@ func start_heavy_attack() -> void:
 
 	_start_heavy_lunge(raw_dir)
 	_start_attack_timer(get_startup_time() + 0.25)
+
 
 func _on_attack_timer_timeout() -> void:
 	if DEBUG_ATTACK:
@@ -323,11 +399,14 @@ func _on_attack_timer_timeout() -> void:
 				combo_step = 0
 				attack_state = AttackState.IDLE
 
+
 func enable_hitbox() -> void:
 	_attack_hit_targets.clear()
 
+
 func disable_hitbox() -> void:
 	pass
+
 
 func get_startup_time() -> float:
 	if not stats_component:
@@ -335,43 +414,50 @@ func get_startup_time() -> float:
 	var atk_speed: float = CombatGlobal.calculate_attack_speed(stats_component)
 	return 0.01 / max(atk_speed, 0.00001)
 
+
 func get_active_time() -> float:
 	return 0.10
+
 
 func get_recovery_time() -> float:
 	if current_attack_type == AttackType.HEAVY:
 		return 0.10
 	return 0.15
 
+
 func _is_final_combo_step() -> bool:
 	var max_hits := _combo_total_hits()
 	return combo_step >= (max_hits - 1)
 
+
 func _mouse_raw_direction() -> Vector2:
 	if not entity:
 		return Vector2.ZERO
-	var d := (get_global_mouse_position() - entity.global_position).normalized()
+	var d: Vector2 = (get_global_mouse_position() - entity.global_position).normalized()
 	return d
 
+
 func _mouse_cardinal_direction() -> Vector2:
-	var to_mouse := Vector2.ZERO
+	var to_mouse: Vector2 = Vector2.ZERO
 	if entity:
 		to_mouse = get_global_mouse_position() - entity.global_position
 	if abs(to_mouse.x) > abs(to_mouse.y):
 		return Vector2.RIGHT if to_mouse.x > 0.0 else Vector2.LEFT
 	return Vector2.DOWN if to_mouse.y > 0.0 else Vector2.UP
 
+
 func _cardinal_from_raw(raw_dir: Vector2) -> Vector2:
 	if abs(raw_dir.x) > abs(raw_dir.y):
 		return Vector2.RIGHT if raw_dir.x > 0.0 else Vector2.LEFT
 	return Vector2.DOWN if raw_dir.y > 0.0 else Vector2.UP
+
 
 func _attack_combo_animation(step: int) -> StringName:
 	var is_left: bool
 	if current_attack_type == AttackType.HEAVY and _heavy_attack_direction != Vector2.ZERO:
 		is_left = _heavy_attack_direction.x < 0.0
 	else:
-		var to_mouse := Vector2.ZERO
+		var to_mouse: Vector2 = Vector2.ZERO
 		if entity:
 			to_mouse = get_global_mouse_position() - entity.global_position
 		is_left = to_mouse.x < 0.0
@@ -386,11 +472,12 @@ func _attack_combo_animation(step: int) -> StringName:
 		return &"slash_2" if (step % 2 == 0) else &"slash"
 	return &"slash" if (step % 2 == 0) else &"slash_2"
 
+
 func _start_lunge_toward_mouse(multiplier: float = 1.0) -> void:
 	if not movement_component:
 		return
-	
-	var dir := _mouse_raw_direction()
+
+	var dir: Vector2 = _mouse_raw_direction()
 	if dir == Vector2.ZERO:
 		dir = _get_player_last_direction()
 
@@ -400,34 +487,39 @@ func _start_lunge_toward_mouse(multiplier: float = 1.0) -> void:
 
 	movement_component.start_lunge(dir, dist_mult)
 
+
 func _start_heavy_lunge(dir: Vector2) -> void:
 	if not movement_component:
 		return
-	
+
 	var dist_mult: float = 1.5
 	if _is_final_combo_step():
 		dist_mult *= 2.0
-	
+
 	movement_component.start_lunge(dir, dist_mult)
+
 
 func _get_weapon_dict() -> Dictionary:
 	if not stats_component:
 		return {}
 	return stats_component.get_entity_weapon()
 
+
 func _weapon_type() -> String:
 	var weapon: Dictionary = _get_weapon_dict()
 	return str(weapon.get("type", ""))
+
 
 func _get_combo_array() -> Array:
 	var weapon: Dictionary = _get_weapon_dict()
 	if weapon.is_empty():
 		return []
-	
+
 	var array_key: String = "quick_attack" if current_attack_type == AttackType.LIGHT else "heavy_attack"
 	if weapon.has(array_key) and (weapon[array_key] is Array):
 		return weapon[array_key] as Array
 	return []
+
 
 func _combo_total_hits() -> int:
 	if not stats_component:
@@ -437,17 +529,20 @@ func _combo_total_hits() -> int:
 		return maxi(combo_arr.size(), 1)
 	return maxi(stats_component.combo_max_hits, 1)
 
+
 func _weapon_combo_damage_multiplier(step: int) -> float:
 	var combo_arr: Array = _get_combo_array()
 	if combo_arr.is_empty():
 		return 1.0
 	return float(combo_arr[clampi(step, 0, combo_arr.size() - 1)])
 
+
 func _spawn_attack_payload(step: int) -> void:
 	if _weapon_type() == "range":
 		spawn_projectile(step)
 	else:
 		spawn_attack_effect(step)
+
 
 func spawn_projectile(step: int) -> void:
 	if not entity:
@@ -465,9 +560,14 @@ func spawn_projectile(step: int) -> void:
 	projectile.shooter = entity
 	entity.get_parent().add_child(projectile)
 
+
 func spawn_attack_effect(step: int) -> void:
 	if not entity:
 		return
+
+	var aim_pos: Vector2 = get_global_mouse_position()
+
+	# Local spawn (singleplayer or authority local prediction) - keep the visuals exactly like before.
 	var fx = ATTACK_EFFECT.instantiate()
 
 	if current_attack_type == AttackType.HEAVY and _combo_directions.size() > 0:
@@ -498,24 +598,51 @@ func spawn_attack_effect(step: int) -> void:
 	var mult: float = _weapon_combo_damage_multiplier(step)
 	var total_damage: float = max(base_damage * mult * _charge_damage_mult, 1.0)
 	var total_hits: int = _combo_total_hits()
-	if fx.has_method("set_attack_context"):
-		var attacker_id := -1
-		var team_id := 0
-		if hitbox_component:
-			team_id = hitbox_component.team
-		if entity.has_method("_net_active") and entity.call("_net_active"):
-			attacker_id = entity.call("get_multiplayer_authority")
-		elif String(entity.name).is_valid_int():
-			attacker_id = String(entity.name).to_int()
-		fx.set_attack_context(attacker_id, team_id, total_damage, step, total_hits)
 
-	entity.get_parent().add_child(fx)
+	var attacker_id: int = -1
+	if String(entity.name).is_valid_int():
+		attacker_id = String(entity.name).to_int()
+
+	var team_id: int = 0
+	if hitbox_component:
+		team_id = hitbox_component.team
+
+	if fx.has_method("set_attack_context"):
+		fx.call("set_attack_context", attacker_id, team_id, total_damage, step, total_hits)
+
+	# 🔥 SINGLEPLAYER: just add it
+	if not _net_active():
+		entity.get_parent().add_child(fx)
+		return
+
+	# 🔥 MULTIPLAYER:
+	# Only the authority should spawn & replicate. Everyone (including self) gets it via call_local RPC.
+	if not _is_authority():
+		fx.queue_free()
+		return
+
+	# Don't double-spawn locally: let call_local spawn for us.
+	fx.queue_free()
+
+	rpc(
+		"rpc_spawn_slash",
+		fx.global_position,
+		fx.follow_mouse,
+		fx.fixed_rotation,
+		fx.slash_effect,
+		attacker_id,
+		team_id,
+		total_damage,
+		step,
+		total_hits,
+		aim_pos
+	)
+
 
 func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	if not entity:
 		return
-	
-	# Only authority should apply hits.
+
 	if entity.has_method("is_multiplayer_authority") and (not entity.call("is_multiplayer_authority")):
 		return
 
@@ -530,26 +657,18 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	if body2d == null:
 		return
 
-	# Don't hit yourself
 	if body == entity:
 		return
 
-	# Don't hit same team
 	var my_team := 0
 	if hitbox_component:
 		my_team = hitbox_component.team
 	if hitbox.is_same_team(my_team):
 		if DEBUG_ATTACK:
-			print(
-				"[ATK] hitbox enter body=", body.name,
-				" hitbox_team=", hitbox.team,
-				" my_team=", my_team,
-				" (same team, skipping)"
-			)
+			print("[ATK] teammate hit skipped")
 		return
 
-	# Avoid multi-hit spam during a single ACTIVE window.
-	var key := str(body.get_instance_id())
+	var key: String = str(body.get_instance_id())
 	if _attack_hit_targets.has(key):
 		return
 	_attack_hit_targets[key] = true
@@ -559,24 +678,26 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 		dir = _get_player_last_direction()
 
 	var dmg: float = _calc_damage(combo_step) * _charge_damage_mult
-	
-	# Use HitboxComponent.take_damage() for all targets
 	hitbox.take_damage(dmg, entity, dir)
+
 
 func _calc_base_damage() -> float:
 	if not stats_component:
 		return 1.0
 	return CombatGlobal.calculate_attack_damage(stats_component)
 
+
 func _calc_damage(step: int) -> float:
 	var base_damage: float = _calc_base_damage()
 	var mult: float = _weapon_combo_damage_multiplier(step)
 	return max(base_damage * mult, 1.0)
 
+
 func _is_dead() -> bool:
 	if health_component:
 		return health_component.is_dead()
 	return false
+
 
 func _is_authority() -> bool:
 	if not entity:
@@ -589,27 +710,33 @@ func _is_authority() -> bool:
 			return entity.call("is_multiplayer_authority")
 	return true
 
+
 func _get_sprite() -> Sprite2D:
 	if animation_component:
 		return animation_component.get_sprite()
 	return null
+
 
 func _get_player_last_direction() -> Vector2:
 	if movement_component:
 		return movement_component.last_direction
 	return Vector2.DOWN
 
+
 func _set_player_last_direction(dir: Vector2) -> void:
 	if movement_component:
 		movement_component.last_direction = dir
+
 
 func _call_player_update_anim(dir: Vector2) -> void:
 	if animation_component:
 		animation_component.update_animation_parameters(dir)
 
+
 func _reset_sprite_visuals() -> void:
 	if animation_component:
 		animation_component.reset_sprite_visuals()
+
 
 func _reset_combo_state() -> void:
 	buffered_attack = false

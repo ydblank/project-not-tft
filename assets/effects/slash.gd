@@ -15,6 +15,8 @@ const DEBUG_HITS := true
 @onready var area: Area2D = $Area2D
 @export var follow_mouse: bool = true
 @export var fixed_rotation: float = 0.0
+@export var use_network_aim: bool = false
+@export var network_aim_pos: Vector2 = Vector2.ZERO
 
 var weapon_damage: float = 1.0
 var _hit_targets: Dictionary = {}
@@ -39,9 +41,13 @@ func _ready():
 	# LIGHT ATTACK (mouse aim)
 	# -------------------------
 	if follow_mouse:
-		var mouse_position = get_global_mouse_position()
-		var dir = (mouse_position - global_position).normalized()
-		look_at(mouse_position)  # Node2D points toward mouse
+		var mouse_position: Vector2 = get_global_mouse_position()
+		if use_network_aim:
+			mouse_position = network_aim_pos
+
+		var dir: Vector2 = (mouse_position - global_position).normalized()
+		look_at(mouse_position)
+
 
 		# Compute the angle in degrees from right (0°)
 		var angle_deg := rad_to_deg(dir.angle())
