@@ -1,6 +1,6 @@
 extends Node2D
 
-const DEBUG_HITS := true
+const DEBUG_HITS := false
 
 @export var slash_effect = "slash"
 @export var attacker_id: int = -1
@@ -36,7 +36,6 @@ func _ready():
 			area.body_entered.connect(_on_area_2d_body_entered)
 		if not area.area_entered.is_connected(_on_area_2d_area_entered):
 			area.area_entered.connect(_on_area_2d_area_entered)
-	print("[DEBUG] Slash Area2D layer:", area.collision_layer, " mask:", area.collision_mask)
 	# -------------------------
 	# LIGHT ATTACK (mouse aim)
 	# -------------------------
@@ -59,8 +58,7 @@ func _ready():
 		sprite.rotation = deg_to_rad(angle_deg + ART_OFFSET_DEG)
 
 		# Flip vertically or horizontally if needed (depends on art)
-		sprite.flip_h = true  # optional if sprite art is symmetric
-
+		sprite.flip_h = true # optional if sprite art is symmetric
 
 
 	# -------------------------
@@ -88,7 +86,7 @@ func _process(_delta):
 		var ROT_OFFSET_DEG := -35.0
 
 		# Apply special rotation offset for combo steps (e.g., every 2 hits)
-		if combo_step % 2 == 1:  # step 1, 3, 5, etc. (every 2nd hit visually)
+		if combo_step % 2 == 1: # step 1, 3, 5, etc. (every 2nd hit visually)
 			ROT_OFFSET_DEG = 40.0
 
 		var rot_offset := deg_to_rad(ROT_OFFSET_DEG)
@@ -96,7 +94,7 @@ func _process(_delta):
 		# Distance from the sprite center (tweak per combo if needed)
 		var HITBOX_DISTANCE := 5.0
 		if combo_step % 2 == 1:
-			HITBOX_DISTANCE = 15.0  # slightly farther for every 2nd hit
+			HITBOX_DISTANCE = 15.0 # slightly farther for every 2nd hit
 
 		# Position the hitbox in front of the sprite
 		var offset := Vector2(HITBOX_DISTANCE, 0).rotated(sprite.global_rotation + rot_offset)

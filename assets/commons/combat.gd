@@ -11,7 +11,6 @@ static func calculate_attack_speed(stats_resource: StatsComponent) -> float:
 
 	# Additive: base + class_bonus + weapon_bonus
 	var final_speed := class_attack_speed_bonus + weapon_attack_speed_bonus
-	print("Final Attack Speed: ", final_speed)
 	return max(final_speed, 0.001)
 	
 static func calculate_attack_damage(stats_resource: StatsComponent) -> float:

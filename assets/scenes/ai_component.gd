@@ -330,7 +330,8 @@ func _handle_attack_state() -> void:
 	var distance := _get_distance_to_target()
 	if distance <= attack_range:
 		_log("[AI] ATTACK: Executing attack! Distance: ", distance, " <= ", attack_range)
-		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT)
+		attack_component.set_attack_direction = direction
+		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
 		attack_cooldown_timer = attack_cooldown
 	else:
 		_log("[AI] ATTACK: Target out of range (", distance, " > ", attack_range, ")")

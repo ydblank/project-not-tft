@@ -11,14 +11,17 @@ const DEBUG_ATTACK := false
 @export var health_component: HealthComponent
 @export var hitbox_component: HitboxComponent
 @export var entity: Node2D
+@export var allow_player_control: bool = true
+
+var set_attack_direction: Vector2 = Vector2.ZERO
 
 enum AttackState { IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW }
 enum AttackType { LIGHT, HEAVY }
 
 # Local offsets (relative to aim direction)
 const SLASH_OFFSETS := {
-	"slash": Vector2(0, -10),   # above the swing
-	"slash_2": Vector2(0, 10)   # below the swing
+	"slash": Vector2(0, -10), # above the swing
+	"slash_2": Vector2(0, 10) # below the swing
 }
 
 const ATTACK_EFFECT: PackedScene = preload("res://assets/effects/slash.tscn")
@@ -175,8 +178,9 @@ func maybe_spawn_payload_during_lunge_pause() -> void:
 	_spawn_attack_payload(combo_step)
 	_attack_effect_spawned = true
 
-
-func handle_attack_input(p_attack: AttackType) -> void:
+func handle_attack_input(p_attack: AttackType, force: bool = false) -> void:
+	if not force and not allow_player_control:
+		return
 	if _is_dead():
 		return
 	if DEBUG_ATTACK:
@@ -216,7 +220,7 @@ func _start_attack_by_type(p_attack: AttackType) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if _is_dead():
+	if not allow_player_control or _is_dead():
 		return
 	if DEBUG_ATTACK and (event.is_action_pressed("Attack") or event.is_action_released("Attack")):
 		print("[ATK] action Attack pressed=", event.is_action_pressed("Attack"), " released=", event.is_action_released("Attack"), " holding=", attack_is_holding, " hold_time=", attack_hold_time)
@@ -431,6 +435,8 @@ func _is_final_combo_step() -> bool:
 
 
 func _mouse_raw_direction() -> Vector2:
+	if not allow_player_control and set_attack_direction != Vector2.ZERO:
+		return set_attack_direction.normalized()
 	if not entity:
 		return Vector2.ZERO
 	var d: Vector2 = (get_global_mouse_position() - entity.global_position).normalized()
@@ -438,7 +444,9 @@ func _mouse_raw_direction() -> Vector2:
 
 
 func _mouse_cardinal_direction() -> Vector2:
-	var to_mouse: Vector2 = Vector2.ZERO
+	if not allow_player_control and set_attack_direction != Vector2.ZERO:
+		return _cardinal_from_raw(set_attack_direction)
+	var to_mouse := Vector2.ZERO
 	if entity:
 		to_mouse = get_global_mouse_position() - entity.global_position
 	if abs(to_mouse.x) > abs(to_mouse.y):
@@ -589,8 +597,13 @@ func spawn_attack_effect(step: int) -> void:
 		fx.global_position = base_pos + rotated_offset
 	else:
 		fx.global_position = entity.global_position
-		fx.follow_mouse = true
-		fx.slash_effect = str(_attack_combo_animation(step))
+		if set_attack_direction != Vector2.ZERO:
+			fx.follow_mouse = false
+			var angle_deg: float = rad_to_deg(set_attack_direction.angle())
+			fx.fixed_rotation = angle_deg
+		else:
+			fx.follow_mouse = true
+			fx.slash_effect = str(_attack_combo_animation(step))
 
 	fx.hits_players = true
 
