@@ -216,7 +216,7 @@ func _start_attack_by_type(p_attack: AttackType) -> void:
 	if p_attack == AttackType.LIGHT:
 		start_attack()
 	else:
-		start_heavy_attack
+		start_heavy_attack()
 
 
 func _input(event: InputEvent) -> void:
@@ -577,7 +577,8 @@ func spawn_attack_effect(step: int) -> void:
 
 	# Local spawn (singleplayer or authority local prediction) - keep the visuals exactly like before.
 	var fx = ATTACK_EFFECT.instantiate()
-
+	fx.attacker_node_cached = entity
+	fx.knockback_mult = get_knockback_mult()
 	if current_attack_type == AttackType.HEAVY and _combo_directions.size() > 0:
 		var locked_raw: Vector2 = _combo_directions[0]["raw"] as Vector2
 		fx.follow_mouse = false
@@ -691,9 +692,15 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 		dir = _get_player_last_direction()
 
 	var dmg: float = _calc_damage(combo_step) * _charge_damage_mult
-	hitbox.take_damage(dmg, entity, dir)
 
+	# FINAL HIT ONLY launches:
+	var allow_kb: bool = _is_final_combo_step()
 
+	# Charge/heavy scaling (you already compute this):
+	var kb_mult: float = get_knockback_mult()
+
+	hitbox.take_damage(dmg, entity, dir, allow_kb, kb_mult)
+	
 func _calc_base_damage() -> float:
 	if not stats_component:
 		return 1.0

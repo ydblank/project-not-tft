@@ -231,3 +231,13 @@ func sync_remote_animation(dir: Vector2, is_attacking: bool, is_moving: bool) ->
 		force_state(walk_state_name)
 	else:
 		force_state(idle_state_name)
+
+func flash_red() -> void:
+	var sprite := get_sprite()
+	if sprite == null:
+		return
+
+	sprite.modulate = Color(1, 0.2, 0.2, 1)
+	await get_tree().create_timer(0.08).timeout
+	if is_instance_valid(sprite):
+		sprite.modulate = Color(1, 1, 1, 1)

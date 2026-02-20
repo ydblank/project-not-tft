@@ -17,7 +17,7 @@ class_name AIComponent
 @export_group("Behavior Settings")
 @export var attack_range: float = 50.0
 @export var chase_range: float = 400.0
-@export var retreat_hp_threshold: float = 0.3
+@export var retreat_hp_threshold: float = 0.0
 @export var attack_cooldown: float = 1.5
 @export var decision_interval: float = 0.2
 @export var idle_wander: bool = false
