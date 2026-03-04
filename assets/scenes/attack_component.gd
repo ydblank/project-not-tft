@@ -15,8 +15,8 @@ const DEBUG_ATTACK := false
 
 var set_attack_direction: Vector2 = Vector2.ZERO
 
-enum AttackState { IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW }
-enum AttackType { LIGHT, HEAVY }
+enum AttackState {IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW}
+enum AttackType {LIGHT, HEAVY}
 
 # Local offsets (relative to aim direction)
 const SLASH_OFFSETS := {
@@ -70,6 +70,7 @@ func rpc_spawn_slash(
 	p_follow_mouse: bool,
 	p_fixed_rotation: float,
 	p_slash_effect: String,
+	p_no_flip: bool,
 	p_attacker_id: int,
 	p_attacker_team: int,
 	p_damage: float,
@@ -85,11 +86,12 @@ func rpc_spawn_slash(
 		if entity == null:
 			return
 
-	var fx = ATTACK_EFFECT.instantiate()
+	var fx: SlashEffect = ATTACK_EFFECT.instantiate()
 	fx.global_position = p_spawn_pos
 	fx.follow_mouse = p_follow_mouse
 	fx.fixed_rotation = p_fixed_rotation
 	fx.slash_effect = p_slash_effect
+	fx.no_flip = p_no_flip
 	fx.hits_players = true
 
 	# ✅ Light attack: keep follow_mouse visuals but feed attacker’s aim position
@@ -120,7 +122,7 @@ func _ready() -> void:
 		set_process_input(false)
 
 	attack_timer.one_shot = true
-	var cb := Callable(self, "_on_attack_timer_timeout")
+	var cb := Callable(self , "_on_attack_timer_timeout")
 	while attack_timer.timeout.is_connected(cb):
 		attack_timer.timeout.disconnect(cb)
 	attack_timer.timeout.connect(cb)
@@ -461,14 +463,6 @@ func _cardinal_from_raw(raw_dir: Vector2) -> Vector2:
 
 
 func _attack_combo_animation(step: int) -> StringName:
-	var is_left: bool
-	if current_attack_type == AttackType.HEAVY and _heavy_attack_direction != Vector2.ZERO:
-		is_left = _heavy_attack_direction.x < 0.0
-	else:
-		var to_mouse: Vector2 = Vector2.ZERO
-		if entity:
-			to_mouse = get_global_mouse_position() - entity.global_position
-		is_left = to_mouse.x < 0.0
 
 	if current_attack_type == AttackType.HEAVY:
 		match step:
@@ -476,8 +470,6 @@ func _attack_combo_animation(step: int) -> StringName:
 			1: return &"slash"
 			_: return &"slash"
 
-	if is_left:
-		return &"slash_2" if (step % 2 == 0) else &"slash"
 	return &"slash" if (step % 2 == 0) else &"slash_2"
 
 
@@ -552,6 +544,11 @@ func _spawn_attack_payload(step: int) -> void:
 		spawn_attack_effect(step)
 
 
+func _get_attack_direction() -> Vector2:
+	if set_attack_direction != Vector2.ZERO:
+		return set_attack_direction.normalized()
+	return (get_global_mouse_position() - entity.global_position).normalized()
+
 func spawn_projectile(step: int) -> void:
 	if not entity:
 		return
@@ -559,8 +556,9 @@ func spawn_projectile(step: int) -> void:
 	if arrow_projectile == null:
 		return
 	var projectile = arrow_projectile.instantiate()
+	var dir := _get_attack_direction()
 	projectile.global_position = entity.global_position
-	projectile.rotation = (get_global_mouse_position() - entity.global_position).angle()
+	projectile.rotation = dir.angle()
 
 	var base_damage: float = _calc_base_damage()
 	var mult: float = _weapon_combo_damage_multiplier(step)
@@ -576,10 +574,12 @@ func spawn_attack_effect(step: int) -> void:
 	var aim_pos: Vector2 = get_global_mouse_position()
 
 	# Local spawn (singleplayer or authority local prediction) - keep the visuals exactly like before.
-	var fx = ATTACK_EFFECT.instantiate()
+	var fx: SlashEffect = ATTACK_EFFECT.instantiate()
 	fx.attacker_node_cached = entity
 	fx.knockback_mult = get_knockback_mult()
 	if current_attack_type == AttackType.HEAVY and _combo_directions.size() > 0:
+		fx.no_flip = true
+		
 		var locked_raw: Vector2 = _combo_directions[0]["raw"] as Vector2
 		fx.follow_mouse = false
 
@@ -601,7 +601,11 @@ func spawn_attack_effect(step: int) -> void:
 		if set_attack_direction != Vector2.ZERO:
 			fx.follow_mouse = false
 			var angle_deg: float = rad_to_deg(set_attack_direction.angle())
+			fx.no_flip = true
 			fx.fixed_rotation = angle_deg
+			
+			fx.slash_effect = str(_attack_combo_animation(step))
+
 		else:
 			fx.follow_mouse = true
 			fx.slash_effect = str(_attack_combo_animation(step))
@@ -644,6 +648,7 @@ func spawn_attack_effect(step: int) -> void:
 		fx.follow_mouse,
 		fx.fixed_rotation,
 		fx.slash_effect,
+		fx.no_flip,
 		attacker_id,
 		team_id,
 		total_damage,

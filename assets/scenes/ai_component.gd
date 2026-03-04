@@ -199,16 +199,23 @@ func _update_state(_delta: float) -> void:
 				_change_state(AIState.CHASE)
 			else:
 				_log("[AI] IDLE: Target too far (", distance_to_target, " > ", detection_range, ")")
-		
+			
 		AIState.CHASE:
-			if distance_to_target <= attack_range and attack_cooldown_timer <= 0.0:
-				_log("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
-				_change_state(AIState.ATTACK)
+			# always prefer a normal attack if within attack range
+			if attack_cooldown_timer <= 0.0:
+				if distance_to_target <= attack_range:
+					_log("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
+					_change_state(AIState.ATTACK)
+				elif distance_to_target <= detection_range:
+					# heavy attack opportunity when target is farther but still detectable
+					_log("[AI] CHASE -> ATTACK: Target within detection range for heavy attack (", distance_to_target, ")")
+					_change_state(AIState.ATTACK)
+			
 			elif distance_to_target > chase_range:
 				_log("[AI] CHASE -> IDLE: Target out of chase range (", distance_to_target, " > ", chase_range, ")")
 				_change_state(AIState.IDLE)
 			elif hp_percentage <= retreat_hp_threshold:
-				_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "%)")
+				_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "% )")
 				_change_state(AIState.RETREAT)
 			else:
 				_log("[AI] CHASE: Distance=", distance_to_target, " AttackRange=", attack_range, " Cooldown=", attack_cooldown_timer)
@@ -306,35 +313,50 @@ func _handle_chase_state() -> void:
 		_log("[AI] CHASE: No direction, stopped")
 
 func _handle_attack_state() -> void:
-	if not current_target:
-		_log("[AI] ATTACK: No target!")
-		return
-	
-	if not attack_component:
-		_log("[AI] ATTACK: No attack_component!")
+	# new logic for chained combos, range checking and optional heavy attacks
+	if not current_target or not attack_component:
 		return
 	
 	if attack_cooldown_timer > 0.0:
 		_log("[AI] ATTACK: On cooldown (", attack_cooldown_timer, "s remaining)")
 		return
 	
-	if attack_component.get_attack_state() != AttackComponent.AttackState.IDLE:
-		_log("[AI] ATTACK: AttackComponent busy, state=", attack_component.get_attack_state())
-		return
-	
 	var direction := (current_target.global_position - entity.global_position).normalized()
-	
+
 	if movement_component:
 		movement_component.facing_direction = direction
+
+	attack_component.set_attack_direction = direction
 	
 	var distance := _get_distance_to_target()
-	if distance <= attack_range:
-		_log("[AI] ATTACK: Executing attack! Distance: ", distance, " <= ", attack_range)
-		attack_component.set_attack_direction = direction
-		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
-		attack_cooldown_timer = attack_cooldown
-	else:
-		_log("[AI] ATTACK: Target out of range (", distance, " > ", attack_range, ")")
+	
+	match attack_component.get_attack_state():
+		AttackComponent.AttackState.IDLE:
+			if distance <= attack_range:
+				# start normal combo
+				attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
+			elif distance <= detection_range:
+				# heavy attack if the target is too far for a light hit but still detectable
+				_log("[AI] ATTACK: Executing heavy attack against distant target")
+				attack_component.charge_heavy_attack()
+			else:
+				# fell out of range entirely
+				_log("[AI] ATTACK: Target out of detection range, resuming chase")
+				_change_state(AIState.CHASE)
+	
+		AttackComponent.AttackState.COMBO_WINDOW:
+			if distance <= attack_range and attack_component.combo_step < attack_component._combo_total_hits() - 1:
+				# continue combo while still in range
+				attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
+			else:
+				_log("[AI] Combo stopped: target out of range or combo finished")
+				attack_cooldown_timer = attack_cooldown
+				_change_state(AIState.CHASE)
+	
+		# other states can be left alone; the normal _update_state logic will transition out if needed
+		_:
+			# nothing special during active/recovery
+			pass
 
 func _handle_retreat_state() -> void:
 	if not current_target:
