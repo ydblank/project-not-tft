@@ -25,6 +25,15 @@ class_name AIComponent
 @export var use_pathfinding: bool = true
 @export var pathfinding_update_interval: float = 0.1
 
+# personality determines the chance to chase vs retreat when the random decision timer fires
+enum Personality {
+	COURAGEOUS,
+	COWARDLY
+}
+
+@export var personality: Personality = Personality.COURAGEOUS
+@export var random_decision_timer_interval: float = 5.0
+
 @export_group("State Durations")
 @export var idle_duration: float = 2.0
 @export var retreat_duration: float = 1.0
@@ -52,6 +61,7 @@ var pathfinding_timer: float = 0.0
 @onready var detection_area: Area2D = $DetectionArea
 @onready var state_timer_node: Timer = $StateTimer
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
+@onready var decision_timer_node: Timer = $DecisionTimer
 
 var enable_debug_logs = false
 
@@ -91,6 +101,14 @@ func _ready() -> void:
 	else:
 		_log("[AI] NavigationAgent2D not found (pathfinding disabled)")
 	
+	# configure the decision timer used for random state changes
+	if decision_timer_node:
+		decision_timer_node.one_shot = false
+		decision_timer_node.wait_time = random_decision_timer_interval
+		decision_timer_node.timeout.connect(_on_random_decision_timer_timeout)
+		decision_timer_node.start()
+		_log("[AI] DecisionTimer configured (interval=", random_decision_timer_interval, ")")
+
 	spawn_position = entity.global_position
 	wander_target = spawn_position
 	
@@ -102,6 +120,9 @@ func _ready() -> void:
 	if hitbox_component:
 		hitbox_component.hit_received.connect(_on_hit_received)
 	
+	# seed random for personality decisions
+	randomize()
+
 	_log("[AI] AIComponent ready - Entity: ", entity.name, " State: IDLE")
 	set_physics_process(true)
 
@@ -196,6 +217,7 @@ func _update_state(_delta: float) -> void:
 		AIState.IDLE:
 			if distance_to_target <= detection_range:
 				_log("[AI] IDLE -> CHASE: Target in range (", distance_to_target, " <= ", detection_range, ")")
+				print('chase 1')
 				_change_state(AIState.CHASE)
 			else:
 				_log("[AI] IDLE: Target too far (", distance_to_target, " > ", detection_range, ")")
@@ -206,17 +228,19 @@ func _update_state(_delta: float) -> void:
 				if distance_to_target <= attack_range:
 					_log("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
 					_change_state(AIState.ATTACK)
-				elif distance_to_target <= detection_range:
-					# heavy attack opportunity when target is farther but still detectable
-					_log("[AI] CHASE -> ATTACK: Target within detection range for heavy attack (", distance_to_target, ")")
-					_change_state(AIState.ATTACK)
+				#elif distance_to_target <= detection_range:
+					## heavy attack opportunity when target is farther but still detectable
+					#_log("[AI] CHASE -> ATTACK: Target within detection range for heavy attack (", distance_to_target, ")")
+					#print('why attaccck 2')
+					#_change_state(AIState.ATTACK)
 			
 			elif distance_to_target > chase_range:
 				_log("[AI] CHASE -> IDLE: Target out of chase range (", distance_to_target, " > ", chase_range, ")")
 				_change_state(AIState.IDLE)
-			elif hp_percentage <= retreat_hp_threshold:
-				_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "% )")
-				_change_state(AIState.RETREAT)
+			#elif hp_percentage <= retreat_hp_threshold:
+				#if decision_timer > 0.0:
+					#_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "% )")
+					#_change_state(AIState.RETREAT)
 			else:
 				_log("[AI] CHASE: Distance=", distance_to_target, " AttackRange=", attack_range, " Cooldown=", attack_cooldown_timer)
 		
@@ -227,6 +251,7 @@ func _update_state(_delta: float) -> void:
 					_change_state(AIState.ATTACK)
 				elif distance_to_target <= chase_range:
 					_log("[AI] ATTACK -> CHASE: Target moved away (", distance_to_target, ")")
+					print('chase 2')
 					_change_state(AIState.CHASE)
 				else:
 					_log("[AI] ATTACK -> IDLE: Target too far (", distance_to_target, " > ", chase_range, ")")
@@ -242,10 +267,13 @@ func _update_state(_delta: float) -> void:
 				if distance_to_target <= attack_range:
 					_log("[AI] RETREAT -> ATTACK: Target close (", distance_to_target, ")")
 					_change_state(AIState.ATTACK)
-				elif distance_to_target <= chase_range:
-					_log("[AI] RETREAT -> CHASE: Target in range (", distance_to_target, ")")
-					_change_state(AIState.CHASE)
-				else:
+				#elif distance_to_target <= chase_range:
+					#_log("[AI] RETREAT -> CHASE: Target in range (", distance_to_target, ")")
+					#if decision_timer > 0.0:
+						#_log("[AI] RETREAT -> CHASE: Decision timer active (", decision_timer, ")")
+						#print('why chaseeee')
+						#_change_state(AIState.CHASE)
+				elif distance_to_target > chase_range:
 					_log("[AI] RETREAT -> IDLE: Target far (", distance_to_target, ")")
 					_change_state(AIState.IDLE)
 			else:
@@ -256,7 +284,6 @@ func _handle_idle_state() -> void:
 		return
 	
 	if idle_wander and not current_target:
-		_log('hereraaa')
 		_wander_behavior()
 	else:
 		_log("[AI] IDLE: Waiting for target to enter detection range")
@@ -342,6 +369,7 @@ func _handle_attack_state() -> void:
 			else:
 				# fell out of range entirely
 				_log("[AI] ATTACK: Target out of detection range, resuming chase")
+				print('chase 3')
 				_change_state(AIState.CHASE)
 	
 		AttackComponent.AttackState.COMBO_WINDOW:
@@ -351,6 +379,7 @@ func _handle_attack_state() -> void:
 			else:
 				_log("[AI] Combo stopped: target out of range or combo finished")
 				attack_cooldown_timer = attack_cooldown
+				print('chase 4')
 				_change_state(AIState.CHASE)
 	
 		# other states can be left alone; the normal _update_state logic will transition out if needed
@@ -567,6 +596,34 @@ func _on_hit_received(attacker: Node, _damage: float, direction: Vector2) -> voi
 
 func _on_state_timer_timeout() -> void:
 	pass
+
+# called periodically to potentially change between chase/retreat based on personality
+func _on_random_decision_timer_timeout() -> void:
+	# only act when AI is in an active (non-idle, non-dead, non-attack, non-stunned) state
+	
+	if current_state == AIState.IDLE or current_state == AIState.DEAD or current_state == AIState.ATTACK or current_state == AIState.STUNNED:
+		return
+
+	# need a valid target to make meaningful decision
+	if not current_target:
+		return
+
+	var roll := randf()
+	var chase_chance := 0.5
+	match personality:
+		Personality.COURAGEOUS:
+			chase_chance = 0.8
+		Personality.COWARDLY:
+			chase_chance = 0.2
+
+	if roll < chase_chance:
+		_log("[AI] Random decision timer: choosing CHASE (roll=", roll, ")")
+		print('chase here')
+		_change_state(AIState.CHASE)
+	else:
+		_log("[AI] Random decision timer: choosing RETREAT (roll=", roll, ")")
+		print('retreat here')
+		_change_state(AIState.RETREAT)
 
 func _is_authority() -> bool:
 	if not entity:
