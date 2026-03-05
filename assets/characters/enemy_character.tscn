@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://cs8ci31w8gfe"]
 
+[ext_resource type="Script" uid="uid://ygoqvriwusty" path="res://assets/characters/enemy_character.gd" id="1_xhcsj"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_h17au"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55elk"]
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="4_024mp"]
@@ -487,7 +488,7 @@ size = Vector2(10, 12)
 [node name="EnemyCharacter" type="CharacterBody2D" unique_id=536573144 groups=["enemies"]]
 collision_layer = 2
 collision_mask = 7
-motion_mode = 1
+script = ExtResource("1_xhcsj")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1679708260]
 texture_filter = 1
@@ -573,6 +574,7 @@ attack_component = NodePath("../AttackComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 animation_component = NodePath("../AnimationComponent")
-personality = 1
+
+[connection signal="died" from="ComponentGroup/HealthComponent" to="." method="_on_health_component_died"]
 
 [editable path="ComponentGroup/AIComponent"]

@@ -20,5 +20,7 @@ debug_color = Color(0.36252564, 0.5881049, 0.5298021, 0.41960785)
 one_shot = true
 
 [node name="DecisionTimer" type="Timer" parent="." unique_id=1056773498]
-wait_time = 5.0
-one_shot = true
+wait_time = 3.0
+autostart = true
+
+[connection signal="timeout" from="DecisionTimer" to="." method="_on_decision_timer_timeout"]
