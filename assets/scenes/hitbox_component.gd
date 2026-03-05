@@ -39,6 +39,15 @@ func _ready() -> void:
 	knockback_scale = knockback_scale_start
 	set_process(knockback_scale_decay_per_sec > 0.0)
 
+func _process(delta: float) -> void:
+	if knockback_scale_decay_per_sec <= 0.0:
+		return
+
+	knockback_scale = max(
+		knockback_scale_start,
+		knockback_scale - knockback_scale_decay_per_sec * delta
+	)
+
 func _find_health_component() -> HealthComponent:
 	var parent = get_parent()
 	if parent:
@@ -66,7 +75,7 @@ func take_damage(
 	if use_combat_calculations and stats != null:
 		final_damage = CombatGlobal.calculate_receive_damage(stats, damage)
 
-	knockback_scale += knockback_scale_gain_per_hit
+	knockback_scale += knockback_scale_gain_per_hit + (final_damage * knockback_scale_gain_per_damage)
 	knockback_scale = min(knockback_scale, knockback_scale_max)
 
 	health.take_damage(final_damage)
@@ -85,7 +94,6 @@ func take_damage(
 			dir = global_position - (attacker as Node2D).global_position
 
 		if dir != Vector2.ZERO:
-			dir = dir.normalized()
 			var move: MovementComponent = get_parent().get_node_or_null("MovementComponent")
 			if move != null:
 				force = base_knockback_force * knockback_scale * max(knockback_mult, 0.0)

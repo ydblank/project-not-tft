@@ -15,7 +15,6 @@ const DEBUG_HITS := false
 @export var fixed_rotation: float = 0.0
 @export var use_network_aim: bool = false
 @export var network_aim_pos: Vector2 = Vector2.ZERO
-@export var heavy_knockback_angle_offset_deg: float = 0.0
 
 # NEW: set by AttackComponent when spawning the slash
 @export var knockback_mult: float = 1.0
@@ -142,21 +141,17 @@ func _on_area_2d_area_entered(hit_area: Area2D) -> void:
 
 		# Damage and direction
 		var dmg: float = damage if damage > 0.0 else weapon_damage
-
 		var dir: Vector2 = (hit_owner.global_position - global_position).normalized()
 		if dir == Vector2.ZERO:
 			dir = Vector2.RIGHT
 
-		# ✅ HEAVY ONLY: use the slash sprite's forward direction (local +X)
-		if not follow_mouse:
-			var base_dir := -Vector2.RIGHT.rotated(sprite.global_rotation)
-			dir = base_dir.rotated(deg_to_rad(heavy_knockback_angle_offset_deg)).normalized()
 		# FINAL HIT ONLY launches (meter still increases inside HitboxComponent)
 		var is_final_hit: bool = (combo_step >= combo_total_hits - 1)
 
 		# Apply damage
 		hitbox.take_damage(dmg, attacker_node_cached, dir, is_final_hit, knockback_mult)
 		return
+
 	# -------------------------
 	# DUMMIES / DESTRUCTIBLES
 	# -------------------------
