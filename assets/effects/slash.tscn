@@ -204,12 +204,12 @@ _data = {
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mkobs"]
 size = Vector2(5, 22)
 
-[node name="slash" type="Node2D" unique_id=1582020591]
+[node name="slash" type="Node2D" unique_id=428510964]
 script = ExtResource("1_h7bka")
 hits_players = false
 heavy_knockback_angle_offset_deg = -90.0
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1954108808]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1504524703]
 modulate = Color(1, 1, 1, 0)
 texture_filter = 1
 position = Vector2(12, 0)
@@ -220,14 +220,14 @@ flip_h = true
 hframes = 2
 vframes = 3
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=704470164]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1294097998]
 libraries/ = SubResource("AnimationLibrary_sticy")
 
-[node name="Area2D" type="Area2D" parent="." unique_id=1858015119]
+[node name="Area2D" type="Area2D" parent="." unique_id=1320310387]
 collision_layer = 5
 collision_mask = 2
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D" unique_id=1554464811]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D" unique_id=1342822090]
 position = Vector2(12.5, -1)
 shape = SubResource("RectangleShape2D_mkobs")
 
