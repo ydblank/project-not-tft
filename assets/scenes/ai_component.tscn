@@ -1,20 +1,24 @@
-[gd_scene load_steps=3 format=3 uid="uid://ch7hdyokx7jqp"]
+[gd_scene format=3 uid="uid://ch7hdyokx7jqp"]
 
 [ext_resource type="Script" uid="uid://bq1d27b4yar7k" path="res://assets/scenes/ai_component.gd" id="1_8wcj4"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_h17au"]
 radius = 141.69333
 
-[node name="AIComponent" type="Node2D"]
+[node name="AIComponent" type="Node2D" unique_id=1520355463]
 script = ExtResource("1_8wcj4")
 
-[node name="DetectionArea" type="Area2D" parent="."]
+[node name="DetectionArea" type="Area2D" parent="." unique_id=1082809546]
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DetectionArea" unique_id=1843607172]
 shape = SubResource("CircleShape2D_h17au")
 debug_color = Color(0.36252564, 0.5881049, 0.5298021, 0.41960785)
 
-[node name="NavigationAgent2D" type="NavigationAgent2D" parent="."]
+[node name="NavigationAgent2D" type="NavigationAgent2D" parent="." unique_id=1710483558]
 
-[node name="StateTimer" type="Timer" parent="."]
+[node name="StateTimer" type="Timer" parent="." unique_id=1598745319]
+one_shot = true
+
+[node name="DecisionTimer" type="Timer" parent="." unique_id=1056773498]
+wait_time = 5.0
 one_shot = true
