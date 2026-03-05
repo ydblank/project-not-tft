@@ -7,7 +7,7 @@ enum f {FAILED, SUCCESS}
 @export var base_max_health: float = 100.0
 @export var base_phys_mult: float = 1.0
 @export var base_mag_mult: float = 1.0
-@export var base_str: float = 1.0
+@export var base_str: float = 0.1
 @export var base_defense: int = 0
 @export var base_knockback_res: int = 0
 @export var base_attack_speed: float = 1.0
@@ -19,8 +19,8 @@ enum f {FAILED, SUCCESS}
 @export var dash_cooldown: float = 0.5
 
 # Lunge
-@export var lunge_distance: float = 10.0
-@export var lunge_burst_time: float = 0.1
+@export var lunge_distance: float = 5.0
+@export var lunge_burst_time: float = 0.08
 @export var lunge_pause_time: float = 0.2
 
 # Combo

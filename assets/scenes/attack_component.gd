@@ -28,6 +28,8 @@ const ATTACK_EFFECT: PackedScene = preload("res://assets/effects/slash.tscn")
 
 var attack_state: AttackState = AttackState.IDLE
 var current_attack_type: AttackType = AttackType.LIGHT
+var chain_is_locked: bool = false
+var chain_locked_type: AttackType = AttackType.LIGHT
 var combo_step: int = 0
 var buffered_attack: bool = false
 
@@ -151,7 +153,8 @@ func reset_attack_state() -> void:
 
 	_charge_damage_mult = 1.0
 	_charge_knockback_mult = 1.0
-
+	chain_is_locked = false
+	chain_locked_type = AttackType.LIGHT
 	if attack_timer:
 		attack_timer.stop()
 
@@ -183,9 +186,15 @@ func handle_attack_input(p_attack: AttackType, force: bool = false) -> void:
 		return
 	if _is_dead():
 		return
+	
 	if DEBUG_ATTACK:
 		print("[ATK] input type=", ("LIGHT" if p_attack == AttackType.LIGHT else "HEAVY"), " state=", attack_state, " step=", combo_step)
-
+	# If a heavy chain is in progress, do not allow switching to light
+	if chain_is_locked and chain_locked_type == AttackType.HEAVY and p_attack == AttackType.LIGHT:
+		# Option 1 (recommended): treat it as heavy so mashing still continues the chain
+		p_attack = AttackType.HEAVY
+		# Option 2 (stricter): ignore it entirely
+		# return
 	current_attack_type = p_attack
 
 	match attack_state:
@@ -293,7 +302,9 @@ func _set_player_directions(cardinal_dir: Vector2) -> void:
 
 func start_attack() -> void:
 	_initialize_attack_state()
-
+	if combo_step == 0:
+		chain_is_locked = true
+		chain_locked_type = AttackType.LIGHT
 	var raw_dir: Vector2 = _mouse_raw_direction()
 	var cardinal_dir: Vector2 = _mouse_cardinal_direction()
 	_set_player_directions(cardinal_dir)
@@ -323,7 +334,9 @@ func _start_attack_timer(wait_time: float) -> void:
 
 func start_heavy_attack() -> void:
 	_initialize_attack_state()
-
+	if combo_step == 0:
+		chain_is_locked = true
+		chain_locked_type = AttackType.HEAVY
 	var raw_dir: Vector2
 	if combo_step == 0:
 		raw_dir = _mouse_raw_direction()
@@ -706,18 +719,15 @@ func _calc_base_damage() -> float:
 		return 1.0
 	return CombatGlobal.calculate_attack_damage(stats_component)
 
-
 func _calc_damage(step: int) -> float:
 	var base_damage: float = _calc_base_damage()
 	var mult: float = _weapon_combo_damage_multiplier(step)
 	return max(base_damage * mult, 1.0)
 
-
 func _is_dead() -> bool:
 	if health_component:
 		return health_component.is_dead()
 	return false
-
 
 func _is_authority() -> bool:
 	if not entity:
@@ -730,33 +740,27 @@ func _is_authority() -> bool:
 			return entity.call("is_multiplayer_authority")
 	return true
 
-
 func _get_sprite() -> Sprite2D:
 	if animation_component:
 		return animation_component.get_sprite()
 	return null
-
 
 func _get_player_last_direction() -> Vector2:
 	if movement_component:
 		return movement_component.last_direction
 	return Vector2.DOWN
 
-
 func _set_player_last_direction(dir: Vector2) -> void:
 	if movement_component:
 		movement_component.last_direction = dir
-
 
 func _call_player_update_anim(dir: Vector2) -> void:
 	if animation_component:
 		animation_component.update_animation_parameters(dir)
 
-
 func _reset_sprite_visuals() -> void:
 	if animation_component:
 		animation_component.reset_sprite_visuals()
-
 
 func _reset_combo_state() -> void:
 	buffered_attack = false
@@ -765,3 +769,5 @@ func _reset_combo_state() -> void:
 	_charge_damage_mult = 1.0
 	_charge_knockback_mult = 1.0
 	_heavy_attack_direction = Vector2.ZERO
+	chain_is_locked = false
+	chain_locked_type = AttackType.LIGHT
