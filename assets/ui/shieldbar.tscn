@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://c4hwgj67axalg"]
+
+[ext_resource type="Script" uid="uid://crjgx2gaqh0cx" path="res://assets/characters/shieldbar.gd" id="1_wvvcv"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_wvvcv"]
+bg_color = Color(0, 0, 0, 1)
+expand_margin_left = 1.0
+expand_margin_top = 1.0
+expand_margin_right = 1.0
+expand_margin_bottom = 1.0
+shadow_color = Color(0, 0, 0, 0.27450982)
+shadow_offset = Vector2(0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_o4o3x"]
+bg_color = Color(0.8089983, 0.8089983, 0.80899817, 1)
+
+[node name="Shieldbar" type="ProgressBar" unique_id=890013759]
+offset_right = 240.0
+offset_bottom = 4.0
+value = 60.0
+show_percentage = false
+script = ExtResource("1_wvvcv")
+
+[node name="Damagebar" type="ProgressBar" parent="." unique_id=1133874619]
+z_index = -1
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_wvvcv")
+theme_override_styles/fill = SubResource("StyleBoxFlat_o4o3x")
+value = 80.0
+show_percentage = false
+
+[node name="Timer" type="Timer" parent="." unique_id=805385596]
+wait_time = 0.4
+one_shot = true

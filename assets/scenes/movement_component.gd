@@ -1,8 +1,10 @@
 extends Node2D
 class_name MovementComponent
 
+@export var attack_component: AttackComponent
 @export var stats_component: StatsComponent
-
+@export var shield_component: ShieldComponent
+@export var block_slowed_multiplier: float = 0.6
 var move_speed: float = 100.0
 @export var is_controllable: bool = true
 
@@ -44,7 +46,6 @@ var knockback_timer: float = 0.0
 var stagger_timer: float = 0.0
 
 @export var entity: CharacterBody2D
-var attack_component: AttackComponent
 
 func _ready() -> void:
 	if not entity:
@@ -102,12 +103,16 @@ func _physics_process(delta: float) -> void:
 	var is_currently_attacking: bool = _is_attacking()
 	
 	if is_controllable and _is_authority():
-		if input_dir != Vector2.ZERO:
-			if not is_currently_attacking:
-				facing_direction = input_dir.normalized()
-				last_direction = input_dir.normalized()
-		elif velocity != Vector2.ZERO and not is_currently_attacking:
-			last_direction = velocity.normalized()
+		var is_blocking: bool = (shield_component != null and shield_component.is_active)
+
+		# While blocking, DON'T let movement input overwrite facing/last_direction.
+		if not is_blocking:
+			if input_dir != Vector2.ZERO:
+				if not is_currently_attacking:
+					facing_direction = input_dir.normalized()
+					last_direction = input_dir.normalized()
+			elif velocity != Vector2.ZERO and not is_currently_attacking:
+				last_direction = velocity.normalized()
 	
 	if _should_early_return(input_dir):
 		velocity = Vector2.ZERO
@@ -126,8 +131,10 @@ func _physics_process(delta: float) -> void:
 		stagger_timer = max(stagger_timer - delta, 0.0)
 		input_dir = Vector2.ZERO
 	
-	if input_dir != Vector2.ZERO and not is_currently_attacking:
-		facing_direction = input_dir.normalized()
+	var is_blocking2: bool = (shield_component != null and shield_component.is_active)
+	if not is_blocking2:
+		if input_dir != Vector2.ZERO and not is_currently_attacking:
+			facing_direction = input_dir.normalized()
 	
 	_process_movement(delta, input_dir)
 	
@@ -200,10 +207,15 @@ func _process_movement(delta: float, input_dir: Vector2) -> void:
 			# When AI-controlled (is_controllable = false), velocity is set by AIComponent
 			if is_controllable:
 				var current_speed := move_speed
-				
+
 				if _is_authority():
+					# heavy hold slow (existing)
 					if _is_holding_attack() and _is_past_heavy_threshold():
 						current_speed *= movement_slowed_multiplier
+
+					# shield block slow (new)
+					if shield_component != null and shield_component.is_active:
+						current_speed *= block_slowed_multiplier
 				
 				velocity = input_dir * current_speed
 	

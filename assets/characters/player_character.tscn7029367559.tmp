@@ -4,7 +4,6 @@
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_o4qoj"]
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
-[ext_resource type="PackedScene" uid="uid://c4hwgj67axalg" path="res://assets/ui/shieldbar.tscn" id="4_tn02o"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
 [ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
@@ -529,12 +528,6 @@ offset_top = 86.0
 offset_right = 305.0
 offset_bottom = 99.0
 
-[node name="Shieldbar" parent="CanvasLayer" unique_id=890013759 instance=ExtResource("4_tn02o")]
-offset_left = 28.0
-offset_top = 112.0
-offset_right = 305.0
-offset_bottom = 125.0
-
 [node name="ComponentGroup" type="Node2D" parent="." unique_id=1772654759]
 
 [node name="AnimationComponent" parent="ComponentGroup" unique_id=394835575 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_sheqp")]
@@ -559,9 +552,21 @@ stats = NodePath("../StatsComponent")
 
 [node name="HitboxComponent" parent="ComponentGroup" unique_id=686353409 node_paths=PackedStringArray("stats", "health", "shield") instance=ExtResource("4_o4qoj")]
 collision_layer = 2
+team = null
+can_be_hit = null
 stats = NodePath("../StatsComponent")
 health = NodePath("../HealthComponent")
 shield = NodePath("../ShieldComponent")
+use_combat_calculations = null
+enable_knockback = null
+base_knockback_force = null
+knockback_duration = null
+knockback_scale_start = null
+knockback_scale_gain_per_hit = null
+knockback_scale_gain_per_damage = null
+knockback_scale_max = null
+knockback_scale_decay_per_sec = null
+debug_knockback = null
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent" unique_id=1502365258]
 position = Vector2(0, -2)
@@ -577,8 +582,7 @@ entity = NodePath("../..")
 entity_class = 1
 entity_weapon = 1
 
-[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("hitbox_shape", "shield_bar") instance=ExtResource("10_sheqp")]
+[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("hitbox_shape") instance=ExtResource("10_sheqp")]
 hitbox_shape = NodePath("../HitboxComponent")
-shield_bar = NodePath("../../CanvasLayer/Shieldbar")
 
 [node name="MultiplayerComponent" parent="ComponentGroup" unique_id=1725015222 instance=ExtResource("11_tc657")]

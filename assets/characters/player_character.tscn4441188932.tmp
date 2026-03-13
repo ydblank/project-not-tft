@@ -4,7 +4,6 @@
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_o4qoj"]
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
-[ext_resource type="PackedScene" uid="uid://c4hwgj67axalg" path="res://assets/ui/shieldbar.tscn" id="4_tn02o"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
 [ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
@@ -529,12 +528,6 @@ offset_top = 86.0
 offset_right = 305.0
 offset_bottom = 99.0
 
-[node name="Shieldbar" parent="CanvasLayer" unique_id=890013759 instance=ExtResource("4_tn02o")]
-offset_left = 28.0
-offset_top = 112.0
-offset_right = 305.0
-offset_bottom = 125.0
-
 [node name="ComponentGroup" type="Node2D" parent="." unique_id=1772654759]
 
 [node name="AnimationComponent" parent="ComponentGroup" unique_id=394835575 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_sheqp")]
@@ -551,7 +544,9 @@ animation_component = NodePath("../AnimationComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 entity = NodePath("../..")
+allow_player_control = null
 shield = NodePath("../ShieldComponent")
+stun_duration = null
 
 [node name="HealthComponent" parent="ComponentGroup" unique_id=119778126 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_tn02o")]
 healthbar = NodePath("../../CanvasLayer/Healthbar")
@@ -567,18 +562,23 @@ shield = NodePath("../ShieldComponent")
 position = Vector2(0, -2)
 shape = SubResource("RectangleShape2D_sheqp")
 
-[node name="MovementComponent" parent="ComponentGroup" unique_id=1777157270 node_paths=PackedStringArray("attack_component", "stats_component", "shield_component", "entity") instance=ExtResource("5_088tr")]
-attack_component = NodePath("../AttackComponent")
+[node name="MovementComponent" parent="ComponentGroup" unique_id=1777157270 node_paths=PackedStringArray("stats_component", "entity") instance=ExtResource("5_088tr")]
 stats_component = NodePath("../StatsComponent")
-shield_component = NodePath("../ShieldComponent")
+is_controllable = null
+input_up = null
+input_down = null
+input_left = null
+input_right = null
+input_dash = null
+dash_enabled = null
+movement_slowed_multiplier = null
 entity = NodePath("../..")
 
 [node name="StatsComponent" parent="ComponentGroup" unique_id=121070659 instance=ExtResource("9_088tr")]
 entity_class = 1
 entity_weapon = 1
 
-[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("hitbox_shape", "shield_bar") instance=ExtResource("10_sheqp")]
+[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("hitbox_shape") instance=ExtResource("10_sheqp")]
 hitbox_shape = NodePath("../HitboxComponent")
-shield_bar = NodePath("../../CanvasLayer/Shieldbar")
 
 [node name="MultiplayerComponent" parent="ComponentGroup" unique_id=1725015222 instance=ExtResource("11_tc657")]

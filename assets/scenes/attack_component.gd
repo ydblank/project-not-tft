@@ -13,6 +13,13 @@ const DEBUG_ATTACK := false
 @export var entity: Node2D
 @export var allow_player_control: bool = true
 
+# Shield
+@export var shield: ShieldComponent
+@export var stun_duration: float = 2
+
+var _is_stunned: bool = false
+var _stun_time_left: float = 0.0
+
 var set_attack_direction: Vector2 = Vector2.ZERO
 
 enum AttackState { IDLE, STARTUP, ACTIVE, RECOVERY, COMBO_WINDOW }
@@ -97,7 +104,6 @@ func rpc_spawn_slash(
 		fx.use_network_aim = true
 		fx.network_aim_pos = p_aim_pos
 
-
 	if fx.has_method("set_attack_context"):
 		fx.call(
 			"set_attack_context",
@@ -114,6 +120,10 @@ func rpc_spawn_slash(
 # ---------------- READY ----------------
 func _ready() -> void:
 	set_process(true)
+
+	if entity == null:
+		entity = get_parent() as Node2D
+
 	if _is_authority():
 		set_process_input(true)
 	else:
@@ -123,11 +133,49 @@ func _ready() -> void:
 	var cb := Callable(self, "_on_attack_timer_timeout")
 	while attack_timer.timeout.is_connected(cb):
 		attack_timer.timeout.disconnect(cb)
-	attack_timer.timeout.connect(cb)
+	attack_timer.one_shot = true
 
-	if DEBUG_ATTACK:
-		print("[ATK] ready entity=", (str(entity.name) if entity else "null"), " timer=", attack_timer)
+	var timer_cb := Callable(self, "_on_attack_timer_timeout")
+	while attack_timer.timeout.is_connected(timer_cb):
+		attack_timer.timeout.disconnect(timer_cb)
+	attack_timer.timeout.connect(timer_cb)
 
+	# Shield break -> stun hook
+	if shield != null and shield is ShieldComponent:
+		var shield_cb := Callable(self, "_on_shield_broken")
+		if not (shield as ShieldComponent).shield_broken.is_connected(shield_cb):
+			(shield as ShieldComponent).shield_broken.connect(shield_cb)
+
+func _on_shield_broken() -> void:
+	# Drop the shield (optional)
+	if shield and shield is ShieldComponent:
+		(shield as ShieldComponent).deactivate_shield()
+
+	# Cancel attacks/charge visuals immediately
+	attack_is_holding = false
+	attack_hold_time = 0.0
+	is_charging = false
+	charge_time = 0.0
+	reset_attack_state()
+
+	# HARD stun: disable movement input like your heavy/charge slow logic uses
+	if movement_component:
+		movement_component.stop_all_movement()
+		movement_component.apply_stagger(stun_duration) # freezes by stagger_timer
+		movement_component.is_controllable = false      # freezes input reads
+
+	# Also disable this component's input (so you can't attack/block during stun)
+	allow_player_control = false
+	set_process_input(false)
+
+	# Restore after duration
+	await get_tree().create_timer(stun_duration).timeout
+
+	if movement_component:
+		movement_component.is_controllable = true
+
+	allow_player_control = true
+	set_process_input(_is_authority())
 
 func set_remote_attacking(is_attacking: bool) -> void:
 	attack_state = (AttackState.ACTIVE if is_attacking else AttackState.IDLE)
@@ -178,11 +226,15 @@ func maybe_spawn_payload_during_lunge_pause() -> void:
 	_spawn_attack_payload(combo_step)
 	_attack_effect_spawned = true
 
+
 func handle_attack_input(p_attack: AttackType, force: bool = false) -> void:
+	if _is_stunned:
+		return
 	if not force and not allow_player_control:
 		return
 	if _is_dead():
 		return
+
 	if DEBUG_ATTACK:
 		print("[ATK] input type=", ("LIGHT" if p_attack == AttackType.LIGHT else "HEAVY"), " state=", attack_state, " step=", combo_step)
 
@@ -220,11 +272,34 @@ func _start_attack_by_type(p_attack: AttackType) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if _is_stunned:
+		return
 	if not allow_player_control or _is_dead():
 		return
-	if DEBUG_ATTACK and (event.is_action_pressed("Attack") or event.is_action_released("Attack")):
-		print("[ATK] action Attack pressed=", event.is_action_pressed("Attack"), " released=", event.is_action_released("Attack"), " holding=", attack_is_holding, " hold_time=", attack_hold_time)
 
+	# ✅ 1) ALWAYS process Block events first
+	if event.is_action_pressed("Block"):
+		if shield and entity:
+			(shield as ShieldComponent).activate_shield(entity)
+		return  # optional: stop here so block press doesn't also do other stuff this frame
+
+	if event.is_action_released("Block"):
+		if shield:
+			(shield as ShieldComponent).deactivate_shield()
+		return
+
+	# ✅ 2) If currently blocking, ignore ALL attack input
+	if shield and (shield as ShieldComponent).is_active:
+		var face_dir: Vector2 = _mouse_cardinal_direction()
+		_set_player_directions(face_dir)
+		# cancel any charge/hold so it doesn't fire when you stop blocking
+		attack_is_holding = false
+		attack_hold_time = 0.0
+		is_charging = false
+		charge_time = 0.0
+		return
+
+	# ---- ATTACK input (only runs when not blocking) ----
 	if event.is_action_pressed("Attack"):
 		attack_is_holding = true
 		attack_hold_time = 0.0
@@ -238,8 +313,19 @@ func _input(event: InputEvent) -> void:
 		else:
 			handle_attack_input(AttackType.LIGHT)
 
-
 func _process(delta: float) -> void:
+	# ---- STUN TIMER ----
+	if _is_stunned:
+		_stun_time_left -= delta
+		if _stun_time_left <= 0.0:
+			_is_stunned = false
+			_stun_time_left = 0.0
+		return
+	if shield and (shield as ShieldComponent).is_active:
+		var face_dir: Vector2 = _mouse_cardinal_direction()
+		_set_player_directions(face_dir)
+
+	# ---- charge shake visuals ----
 	if attack_is_holding:
 		attack_hold_time = min(attack_hold_time + delta, max_charge_time)
 		_shake_time += delta
@@ -600,8 +686,8 @@ func spawn_attack_effect(step: int) -> void:
 		fx.global_position = entity.global_position
 		if set_attack_direction != Vector2.ZERO:
 			fx.follow_mouse = false
-			var angle_deg: float = rad_to_deg(set_attack_direction.angle())
-			fx.fixed_rotation = angle_deg
+			var angle_deg2: float = rad_to_deg(set_attack_direction.angle())
+			fx.fixed_rotation = angle_deg2
 		else:
 			fx.follow_mouse = true
 			fx.slash_effect = str(_attack_combo_animation(step))
@@ -696,11 +782,12 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	# FINAL HIT ONLY launches:
 	var allow_kb: bool = _is_final_combo_step()
 
-	# Charge/heavy scaling (you already compute this):
+	# Charge/heavy scaling:
 	var kb_mult: float = get_knockback_mult()
 
 	hitbox.take_damage(dmg, entity, dir, allow_kb, kb_mult)
-	
+
+
 func _calc_base_damage() -> float:
 	if not stats_component:
 		return 1.0
