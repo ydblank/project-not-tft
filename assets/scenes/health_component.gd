@@ -84,7 +84,7 @@ func die() -> void:
 		return
 	
 	_is_dead = true
-	died.emit()
+	died.emit()		
 
 func revive(hp_amount: float = -1) -> void:
 	_is_dead = false

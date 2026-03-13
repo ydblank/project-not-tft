@@ -1,5 +1,6 @@
 [gd_scene format=3 uid="uid://cs8ci31w8gfe"]
 
+[ext_resource type="Script" uid="uid://ygoqvriwusty" path="res://assets/characters/enemy_character.gd" id="1_xhcsj"]
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_h17au"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55elk"]
 [ext_resource type="PackedScene" uid="uid://c4hwgj67axalg" path="res://assets/ui/shieldbar.tscn" id="3_h17au"]
@@ -488,7 +489,7 @@ size = Vector2(10, 12)
 [node name="EnemyCharacter" type="CharacterBody2D" unique_id=1771002902 groups=["enemies"]]
 collision_layer = 2
 collision_mask = 7
-motion_mode = 1
+script = ExtResource("1_xhcsj")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1731289706]
 texture_filter = 1
@@ -565,9 +566,10 @@ stats_component = NodePath("../StatsComponent")
 is_controllable = false
 entity = NodePath("../..")
 
-[node name="StatsComponent" parent="ComponentGroup" unique_id=116846053 instance=ExtResource("9_lk2kr")]
+[node name="StatsComponent" parent="ComponentGroup" unique_id=715640903 node_paths=PackedStringArray("character_sprite") instance=ExtResource("9_lk2kr")]
 entity_class = 1
 entity_weapon = 1
+character_sprite = NodePath("../../Sprite2D")
 
 [node name="AIComponent" parent="ComponentGroup" unique_id=1807506743 node_paths=PackedStringArray("entity", "movement_component", "attack_component", "health_component", "hitbox_component", "animation_component") instance=ExtResource("10_xhcsj")]
 entity = NodePath("../..")
@@ -576,5 +578,7 @@ attack_component = NodePath("../AttackComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 animation_component = NodePath("../AnimationComponent")
+
+[connection signal="died" from="ComponentGroup/HealthComponent" to="." method="_on_health_component_died"]
 
 [editable path="ComponentGroup/AIComponent"]

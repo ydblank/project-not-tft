@@ -37,6 +37,8 @@ enum f {FAILED, SUCCESS}
 @export var entity_class: Classes.CLASSES = Classes.CLASSES.NONE: set = _set_entity_class
 @export var entity_weapon: Weapons.WEAPONS = Weapons.WEAPONS.NONE: set = _set_entity_weapon
 
+@export var character_sprite: Sprite2D
+
 var class_obj: Dictionary = {}
 var weapon_obj: Dictionary = {}
 
@@ -47,7 +49,7 @@ var knockback_res: int = 0
 var attack_speed_mult: float = 1.0
 var move_speed: float = 0.0
 
-func _init() -> void:
+func _ready() -> void:
 	_assign_obj()
 	
 func _set_entity_class(value: Classes.CLASSES) -> void:
@@ -72,6 +74,10 @@ func _assign_obj(_class: Classes.CLASSES = Classes.CLASSES.NONE, _weapon: Weapon
 
 	class_obj = _get_class_obj(stat_class)
 	weapon_obj = _get_weapon_obj(stat_weapon)
+	
+	
+	if character_sprite and class_obj.sprite_path:
+		character_sprite.texture = load(class_obj.sprite_path)
 
 	return f.SUCCESS
 

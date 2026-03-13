@@ -17,6 +17,8 @@ class_name AIComponent
 @export_group("Behavior Settings")
 @export var attack_range: float = 50.0
 @export var chase_range: float = 400.0
+@export var flee_range: float = 200.0
+@export var cautious_tolerance: float = 20.0
 @export var retreat_hp_threshold: float = 0.0
 @export var attack_cooldown: float = 1.5
 @export var decision_interval: float = 0.2
@@ -24,6 +26,28 @@ class_name AIComponent
 @export var wander_radius: float = 50.0
 @export var use_pathfinding: bool = true
 @export var pathfinding_update_interval: float = 0.1
+@export var dash_decision_interval: float = 1.5
+
+# personality determines the chance to chase vs retreat when the random decision timer fires
+enum Personality {
+	COURAGEOUS,
+	COWARDLY
+}
+
+var personalityValues = {
+	Personality.COURAGEOUS: {
+		"chase_chance": 0.9,
+		"dash_forward_chance": 1.0,
+		"dash_backward_chance": 0.5
+	},
+	Personality.COWARDLY: {
+		"chase_chance": 0.6,
+		"dash_forward_chance": 0.5,
+		"dash_backward_chance": 1.0
+	}
+}
+
+@export var personality: Personality = Personality.COURAGEOUS
 
 @export_group("State Durations")
 @export var idle_duration: float = 2.0
@@ -35,6 +59,7 @@ enum AIState {
 	CHASE,
 	ATTACK,
 	RETREAT,
+	CAUTIOUS,
 	STUNNED,
 	DEAD
 }
@@ -48,6 +73,7 @@ var decision_timer: float = 0.0
 var spawn_position: Vector2 = Vector2.ZERO
 var wander_target: Vector2 = Vector2.ZERO
 var pathfinding_timer: float = 0.0
+var _dash_decision_timer: float = 0.0
 
 @onready var detection_area: Area2D = $DetectionArea
 @onready var state_timer_node: Timer = $StateTimer
@@ -90,7 +116,7 @@ func _ready() -> void:
 		_log("[AI] NavigationAgent2D configured")
 	else:
 		_log("[AI] NavigationAgent2D not found (pathfinding disabled)")
-	
+
 	spawn_position = entity.global_position
 	wander_target = spawn_position
 	
@@ -125,6 +151,9 @@ func _update_timers(delta: float) -> void:
 	
 	if state_timer > 0.0:
 		state_timer = max(state_timer - delta, 0.0)
+	
+	if _dash_decision_timer > 0.0:
+		_dash_decision_timer = max(_dash_decision_timer - delta, 0.0)
 	
 	decision_timer += delta
 	pathfinding_timer += delta
@@ -168,6 +197,8 @@ func _update_decision(_delta: float) -> void:
 			_handle_attack_state()
 		AIState.RETREAT:
 			_handle_retreat_state()
+		AIState.CAUTIOUS:
+			_handle_cautious_state()
 		AIState.STUNNED:
 			_handle_stunned_state()
 		AIState.DEAD:
@@ -195,8 +226,12 @@ func _update_state(_delta: float) -> void:
 	match current_state:
 		AIState.IDLE:
 			if distance_to_target <= detection_range:
-				_log("[AI] IDLE -> CHASE: Target in range (", distance_to_target, " <= ", detection_range, ")")
-				_change_state(AIState.CHASE)
+				if distance_to_target <= flee_range:
+					_log("[AI] IDLE -> CAUTIOUS: Target within flee range (", distance_to_target, " <= ", flee_range, ")")
+					_change_state(AIState.CAUTIOUS)
+				else:
+					_log("[AI] IDLE -> CHASE: Target in range (", distance_to_target, " <= ", detection_range, ")")
+					_change_state(AIState.CHASE)
 			else:
 				_log("[AI] IDLE: Target too far (", distance_to_target, " > ", detection_range, ")")
 		
@@ -231,18 +266,26 @@ func _update_state(_delta: float) -> void:
 				_log("[AI] ATTACK: AttackComponent busy, state=", attack_state_str)
 		
 		AIState.RETREAT:
-			if state_timer <= 0.0:
+			if distance_to_target >= flee_range:
+				_log("[AI] RETREAT -> CAUTIOUS: Reached flee range (", distance_to_target, " >= ", flee_range, ")")
+				_change_state(AIState.CAUTIOUS)
+			elif state_timer <= 0.0:
 				if distance_to_target <= attack_range:
 					_log("[AI] RETREAT -> ATTACK: Target close (", distance_to_target, ")")
 					_change_state(AIState.ATTACK)
-				elif distance_to_target <= chase_range:
-					_log("[AI] RETREAT -> CHASE: Target in range (", distance_to_target, ")")
-					_change_state(AIState.CHASE)
-				else:
+				elif distance_to_target > chase_range:
 					_log("[AI] RETREAT -> IDLE: Target far (", distance_to_target, ")")
 					_change_state(AIState.IDLE)
 			else:
 				_log("[AI] RETREAT: Timer remaining=", state_timer)
+		
+		AIState.CAUTIOUS:
+			if attack_cooldown_timer <= 0.0 and distance_to_target <= attack_range:
+				_log("[AI] CAUTIOUS -> ATTACK: Target in attack range (", distance_to_target, ")")
+				_change_state(AIState.ATTACK)
+			elif distance_to_target > chase_range:
+				_log("[AI] CAUTIOUS -> IDLE: Target out of chase range (", distance_to_target, ")")
+				_change_state(AIState.IDLE)
 
 func _handle_idle_state() -> void:
 	if not movement_component:
@@ -297,6 +340,10 @@ func _handle_chase_state() -> void:
 	
 	movement_component.facing_direction = direction
 	
+	var dash_chance: float = personalityValues[personality]["dash_forward_chance"]
+	if _try_dash(direction, dash_chance):
+		return
+	
 	if direction != Vector2.ZERO:
 		var speed := movement_component.move_speed
 		movement_component.velocity = direction * speed
@@ -328,13 +375,55 @@ func _handle_attack_state() -> void:
 		movement_component.facing_direction = direction
 	
 	var distance := _get_distance_to_target()
-	if distance <= attack_range:
-		_log("[AI] ATTACK: Executing attack! Distance: ", distance, " <= ", attack_range)
-		attack_component.set_attack_direction = direction
-		attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
-		attack_cooldown_timer = attack_cooldown
-	else:
-		_log("[AI] ATTACK: Target out of range (", distance, " > ", attack_range, ")")
+	
+	match attack_component.get_attack_state():
+		AttackComponent.AttackState.IDLE:
+			if distance <= attack_range:
+				# start normal combo
+				attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
+			elif distance <= detection_range:
+				# heavy attack if the target is too far for a light hit but still detectable
+				_log("[AI] ATTACK: Executing heavy attack against distant target")
+				attack_component.charge_heavy_attack()
+			else:
+				# fell out of range entirely
+				_log("[AI] ATTACK: Target out of detection range, resuming chase")
+				print('chase 3')
+				_change_state(AIState.CHASE)
+	
+		AttackComponent.AttackState.COMBO_WINDOW:
+			if distance <= attack_range and attack_component.combo_step < attack_component._combo_total_hits() - 1:
+				# continue combo while still in range
+				attack_component.handle_attack_input(AttackComponent.AttackType.LIGHT, true)
+			else:
+				_log("[AI] Combo stopped: target out of range or combo finished")
+				attack_cooldown_timer = attack_cooldown
+				print('chase 4')
+				_change_state(AIState.CHASE)
+	
+		# other states can be left alone; the normal _update_state logic will transition out if needed
+		_:
+			# nothing special during active/recovery
+			pass
+
+func _try_dash(direction: Vector2, chance: float) -> bool:
+	if not movement_component:
+		return false
+	if not movement_component.dash_enabled:
+		return false
+	if movement_component.get_is_dashing():
+		return false
+	if movement_component._dash_cooldown_left > 0.0:
+		return false
+	if _dash_decision_timer > 0.0:
+		return false
+	if randf() >= chance:
+		_dash_decision_timer = dash_decision_interval
+		return false
+	_log("[AI] Dashing in direction: ", direction)
+	movement_component.start_dash(direction)
+	_dash_decision_timer = dash_decision_interval
+	return true
 
 func _handle_retreat_state() -> void:
 	if not current_target:
@@ -370,11 +459,43 @@ func _handle_retreat_state() -> void:
 	
 	movement_component.facing_direction = direction
 	
+	var dash_chance: float = personalityValues[personality]["dash_backward_chance"]
+	if _try_dash(direction, dash_chance):
+		return
+	
 	if direction != Vector2.ZERO:
 		movement_component.velocity = direction * movement_component.move_speed
 		_log("[AI] RETREAT: Moving away at speed ", movement_component.move_speed)
 	else:
 		movement_component.velocity = Vector2.ZERO
+
+func _handle_cautious_state() -> void:
+	if not current_target or not movement_component:
+		return
+	
+	if attack_component and attack_component.get_attack_state() != AttackComponent.AttackState.IDLE:
+		movement_component.velocity = Vector2.ZERO
+		return
+	
+	var distance := _get_distance_to_target()
+	var to_target := (current_target.global_position - entity.global_position).normalized()
+	var direction: Vector2
+	
+	if distance < flee_range - cautious_tolerance:
+		direction = -to_target
+	elif distance > flee_range + cautious_tolerance:
+		direction = to_target
+	else:
+		direction = Vector2.ZERO
+	
+	movement_component.facing_direction = to_target
+	
+	if direction != Vector2.ZERO:
+		movement_component.velocity = direction * movement_component.move_speed * 0.8
+		_log("[AI] CAUTIOUS: Adjusting distance (current=", distance, " target=", flee_range, ")")
+	else:
+		movement_component.velocity = Vector2.ZERO
+		_log("[AI] CAUTIOUS: Holding distance (", distance, ")")
 
 func _handle_stunned_state() -> void:
 	_log("[AI] STUNNED: Timer remaining=", state_timer)
@@ -382,11 +503,7 @@ func _handle_stunned_state() -> void:
 		movement_component.velocity = Vector2.ZERO
 
 func _handle_dead_state() -> void:
-	_log("[AI] DEAD: Cleaning up")
-	if movement_component:
-		movement_component.stop_all_movement()
-	if attack_component:
-		attack_component.reset_attack_state()
+	pass
 
 func _change_state(new_state: AIState) -> void:
 	if current_state == new_state:
@@ -528,6 +645,12 @@ func _on_detection_area_area_entered(area: Area2D) -> void:
 
 func _on_entity_died() -> void:
 	_change_state(AIState.DEAD)
+	if movement_component:
+		movement_component.stop_all_movement()
+	if hitbox_component:
+		hitbox_component.can_be_hit = false
+	if state_timer_node:
+		state_timer_node.stop()
 
 func _on_hit_received(attacker: Node, _damage: float, direction: Vector2) -> void:
 	if current_state == AIState.STUNNED or current_state == AIState.DEAD:
@@ -583,9 +706,32 @@ func _get_state_name(state: AIState) -> String:
 			return "ATTACK"
 		AIState.RETREAT:
 			return "RETREAT"
+		AIState.CAUTIOUS:
+			return "CAUTIOUS"
 		AIState.STUNNED:
 			return "STUNNED"
 		AIState.DEAD:
 			return "DEAD"
 		_:
 			return "UNKNOWN"
+
+
+func _on_decision_timer_timeout() -> void:
+		# only act when AI is in an active (non-idle, non-dead, non-attack, non-stunned) state
+	if current_state == AIState.IDLE or current_state == AIState.DEAD or current_state == AIState.ATTACK or current_state == AIState.STUNNED:
+		return
+
+	# need a valid target to make meaningful decision
+	if not current_target:
+		return
+
+	var roll := randf()
+
+	if roll < personalityValues[personality]["chase_chance"]:
+		_log("[AI] Random decision timer: choosing CHASE (roll=", roll, ")")
+		print('chase here')
+		_change_state(AIState.CHASE)
+	else:
+		_log("[AI] Random decision timer: choosing RETREAT (roll=", roll, ")")
+		print('retreat here')
+		_change_state(AIState.RETREAT)
