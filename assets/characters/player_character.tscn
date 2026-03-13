@@ -562,9 +562,12 @@ shape = SubResource("RectangleShape2D_sheqp")
 stats_component = NodePath("../StatsComponent")
 entity = NodePath("../..")
 
-[node name="StatsComponent" parent="ComponentGroup" unique_id=382310907 instance=ExtResource("9_088tr")]
-entity_class = 1
-entity_weapon = 1
+[node name="StatsComponent" parent="ComponentGroup" unique_id=382310907 node_paths=PackedStringArray("character_sprite") instance=ExtResource("9_088tr")]
+base_max_health = 200.0
+base_phys_mult = 2.0
+entity_class = 3
+entity_weapon = 2
+character_sprite = NodePath("../../Sprite2D")
 
 [node name="ShieldComponent" parent="ComponentGroup" unique_id=247168261 instance=ExtResource("10_sheqp")]
 

@@ -563,9 +563,10 @@ stats_component = NodePath("../StatsComponent")
 is_controllable = false
 entity = NodePath("../..")
 
-[node name="StatsComponent" parent="ComponentGroup" unique_id=715640903 instance=ExtResource("9_lk2kr")]
+[node name="StatsComponent" parent="ComponentGroup" unique_id=715640903 node_paths=PackedStringArray("character_sprite") instance=ExtResource("9_lk2kr")]
 entity_class = 1
 entity_weapon = 1
+character_sprite = NodePath("../../Sprite2D")
 
 [node name="AIComponent" parent="ComponentGroup" unique_id=1522925556 node_paths=PackedStringArray("entity", "movement_component", "attack_component", "health_component", "hitbox_component", "animation_component") instance=ExtResource("10_xhcsj")]
 entity = NodePath("../..")

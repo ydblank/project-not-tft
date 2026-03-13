@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://x50qjtctt5e"]
+[gd_scene format=3 uid="uid://x50qjtctt5e"]
 
 [ext_resource type="Script" uid="uid://mnoke4gyxgf2" path="res://assets/objects/dummy.gd" id="1_215xv"]
 [ext_resource type="Texture2D" uid="uid://btxk4c37yglrd" path="res://assets/art/1 Characters/Dummy/dummy.png" id="1_nc0bl"]
@@ -14,38 +14,38 @@ size = Vector2(20, 19)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_42tql"]
 size = Vector2(20, 32)
 
-[node name="Dummy" type="CharacterBody2D"]
+[node name="Dummy" type="CharacterBody2D" unique_id=1734819665]
 script = ExtResource("1_215xv")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1782597035]
 texture_filter = 1
 texture = ExtResource("1_nc0bl")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=606538063]
 light_mask = 2
 position = Vector2(0, 6.5)
 shape = SubResource("RectangleShape2D_215xv")
 
-[node name="Healthbar" parent="." instance=ExtResource("3_42tql")]
+[node name="Healthbar" parent="." unique_id=1932325614 instance=ExtResource("3_42tql")]
 offset_left = -22.0
 offset_top = -25.0
 offset_right = 20.0
 offset_bottom = -22.0
 
-[node name="StatsComponent" parent="." instance=ExtResource("5_81iwf")]
+[node name="StatsComponent" parent="." unique_id=976860240 instance=ExtResource("5_81iwf")]
 
-[node name="HealthComponent" parent="." node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("6_tgi7g")]
+[node name="HealthComponent" parent="." unique_id=847955873 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("6_tgi7g")]
 healthbar = NodePath("../Healthbar")
 stats = NodePath("../StatsComponent")
 
-[node name="HitboxComponent" parent="." node_paths=PackedStringArray("stats", "health") instance=ExtResource("6_81iwf")]
+[node name="HitboxComponent" parent="." unique_id=2042523487 node_paths=PackedStringArray("stats", "health") instance=ExtResource("6_81iwf")]
 collision_layer = 2
 team = 9
 stats = NodePath("../StatsComponent")
 health = NodePath("../HealthComponent")
 damage_number_scene = ExtResource("7_tgi7g")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitboxComponent" unique_id=264211263]
 light_mask = 2
 shape = SubResource("RectangleShape2D_42tql")
 debug_color = Color(0.8000455, 0.38247117, 0.47344965, 0.41960785)
