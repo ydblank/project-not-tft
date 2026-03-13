@@ -1,15 +1,16 @@
-[gd_scene format=3 uid="uid://cs8ci31w8gfe"]
+[gd_scene format=3 uid="uid://dwk3apd8gpdh6"]
 
-[ext_resource type="Script" uid="uid://ygoqvriwusty" path="res://assets/characters/enemy_character.gd" id="1_xhcsj"]
-[ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_h17au"]
-[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_55elk"]
-[ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="4_024mp"]
-[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="5_c8as4"]
-[ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="6_5gfjf"]
-[ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="7_4iwtk"]
-[ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="8_b258x"]
-[ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_lk2kr"]
-[ext_resource type="PackedScene" uid="uid://ch7hdyokx7jqp" path="res://assets/scenes/ai_component.tscn" id="10_xhcsj"]
+[ext_resource type="Script" uid="uid://cii0q1fgvl70u" path="res://assets/characters/player_character.gd" id="1_uq0cv"]
+[ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
+[ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_o4qoj"]
+[ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
+[ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
+[ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
+[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
+[ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_tn02o"]
+[ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_088tr"]
+[ext_resource type="PackedScene" uid="uid://cys71e6y2rg41" path="res://assets/scenes/shield_component.tscn" id="10_sheqp"]
+[ext_resource type="PackedScene" uid="uid://cscnitipmwjuw" path="res://assets/scenes/multiplayer_component.tscn" id="11_tc657"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(10, 7)
@@ -485,97 +486,103 @@ graph_offset = Vector2(-1, 48)
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sheqp"]
 size = Vector2(10, 12)
 
-[node name="EnemyCharacter" type="CharacterBody2D" unique_id=1771002902 groups=["enemies"]]
+[node name="PlayerCharacter" type="CharacterBody2D" unique_id=581065445 groups=["players"]]
 collision_layer = 2
 collision_mask = 7
-script = ExtResource("1_xhcsj")
+motion_mode = 1
+script = ExtResource("1_uq0cv")
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1731289706]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=2061297394]
 texture_filter = 1
-texture = ExtResource("2_h17au")
+texture = ExtResource("2_uq0cv")
 hframes = 8
 vframes = 15
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1547015132]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1596115874]
 position = Vector2(0, 0.5)
 shape = SubResource("RectangleShape2D_ij6vw")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=248725340]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=123475494]
 libraries/ = SubResource("AnimationLibrary_dd465")
 
-[node name="AnimationTree" type="AnimationTree" parent="." unique_id=799276732]
+[node name="AnimationTree" type="AnimationTree" parent="." unique_id=2049348148]
 tree_root = SubResource("AnimationNodeStateMachine_2u5n8")
 anim_player = NodePath("../AnimationPlayer")
 parameters/Attack/blend_position = Vector2(-0.3992933, 0.1748879)
 parameters/Idle/blend_position = Vector2(-0.22745413, -0.29113925)
 parameters/Walk/blend_position = Vector2(-0.017543852, 0.12322283)
 
-[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1828970159]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=396305489]
 
-[node name="Label" type="Label" parent="CanvasLayer" unique_id=1584737948]
+[node name="Label" type="Label" parent="CanvasLayer" unique_id=1472638205]
 texture_filter = 1
-offset_left = 1044.0
-offset_top = 53.0
-offset_right = 1097.0
-offset_bottom = 76.0
-text = "Enemy"
+offset_left = 33.0
+offset_top = 60.0
+offset_right = 82.0
+offset_bottom = 83.0
+text = "Player"
 
-[node name="Healthbar" parent="CanvasLayer" unique_id=2142769220 instance=ExtResource("3_55elk")]
-offset_left = 825.0
-offset_top = 89.0
-offset_right = 1102.0
-offset_bottom = 102.0
+[node name="Healthbar" parent="CanvasLayer" unique_id=111610937 instance=ExtResource("3_o4qoj")]
+offset_left = 28.0
+offset_top = 86.0
+offset_right = 305.0
+offset_bottom = 99.0
 
-[node name="ComponentGroup" type="Node2D" parent="." unique_id=2070548461]
+[node name="ComponentGroup" type="Node2D" parent="." unique_id=1772654759]
 
-[node name="AnimationComponent" parent="ComponentGroup" unique_id=2066204729 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("4_024mp")]
+[node name="AnimationComponent" parent="ComponentGroup" unique_id=394835575 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_sheqp")]
 movement_component = NodePath("../MovementComponent")
 attack_component = NodePath("../AttackComponent")
 animation_player_path = NodePath("../../AnimationPlayer")
 animation_tree_path = NodePath("../../AnimationTree")
 sprite_path = NodePath("../../Sprite2D")
 
-[node name="AttackComponent" parent="ComponentGroup" unique_id=1567947945 node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity") instance=ExtResource("5_c8as4")]
+[node name="AttackComponent" parent="ComponentGroup" unique_id=830906294 node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity", "shield") instance=ExtResource("7_tc657")]
 stats_component = NodePath("../StatsComponent")
 movement_component = NodePath("../MovementComponent")
 animation_component = NodePath("../AnimationComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 entity = NodePath("../..")
-allow_player_control = false
+shield = NodePath("../ShieldComponent")
 
-[node name="HealthComponent" parent="ComponentGroup" unique_id=1791653206 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("6_5gfjf")]
+[node name="HealthComponent" parent="ComponentGroup" unique_id=119778126 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_tn02o")]
 healthbar = NodePath("../../CanvasLayer/Healthbar")
 stats = NodePath("../StatsComponent")
 
-[node name="HitboxComponent" parent="ComponentGroup" unique_id=1586648675 node_paths=PackedStringArray("stats", "health") instance=ExtResource("7_4iwtk")]
+[node name="HitboxComponent" parent="ComponentGroup" unique_id=686353409 node_paths=PackedStringArray("stats", "health", "shield") instance=ExtResource("4_o4qoj")]
 collision_layer = 2
-team = 1
+team = null
+can_be_hit = null
 stats = NodePath("../StatsComponent")
 health = NodePath("../HealthComponent")
+shield = NodePath("../ShieldComponent")
+use_combat_calculations = null
+enable_knockback = null
+base_knockback_force = null
+knockback_duration = null
+knockback_scale_start = null
+knockback_scale_gain_per_hit = null
+knockback_scale_gain_per_damage = null
+knockback_scale_max = null
+knockback_scale_decay_per_sec = null
+debug_knockback = null
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent" unique_id=429630880]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent" unique_id=1502365258]
 position = Vector2(0, -2)
 shape = SubResource("RectangleShape2D_sheqp")
 
-[node name="MovementComponent" parent="ComponentGroup" unique_id=765758074 node_paths=PackedStringArray("stats_component", "entity") instance=ExtResource("8_b258x")]
+[node name="MovementComponent" parent="ComponentGroup" unique_id=1777157270 node_paths=PackedStringArray("attack_component", "stats_component", "shield_component", "entity") instance=ExtResource("5_088tr")]
+attack_component = NodePath("../AttackComponent")
 stats_component = NodePath("../StatsComponent")
-is_controllable = false
+shield_component = NodePath("../ShieldComponent")
 entity = NodePath("../..")
 
-[node name="StatsComponent" parent="ComponentGroup" unique_id=715640903 node_paths=PackedStringArray("character_sprite") instance=ExtResource("9_lk2kr")]
+[node name="StatsComponent" parent="ComponentGroup" unique_id=121070659 instance=ExtResource("9_088tr")]
 entity_class = 1
 entity_weapon = 1
-character_sprite = NodePath("../../Sprite2D")
 
-[node name="AIComponent" parent="ComponentGroup" unique_id=1807506743 node_paths=PackedStringArray("entity", "movement_component", "attack_component", "health_component", "hitbox_component", "animation_component") instance=ExtResource("10_xhcsj")]
-entity = NodePath("../..")
-movement_component = NodePath("../MovementComponent")
-attack_component = NodePath("../AttackComponent")
-health_component = NodePath("../HealthComponent")
-hitbox_component = NodePath("../HitboxComponent")
-animation_component = NodePath("../AnimationComponent")
+[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("hitbox_shape") instance=ExtResource("10_sheqp")]
+hitbox_shape = NodePath("../HitboxComponent")
 
-[connection signal="died" from="ComponentGroup/HealthComponent" to="." method="_on_health_component_died"]
-
-[editable path="ComponentGroup/AIComponent"]
+[node name="MultiplayerComponent" parent="ComponentGroup" unique_id=1725015222 instance=ExtResource("11_tc657")]

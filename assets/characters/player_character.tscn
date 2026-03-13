@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://dma8tg8sgyc2c" path="res://assets/art/1 Characters/2/2.png" id="2_uq0cv"]
 [ext_resource type="PackedScene" uid="uid://bgyrrtuqe3384" path="res://assets/ui/healthbar.tscn" id="3_o4qoj"]
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
+[ext_resource type="PackedScene" uid="uid://c4hwgj67axalg" path="res://assets/ui/shieldbar.tscn" id="4_tn02o"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
 [ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
@@ -492,29 +493,29 @@ collision_mask = 7
 motion_mode = 1
 script = ExtResource("1_uq0cv")
 
-[node name="Sprite2D" type="Sprite2D" parent="." unique_id=2098536418]
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=2061297394]
 texture_filter = 1
 texture = ExtResource("2_uq0cv")
 hframes = 8
 vframes = 15
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=490685433]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1596115874]
 position = Vector2(0, 0.5)
 shape = SubResource("RectangleShape2D_ij6vw")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1356806675]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=123475494]
 libraries/ = SubResource("AnimationLibrary_dd465")
 
-[node name="AnimationTree" type="AnimationTree" parent="." unique_id=2071341350]
+[node name="AnimationTree" type="AnimationTree" parent="." unique_id=2049348148]
 tree_root = SubResource("AnimationNodeStateMachine_2u5n8")
 anim_player = NodePath("../AnimationPlayer")
 parameters/Attack/blend_position = Vector2(-0.3992933, 0.1748879)
 parameters/Idle/blend_position = Vector2(-0.22745413, -0.29113925)
 parameters/Walk/blend_position = Vector2(-0.017543852, 0.12322283)
 
-[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=322042229]
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=396305489]
 
-[node name="Label" type="Label" parent="CanvasLayer" unique_id=1931865128]
+[node name="Label" type="Label" parent="CanvasLayer" unique_id=1472638205]
 texture_filter = 1
 offset_left = 33.0
 offset_top = 60.0
@@ -522,44 +523,54 @@ offset_right = 82.0
 offset_bottom = 83.0
 text = "Player"
 
-[node name="Healthbar" parent="CanvasLayer" unique_id=2143147828 instance=ExtResource("3_o4qoj")]
+[node name="Healthbar" parent="CanvasLayer" unique_id=111610937 instance=ExtResource("3_o4qoj")]
 offset_left = 28.0
 offset_top = 86.0
 offset_right = 305.0
 offset_bottom = 99.0
 
-[node name="ComponentGroup" type="Node2D" parent="." unique_id=1633599240]
+[node name="Shieldbar" parent="CanvasLayer" unique_id=890013759 instance=ExtResource("4_tn02o")]
+offset_left = 28.0
+offset_top = 112.0
+offset_right = 305.0
+offset_bottom = 125.0
 
-[node name="AnimationComponent" parent="ComponentGroup" unique_id=172466746 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_sheqp")]
+[node name="ComponentGroup" type="Node2D" parent="." unique_id=1772654759]
+
+[node name="AnimationComponent" parent="ComponentGroup" unique_id=394835575 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_sheqp")]
 movement_component = NodePath("../MovementComponent")
 attack_component = NodePath("../AttackComponent")
 animation_player_path = NodePath("../../AnimationPlayer")
 animation_tree_path = NodePath("../../AnimationTree")
 sprite_path = NodePath("../../Sprite2D")
 
-[node name="AttackComponent" parent="ComponentGroup" unique_id=1595937806 node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity") instance=ExtResource("7_tc657")]
+[node name="AttackComponent" parent="ComponentGroup" unique_id=830906294 node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity", "shield") instance=ExtResource("7_tc657")]
 stats_component = NodePath("../StatsComponent")
 movement_component = NodePath("../MovementComponent")
 animation_component = NodePath("../AnimationComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 entity = NodePath("../..")
+shield = NodePath("../ShieldComponent")
 
-[node name="HealthComponent" parent="ComponentGroup" unique_id=296194798 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_tn02o")]
+[node name="HealthComponent" parent="ComponentGroup" unique_id=119778126 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_tn02o")]
 healthbar = NodePath("../../CanvasLayer/Healthbar")
 stats = NodePath("../StatsComponent")
 
-[node name="HitboxComponent" parent="ComponentGroup" unique_id=250073066 node_paths=PackedStringArray("stats", "health") instance=ExtResource("4_o4qoj")]
+[node name="HitboxComponent" parent="ComponentGroup" unique_id=686353409 node_paths=PackedStringArray("stats", "health", "shield") instance=ExtResource("4_o4qoj")]
 collision_layer = 2
 stats = NodePath("../StatsComponent")
 health = NodePath("../HealthComponent")
+shield = NodePath("../ShieldComponent")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent" unique_id=1545421197]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ComponentGroup/HitboxComponent" unique_id=1502365258]
 position = Vector2(0, -2)
 shape = SubResource("RectangleShape2D_sheqp")
 
-[node name="MovementComponent" parent="ComponentGroup" unique_id=495928902 node_paths=PackedStringArray("stats_component", "entity") instance=ExtResource("5_088tr")]
+[node name="MovementComponent" parent="ComponentGroup" unique_id=1777157270 node_paths=PackedStringArray("attack_component", "stats_component", "shield_component", "entity") instance=ExtResource("5_088tr")]
+attack_component = NodePath("../AttackComponent")
 stats_component = NodePath("../StatsComponent")
+shield_component = NodePath("../ShieldComponent")
 entity = NodePath("../..")
 
 [node name="StatsComponent" parent="ComponentGroup" unique_id=382310907 node_paths=PackedStringArray("character_sprite") instance=ExtResource("9_088tr")]
@@ -569,6 +580,8 @@ entity_class = 3
 entity_weapon = 2
 character_sprite = NodePath("../../Sprite2D")
 
-[node name="ShieldComponent" parent="ComponentGroup" unique_id=247168261 instance=ExtResource("10_sheqp")]
+[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("hitbox_shape", "shield_bar") instance=ExtResource("10_sheqp")]
+hitbox_shape = NodePath("../HitboxComponent")
+shield_bar = NodePath("../../CanvasLayer/Shieldbar")
 
-[node name="MultiplayerComponent" parent="ComponentGroup" unique_id=427533265 instance=ExtResource("11_tc657")]
+[node name="MultiplayerComponent" parent="ComponentGroup" unique_id=1725015222 instance=ExtResource("11_tc657")]
