@@ -1,4 +1,5 @@
 extends Node2D
+class_name SlashEffect
 
 const DEBUG_HITS := false
 
@@ -15,6 +16,7 @@ const DEBUG_HITS := false
 @export var fixed_rotation: float = 0.0
 @export var use_network_aim: bool = false
 @export var network_aim_pos: Vector2 = Vector2.ZERO
+@export var no_flip: bool = false
 
 # NEW: set by AttackComponent when spawning the slash
 @export var knockback_mult: float = 1.0
@@ -60,7 +62,8 @@ func _ready() -> void:
 		var ART_OFFSET_DEG: float = 0.0
 
 		sprite.rotation = deg_to_rad(angle_deg + ART_OFFSET_DEG)
-		sprite.flip_h = true
+		if not no_flip:
+			sprite.flip_h = true
 
 	# -------------------------
 	# HEAVY ATTACK (fixed)
@@ -68,7 +71,8 @@ func _ready() -> void:
 	else:
 		rotation = deg_to_rad(fixed_rotation)
 		sprite.rotation = deg_to_rad(fixed_rotation)
-		sprite.flip_h = false
+		if not no_flip:
+			sprite.flip_h = false
 
 	# Final combo hit scaling (visual)
 	if combo_step >= combo_total_hits - 1:
@@ -86,6 +90,7 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+
 	if not follow_mouse and area:
 		var ROT_OFFSET_DEG: float = -35.0
 		if combo_step % 2 == 1:

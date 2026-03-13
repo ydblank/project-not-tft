@@ -78,6 +78,7 @@ var _dash_decision_timer: float = 0.0
 @onready var detection_area: Area2D = $DetectionArea
 @onready var state_timer_node: Timer = $StateTimer
 @onready var navigation_agent: NavigationAgent2D = $NavigationAgent2D
+@onready var decision_timer_node: Timer = $DecisionTimer
 
 var enable_debug_logs = false
 
@@ -128,6 +129,9 @@ func _ready() -> void:
 	if hitbox_component:
 		hitbox_component.hit_received.connect(_on_hit_received)
 	
+	# seed random for personality decisions
+	randomize()
+
 	_log("[AI] AIComponent ready - Entity: ", entity.name, " State: IDLE")
 	set_physics_process(true)
 
@@ -234,17 +238,26 @@ func _update_state(_delta: float) -> void:
 					_change_state(AIState.CHASE)
 			else:
 				_log("[AI] IDLE: Target too far (", distance_to_target, " > ", detection_range, ")")
-		
+			
 		AIState.CHASE:
-			if distance_to_target <= attack_range and attack_cooldown_timer <= 0.0:
-				_log("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
-				_change_state(AIState.ATTACK)
+			# always prefer a normal attack if within attack range
+			if attack_cooldown_timer <= 0.0:
+				if distance_to_target <= attack_range:
+					_log("[AI] CHASE -> ATTACK: In attack range (", distance_to_target, " <= ", attack_range, ")")
+					_change_state(AIState.ATTACK)
+				#elif distance_to_target <= detection_range:
+					## heavy attack opportunity when target is farther but still detectable
+					#_log("[AI] CHASE -> ATTACK: Target within detection range for heavy attack (", distance_to_target, ")")
+					#print('why attaccck 2')
+					#_change_state(AIState.ATTACK)
+			
 			elif distance_to_target > chase_range:
 				_log("[AI] CHASE -> IDLE: Target out of chase range (", distance_to_target, " > ", chase_range, ")")
 				_change_state(AIState.IDLE)
-			elif hp_percentage <= retreat_hp_threshold:
-				_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "%)")
-				_change_state(AIState.RETREAT)
+			#elif hp_percentage <= retreat_hp_threshold:
+				#if decision_timer > 0.0:
+					#_log("[AI] CHASE -> RETREAT: Low HP (", hp_percentage * 100, "% <= ", retreat_hp_threshold * 100, "% )")
+					#_change_state(AIState.RETREAT)
 			else:
 				_log("[AI] CHASE: Distance=", distance_to_target, " AttackRange=", attack_range, " Cooldown=", attack_cooldown_timer)
 		
@@ -255,6 +268,7 @@ func _update_state(_delta: float) -> void:
 					_change_state(AIState.ATTACK)
 				elif distance_to_target <= chase_range:
 					_log("[AI] ATTACK -> CHASE: Target moved away (", distance_to_target, ")")
+					print('chase 2')
 					_change_state(AIState.CHASE)
 				else:
 					_log("[AI] ATTACK -> IDLE: Target too far (", distance_to_target, " > ", chase_range, ")")
@@ -292,7 +306,6 @@ func _handle_idle_state() -> void:
 		return
 	
 	if idle_wander and not current_target:
-		_log('hereraaa')
 		_wander_behavior()
 	else:
 		_log("[AI] IDLE: Waiting for target to enter detection range")
@@ -353,26 +366,20 @@ func _handle_chase_state() -> void:
 		_log("[AI] CHASE: No direction, stopped")
 
 func _handle_attack_state() -> void:
-	if not current_target:
-		_log("[AI] ATTACK: No target!")
-		return
-	
-	if not attack_component:
-		_log("[AI] ATTACK: No attack_component!")
+	# new logic for chained combos, range checking and optional heavy attacks
+	if not current_target or not attack_component:
 		return
 	
 	if attack_cooldown_timer > 0.0:
 		_log("[AI] ATTACK: On cooldown (", attack_cooldown_timer, "s remaining)")
 		return
 	
-	if attack_component.get_attack_state() != AttackComponent.AttackState.IDLE:
-		_log("[AI] ATTACK: AttackComponent busy, state=", attack_component.get_attack_state())
-		return
-	
 	var direction := (current_target.global_position - entity.global_position).normalized()
-	
+
 	if movement_component:
 		movement_component.facing_direction = direction
+
+	attack_component.set_attack_direction = direction
 	
 	var distance := _get_distance_to_target()
 	

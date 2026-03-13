@@ -13,9 +13,9 @@ const DEBUG_ATTACK := false
 @export var entity: Node2D
 @export var allow_player_control: bool = true
 
-# Shield
+# Shield / block / stun
 @export var shield: ShieldComponent
-@export var stun_duration: float = 2
+@export var stun_duration: float = 2.0
 
 var _is_stunned: bool = false
 var _stun_time_left: float = 0.0
@@ -64,7 +64,7 @@ var _heavy_attack_direction: Vector2 = Vector2.ZERO
 
 # ---------------- NET HELPERS ----------------
 func _net_active() -> bool:
-	var mp := multiplayer.multiplayer_peer
+	var mp = multiplayer.multiplayer_peer
 	return mp != null and mp.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
@@ -77,6 +77,7 @@ func rpc_spawn_slash(
 	p_follow_mouse: bool,
 	p_fixed_rotation: float,
 	p_slash_effect: String,
+	p_no_flip: bool,
 	p_attacker_id: int,
 	p_attacker_team: int,
 	p_damage: float,
@@ -92,14 +93,15 @@ func rpc_spawn_slash(
 		if entity == null:
 			return
 
-	var fx = ATTACK_EFFECT.instantiate()
+	var fx: SlashEffect = ATTACK_EFFECT.instantiate()
 	fx.global_position = p_spawn_pos
 	fx.follow_mouse = p_follow_mouse
 	fx.fixed_rotation = p_fixed_rotation
 	fx.slash_effect = p_slash_effect
+	fx.no_flip = p_no_flip
 	fx.hits_players = true
 
-	# ✅ Light attack: keep follow_mouse visuals but feed attacker’s aim position
+	# Light attack: keep follow_mouse visuals but feed attacker’s aim position
 	if p_follow_mouse:
 		fx.use_network_aim = true
 		fx.network_aim_pos = p_aim_pos
@@ -133,49 +135,43 @@ func _ready() -> void:
 	var cb := Callable(self, "_on_attack_timer_timeout")
 	while attack_timer.timeout.is_connected(cb):
 		attack_timer.timeout.disconnect(cb)
-	attack_timer.one_shot = true
-
-	var timer_cb := Callable(self, "_on_attack_timer_timeout")
-	while attack_timer.timeout.is_connected(timer_cb):
-		attack_timer.timeout.disconnect(timer_cb)
-	attack_timer.timeout.connect(timer_cb)
+	attack_timer.timeout.connect(cb)
 
 	# Shield break -> stun hook
 	if shield != null and shield is ShieldComponent:
 		var shield_cb := Callable(self, "_on_shield_broken")
-		if not (shield as ShieldComponent).shield_broken.is_connected(shield_cb):
-			(shield as ShieldComponent).shield_broken.connect(shield_cb)
+		if not shield.shield_broken.is_connected(shield_cb):
+			shield.shield_broken.connect(shield_cb)
+
+	if DEBUG_ATTACK:
+		print("[ATK] ready entity=", (str(entity.name) if entity else "null"), " timer=", attack_timer)
+
 
 func _on_shield_broken() -> void:
-	# Drop the shield (optional)
+	# Drop the shield
 	if shield and shield is ShieldComponent:
-		(shield as ShieldComponent).deactivate_shield()
+		shield.deactivate_shield()
 
-	# Cancel attacks/charge visuals immediately
+	# Cancel attacks / charge immediately
 	attack_is_holding = false
 	attack_hold_time = 0.0
 	is_charging = false
 	charge_time = 0.0
 	reset_attack_state()
 
-	# HARD stun: disable movement input like your heavy/charge slow logic uses
+	# Apply stun state
+	_is_stunned = true
+	_stun_time_left = stun_duration
+
 	if movement_component:
 		movement_component.stop_all_movement()
-		movement_component.apply_stagger(stun_duration) # freezes by stagger_timer
-		movement_component.is_controllable = false      # freezes input reads
+		movement_component.apply_stagger(stun_duration)
+		movement_component.is_controllable = false
 
-	# Also disable this component's input (so you can't attack/block during stun)
+	# Disable attack/block input while stunned
 	allow_player_control = false
 	set_process_input(false)
 
-	# Restore after duration
-	await get_tree().create_timer(stun_duration).timeout
-
-	if movement_component:
-		movement_component.is_controllable = true
-
-	allow_player_control = true
-	set_process_input(_is_authority())
 
 func set_remote_attacking(is_attacking: bool) -> void:
 	attack_state = (AttackState.ACTIVE if is_attacking else AttackState.IDLE)
@@ -247,7 +243,7 @@ func handle_attack_input(p_attack: AttackType, force: bool = false) -> void:
 			_start_attack_by_type(p_attack)
 
 		AttackState.COMBO_WINDOW:
-			var max_hits := _combo_total_hits()
+			var max_hits: int = _combo_total_hits()
 			if combo_step < max_hits - 1:
 				combo_step += 1
 				buffered_attack = false
@@ -277,29 +273,32 @@ func _input(event: InputEvent) -> void:
 	if not allow_player_control or _is_dead():
 		return
 
-	# ✅ 1) ALWAYS process Block events first
+	# Process Block events first
 	if event.is_action_pressed("Block"):
 		if shield and entity:
-			(shield as ShieldComponent).activate_shield(entity)
-		return  # optional: stop here so block press doesn't also do other stuff this frame
+			shield.activate_shield(entity)
+		return
 
 	if event.is_action_released("Block"):
 		if shield:
-			(shield as ShieldComponent).deactivate_shield()
+			shield.deactivate_shield()
 		return
 
-	# ✅ 2) If currently blocking, ignore ALL attack input
-	if shield and (shield as ShieldComponent).is_active:
+	# If blocking, ignore all attack input but keep facing toward the mouse
+	if shield and shield.is_active:
 		var face_dir: Vector2 = _mouse_cardinal_direction()
 		_set_player_directions(face_dir)
-		# cancel any charge/hold so it doesn't fire when you stop blocking
+
+		# Cancel charge/hold so it does not fire after block release
 		attack_is_holding = false
 		attack_hold_time = 0.0
 		is_charging = false
 		charge_time = 0.0
 		return
 
-	# ---- ATTACK input (only runs when not blocking) ----
+	if DEBUG_ATTACK and (event.is_action_pressed("Attack") or event.is_action_released("Attack")):
+		print("[ATK] action Attack pressed=", event.is_action_pressed("Attack"), " released=", event.is_action_released("Attack"), " holding=", attack_is_holding, " hold_time=", attack_hold_time)
+
 	if event.is_action_pressed("Attack"):
 		attack_is_holding = true
 		attack_hold_time = 0.0
@@ -313,19 +312,27 @@ func _input(event: InputEvent) -> void:
 		else:
 			handle_attack_input(AttackType.LIGHT)
 
+
 func _process(delta: float) -> void:
-	# ---- STUN TIMER ----
+	# Stun timer
 	if _is_stunned:
 		_stun_time_left -= delta
 		if _stun_time_left <= 0.0:
 			_is_stunned = false
 			_stun_time_left = 0.0
+
+			if movement_component:
+				movement_component.is_controllable = true
+
+			allow_player_control = true
+			set_process_input(_is_authority())
 		return
-	if shield and (shield as ShieldComponent).is_active:
+
+	# While blocking, keep facing toward the mouse
+	if shield and shield.is_active:
 		var face_dir: Vector2 = _mouse_cardinal_direction()
 		_set_player_directions(face_dir)
 
-	# ---- charge shake visuals ----
 	if attack_is_holding:
 		attack_hold_time = min(attack_hold_time + delta, max_charge_time)
 		_shake_time += delta
@@ -443,6 +450,7 @@ func start_heavy_attack() -> void:
 func _on_attack_timer_timeout() -> void:
 	if DEBUG_ATTACK:
 		print("[ATK] timer timeout state=", attack_state, " type=", current_attack_type, " step=", combo_step)
+
 	match attack_state:
 		AttackState.STARTUP:
 			enable_hitbox()
@@ -476,7 +484,7 @@ func _on_attack_timer_timeout() -> void:
 						handle_attack_input(current_attack_type)
 
 		AttackState.COMBO_WINDOW:
-			var max_hits := _combo_total_hits()
+			var max_hits: int = _combo_total_hits()
 			if buffered_attack:
 				buffered_attack = false
 				if combo_step < max_hits - 1:
@@ -516,7 +524,7 @@ func get_recovery_time() -> float:
 
 
 func _is_final_combo_step() -> bool:
-	var max_hits := _combo_total_hits()
+	var max_hits: int = _combo_total_hits()
 	return combo_step >= (max_hits - 1)
 
 
@@ -547,23 +555,15 @@ func _cardinal_from_raw(raw_dir: Vector2) -> Vector2:
 
 
 func _attack_combo_animation(step: int) -> StringName:
-	var is_left: bool
-	if current_attack_type == AttackType.HEAVY and _heavy_attack_direction != Vector2.ZERO:
-		is_left = _heavy_attack_direction.x < 0.0
-	else:
-		var to_mouse: Vector2 = Vector2.ZERO
-		if entity:
-			to_mouse = get_global_mouse_position() - entity.global_position
-		is_left = to_mouse.x < 0.0
-
 	if current_attack_type == AttackType.HEAVY:
 		match step:
-			0: return &"slash_2"
-			1: return &"slash"
-			_: return &"slash"
+			0:
+				return &"slash_2"
+			1:
+				return &"slash"
+			_:
+				return &"slash"
 
-	if is_left:
-		return &"slash_2" if (step % 2 == 0) else &"slash"
 	return &"slash" if (step % 2 == 0) else &"slash_2"
 
 
@@ -638,15 +638,23 @@ func _spawn_attack_payload(step: int) -> void:
 		spawn_attack_effect(step)
 
 
+func _get_attack_direction() -> Vector2:
+	if set_attack_direction != Vector2.ZERO:
+		return set_attack_direction.normalized()
+	return (get_global_mouse_position() - entity.global_position).normalized()
+
+
 func spawn_projectile(step: int) -> void:
 	if not entity:
 		return
 	var arrow_projectile: PackedScene = entity.get("arrow_projectile") if entity.has("arrow_projectile") else null
 	if arrow_projectile == null:
 		return
+
 	var projectile = arrow_projectile.instantiate()
+	var dir: Vector2 = _get_attack_direction()
 	projectile.global_position = entity.global_position
-	projectile.rotation = (get_global_mouse_position() - entity.global_position).angle()
+	projectile.rotation = dir.angle()
 
 	var base_damage: float = _calc_base_damage()
 	var mult: float = _weapon_combo_damage_multiplier(step)
@@ -654,18 +662,24 @@ func spawn_projectile(step: int) -> void:
 	projectile.shooter = entity
 	entity.get_parent().add_child(projectile)
 
-
+func _use_ai_no_flip() -> bool:
+	return not allow_player_control
+	
 func spawn_attack_effect(step: int) -> void:
 	if not entity:
 		return
 
 	var aim_pos: Vector2 = get_global_mouse_position()
 
-	# Local spawn (singleplayer or authority local prediction) - keep the visuals exactly like before.
-	var fx = ATTACK_EFFECT.instantiate()
+	# Local spawn (singleplayer or authority local prediction)
+	var fx: SlashEffect = ATTACK_EFFECT.instantiate()
 	fx.attacker_node_cached = entity
 	fx.knockback_mult = get_knockback_mult()
+	fx.no_flip = false
+
 	if current_attack_type == AttackType.HEAVY and _combo_directions.size() > 0:
+		fx.no_flip = _use_ai_no_flip()
+
 		var locked_raw: Vector2 = _combo_directions[0]["raw"] as Vector2
 		fx.follow_mouse = false
 
@@ -687,9 +701,12 @@ func spawn_attack_effect(step: int) -> void:
 		if set_attack_direction != Vector2.ZERO:
 			fx.follow_mouse = false
 			var angle_deg2: float = rad_to_deg(set_attack_direction.angle())
+			fx.no_flip = _use_ai_no_flip()
 			fx.fixed_rotation = angle_deg2
+			fx.slash_effect = str(_attack_combo_animation(step))
 		else:
 			fx.follow_mouse = true
+			fx.no_flip = false
 			fx.slash_effect = str(_attack_combo_animation(step))
 
 	fx.hits_players = true
@@ -710,18 +727,14 @@ func spawn_attack_effect(step: int) -> void:
 	if fx.has_method("set_attack_context"):
 		fx.call("set_attack_context", attacker_id, team_id, total_damage, step, total_hits)
 
-	# 🔥 SINGLEPLAYER: just add it
 	if not _net_active():
 		entity.get_parent().add_child(fx)
 		return
 
-	# 🔥 MULTIPLAYER:
-	# Only the authority should spawn & replicate. Everyone (including self) gets it via call_local RPC.
 	if not _is_authority():
 		fx.queue_free()
 		return
 
-	# Don't double-spawn locally: let call_local spawn for us.
 	fx.queue_free()
 
 	rpc(
@@ -730,6 +743,7 @@ func spawn_attack_effect(step: int) -> void:
 		fx.follow_mouse,
 		fx.fixed_rotation,
 		fx.slash_effect,
+		fx.no_flip,
 		attacker_id,
 		team_id,
 		total_damage,
@@ -737,7 +751,6 @@ func spawn_attack_effect(step: int) -> void:
 		total_hits,
 		aim_pos
 	)
-
 
 func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	if not entity:
@@ -760,7 +773,7 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	if body == entity:
 		return
 
-	var my_team := 0
+	var my_team: int = 0
 	if hitbox_component:
 		my_team = hitbox_component.team
 	if hitbox.is_same_team(my_team):
@@ -779,10 +792,10 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 
 	var dmg: float = _calc_damage(combo_step) * _charge_damage_mult
 
-	# FINAL HIT ONLY launches:
+	# Final hit only launches
 	var allow_kb: bool = _is_final_combo_step()
 
-	# Charge/heavy scaling:
+	# Charge / heavy scaling
 	var kb_mult: float = get_knockback_mult()
 
 	hitbox.take_damage(dmg, entity, dir, allow_kb, kb_mult)
