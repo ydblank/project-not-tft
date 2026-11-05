@@ -26,6 +26,7 @@ You now start as the **Knight with the sword** (was the Archer).
 
 - **3-2-1-FIGHT! countdown** at the start. Fighters are frozen until it finishes; Esc still works during it.
 - **Respawning enemies** with an ON/OFF button at the top of the screen (the delay is a setting).
+- **Training dummy** is hidden by default; a "Dummy: HIDDEN / SHOWN" button at the top of the screen brings it back (it has no collision and cannot be hit while hidden).
 - **Player lives and respawn:** 3 lives, respawn after 3s, 1.5s of invulnerability and blinking after respawning, "GAME OVER" at 0 lives.
 - **Death / hurt / knockback animations** for every fighter. Dead enemies linger, then fade out.
 
@@ -51,7 +52,7 @@ You now start as the **Knight with the sword** (was the Archer).
   - **Stun immunity:** 0.5s after a stun ends, weak hits do damage but can't stun again (fixes light-arrow stunlock).
   - **Heavy melee protected:** light ranged hits can't interrupt a heavy melee charge or swing; heavy ranged hits can.
 - **Dash**
-  - **Double dash with recharge:** 2 charges that each recharge on their own (1.5s each). Using both in a row triggers a slower reload (2.5s).
+  - **Triple dash with recharge:** 3 charges that each recharge on their own (1.5s each). Using all of them in a row triggers a slower reload (2.5s).
   - **Faster and looser:** near-instant, and usable out of almost any action (attacks, charging, blocking, even stagger).
   - **Invulnerable while dashing** (i-frames).
   - **Charge through a dash:** hold a heavy charge, dash, keep holding, then release after (or release mid-dash and it fires when the dash ends).
@@ -63,16 +64,24 @@ You now start as the **Knight with the sword** (was the Archer).
 - **Stays in the arena:** it treats the arena edge as a wall. It won't walk, retreat or dash out, and walks back in if knocked out.
 - **Attack pacing** tuned so the AI actually fights back (attack cooldown 0.7s, personality changes every 1.2s).
 - **Ally AI** uses the same brain as the enemy archer and targets enemies.
-- **Dash reserve:** movement dashes keep one charge in reserve for dodging.
+- **Dash reserve:** movement dashes keep one charge in reserve for dodging and combo breaks.
+- **Smarter AI (all can be switched off per fighter in the AIComponent "Smarts" group):**
+  - **Combo breaker:** when held in combo hitstun, the AI reacts after about 0.2s and may dash out (60% to 85% chance depending on personality).
+  - **Punish dash:** dashes in on a target that is stunned, knocked back or recovering from a swing, and can spend its last charge to do it.
+  - **Steadier decisions:** it commits to chasing or retreating for at least 0.7s, retreats more when hurt, and does not run straight back into a corner it just escaped.
+  - **Smarter targets:** it scores targets by distance, openings, low health, and whether a teammate is already on them. Targets are kept for 1s so it does not flip between two.
+  - **Teamwork:** two fighters on the same target flank from opposite sides. A fighter goes after whoever is on top of a hurt teammate.
+  - **Adapts to you:** it blocks and dodges more when you spam attacks, and holds back its heavy while you still have a dash to sidestep it (it goes for it more when you are out of dashes or stunned).
+  - **Uses the arena edge:** it approaches from the inside so its hits push you toward the edge, and avoids hanging around the edge itself.
 
 ## Game feel
 
 - **Freeze frame on hit** (a true freeze, kept short), plus **camera shake** along the hit direction (bigger on heavy hits and kills). Both only trigger when the **player** hits or gets hit.
 - **Hit effects:** blood splats and droplets on fighters, sparks on blocks and on the dummy.
-- **Block flash** on the blocker.
+- **Blocking is easy to read:** a shield arc on the guarded side (blue, turning red as the shield drains), a shield meter above the head, a bright pulse and small push-back on each blocked hit, a "BLOCKED" popup, and a "GUARD BREAK!" popup with a red flash and shattering shards when the shield breaks.
 - **Dash afterimage trail.**
 - **Slash effect follows you** during the swing (it no longer stays at your start position when you lunge).
-- **Gentle camera follow:** drifts toward the fighter you control, leaning toward your teammate (follow strength is adjustable).
+- **Gentle camera follow:** drifts toward the fighter you control, leaning toward your teammate (follow strength is adjustable). It never leaves the arena, so being launched far outside does not blank the screen.
 - **Depth sorting:** whoever is lower on screen is drawn in front, so standing above an enemy now puts you partly behind him.
 
 ## UI
@@ -121,3 +130,4 @@ You now start as the **Knight with the sword** (was the Archer).
 - The camera isn't limited to the arena, so a high follow strength can show empty space.
 - The AI only stands at the arena edge if you are outside; it does not follow you out.
 - No sound effects yet (only the music track).
+- The new AI behaviours were checked one by one in the running game, but only combo-breaking got a repeated test. The rest need real play to tune.

@@ -181,3 +181,19 @@ func closest_inside_point(world_pos: Vector2) -> Vector2:
 			best_d = d
 			best = center
 	return best
+
+
+## Bounding box (world space) of the arena floor tiles. Used to keep the camera on the arena.
+func get_world_rect() -> Rect2:
+	if _floor_cells.is_empty():
+		return Rect2()
+	var first := true
+	var rect := Rect2()
+	for cell in _floor_cells:
+		var center := tile_map.to_global(tile_map.map_to_local(cell))
+		if first:
+			rect = Rect2(center, Vector2.ZERO)
+			first = false
+		else:
+			rect = rect.expand(center)
+	return rect

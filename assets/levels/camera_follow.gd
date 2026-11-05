@@ -12,6 +12,9 @@ class_name CameraFollow
 ## Higher = snappier.
 @export var smoothing: float = 5.0
 
+## Extra pixels the camera may drift past the point where the arena edge reaches the screen edge.
+const EDGE_MARGIN := 24.0
+
 var _home: Vector2
 
 
@@ -29,6 +32,7 @@ func _process(delta: float) -> void:
 	var focus: Variant = _focus_point()
 	if focus != null:
 		target = _home + (focus - _home) * follow_strength
+	target = _keep_on_arena(target)
 	camera.global_position = camera.global_position.lerp(target, 1.0 - exp(-smoothing * delta))
 
 
@@ -50,3 +54,19 @@ func _focus_point() -> Variant:
 	if mate:
 		point = point.lerp(mate.global_position, teammate_weight)
 	return point
+
+
+## The camera never leaves the arena, even when a fighter is launched far outside it.
+func _keep_on_arena(target: Vector2) -> Vector2:
+	var arena := get_tree().get_first_node_in_group("arena") as ArenaBounds
+	if arena == null:
+		return target
+	var rect := arena.get_world_rect()
+	if rect.size == Vector2.ZERO:
+		return target
+	# Arena smaller than the screen: the camera stays centred. Larger: it may move only as far as keeps the arena edge on screen.
+	var view := get_viewport().get_visible_rect().size / (camera.zoom if camera else Vector2.ONE)
+	var arena_size := rect.size + Vector2(16, 16)
+	var room := Vector2(maxf((arena_size.x - view.x) * 0.5, 0.0), maxf((arena_size.y - view.y) * 0.5, 0.0)) + Vector2(EDGE_MARGIN, EDGE_MARGIN)
+	var centre := rect.get_center()
+	return Vector2(clampf(target.x, centre.x - room.x, centre.x + room.x), clampf(target.y, centre.y - room.y, centre.y + room.y))

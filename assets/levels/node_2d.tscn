@@ -17,6 +17,7 @@
 [ext_resource type="Script" uid="uid://blr3locgrteq4" path="res://assets/levels/fight_countdown.gd" id="16_countdown"]
 [ext_resource type="Script" uid="uid://cuvbrtumogrcx" path="res://assets/levels/control_switcher.gd" id="17_control"]
 [ext_resource type="Script" uid="uid://1glljwh0s36t" path="res://assets/levels/camera_follow.gd" id="18_camfollow"]
+[ext_resource type="Script" uid="uid://budmxrj5jvax2" path="res://assets/levels/dummy_toggle.gd" id="19_dummytoggle"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -261,6 +262,9 @@ script = ExtResource("17_control")
 [node name="CameraFollow" type="Node" parent="." unique_id=2050758459 node_paths=PackedStringArray("camera")]
 script = ExtResource("18_camfollow")
 camera = NodePath("../Camera2D")
+
+[node name="DummyToggle" type="Node" parent="." unique_id=1357874354]
+script = ExtResource("19_dummytoggle")
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]
