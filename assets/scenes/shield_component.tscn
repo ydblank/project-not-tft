@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://q80db5gpmts3"]
 
-[ext_resource type="Script" path="res://assets/scenes/shield_component.gd" id="1_ng2v0"]
+[ext_resource type="Script" uid="uid://dpr8cltp1bms5" path="res://assets/scenes/shield_component.gd" id="1_ng2v0"]
 
 [node name="ShieldComponent" type="Node2D" unique_id=1069452363]
 script = ExtResource("1_ng2v0")

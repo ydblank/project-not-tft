@@ -2,8 +2,8 @@ extends Area2D
 class_name HitboxComponent
 
 # The entity's hurtbox and the single place where an incoming hit is resolved:
-#   ignore (dead / same team / disabled) -> shield check -> defense -> health
-#   -> knockback %-meter -> reaction on the CombatComponent -> feedback.
+#   ignore (dead / same team / disabled) -> defense -> block / shield HP
+#   -> health -> knockback %-meter -> reaction on the CombatComponent -> feedback.
 
 enum Result {IGNORED, BLOCKED, HIT}
 
@@ -14,6 +14,8 @@ signal hit_blocked()
 @export var can_be_hit: bool = true
 @export var stats: StatsComponent
 @export var health: HealthComponent
+## Optional shield HP meter. Without one, blocking stops hits completely.
+@export var shield: ShieldComponent
 
 @export_group("Damage Settings")
 @export var use_combat_calculations: bool = true
@@ -37,6 +39,8 @@ var _combat: CombatComponent = null
 func _ready() -> void:
 	if not health:
 		health = _find_sibling(HealthComponent) as HealthComponent
+	if not shield:
+		shield = _find_sibling(ShieldComponent) as ShieldComponent
 	knockback_scale = knockback_scale_start
 	_combat = CombatComponent.find_on(get_entity())
 	set_process(knockback_scale_decay_per_sec > 0.0)
@@ -67,18 +71,26 @@ func receive_hit(hit: HitData) -> Result:
 	if is_same_team(hit.team) or hit.attacker == get_entity():
 		return Result.IGNORED
 
-	# Shield: direction the hit comes FROM, relative to us.
+	var final_damage := hit.damage
+	if use_combat_calculations and stats:
+		final_damage = CombatGlobal.calculate_receive_damage(stats, hit.damage)
+
+	# Block: direction the hit comes FROM, relative to us. With a shield meter
+	# the damage drains it; a hit that breaks it gets the rest through, and the
+	# break stun (applied by CombatComponent) replaces the normal reaction.
+	var guard_broken := false
 	if _combat:
 		var from_dir := -hit.direction
 		if is_instance_valid(hit.attacker):
 			from_dir = hit.attacker.global_position - global_position
 		if _combat.is_blocking_from(from_dir):
-			hit_blocked.emit()
-			return Result.BLOCKED
-
-	var final_damage := hit.damage
-	if use_combat_calculations and stats:
-		final_damage = CombatGlobal.calculate_receive_damage(stats, hit.damage)
+			if shield:
+				final_damage = shield.absorb_damage(final_damage * shield.damage_mult_while_blocking)
+				guard_broken = shield.is_broken()
+			if not guard_broken or final_damage <= 0.0:
+				hit_blocked.emit()
+				Combat.hitstop(hit.hitstop)
+				return Result.BLOCKED
 
 	knockback_scale = minf(knockback_scale + knockback_scale_gain_per_hit + final_damage * knockback_scale_gain_per_damage, knockback_scale_max)
 
@@ -88,7 +100,7 @@ func receive_hit(hit: HitData) -> Result:
 	var force := 0.0
 	if hit.reaction == AttackMove.Reaction.KNOCKBACK:
 		force = base_knockback_force * knockback_scale * maxf(hit.knockback_force_mult, 0.0)
-	if _combat and not health.is_dead():
+	if _combat and not health.is_dead() and not guard_broken:
 		_combat.receive_reaction(hit, force)
 
 	if debug_hits:

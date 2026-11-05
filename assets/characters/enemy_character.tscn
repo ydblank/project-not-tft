@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="8_b258x"]
 [ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_lk2kr"]
 [ext_resource type="PackedScene" uid="uid://ch7hdyokx7jqp" path="res://assets/scenes/ai_component.tscn" id="10_xhcsj"]
+[ext_resource type="PackedScene" uid="uid://q80db5gpmts3" path="res://assets/scenes/shield_component.tscn" id="11_shcmp"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(10, 7)
@@ -734,5 +735,8 @@ entity = NodePath("../..")
 entity_class = 1
 entity_weapon = 1
 character_sprite = NodePath("../../Sprite2D")
+
+[node name="ShieldComponent" parent="ComponentGroup" node_paths=PackedStringArray("combat_component") instance=ExtResource("11_shcmp")]
+combat_component = NodePath("../CombatComponent")
 
 [connection signal="died" from="ComponentGroup/HealthComponent" to="." method="_on_health_component_died"]

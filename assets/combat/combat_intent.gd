@@ -21,3 +21,12 @@ func clear() -> void:
 	block_held = false
 	dash_held = false
 	lunge_limit = INF
+
+
+func copy_from(other: CombatIntent) -> void:
+	move_dir = other.move_dir
+	aim_dir = other.aim_dir
+	attack_held = other.attack_held
+	block_held = other.block_held
+	dash_held = other.dash_held
+	lunge_limit = other.lunge_limit

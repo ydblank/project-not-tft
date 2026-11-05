@@ -11,6 +11,8 @@
 [ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_088tr"]
 [ext_resource type="Script" path="res://assets/combat/player_controller.gd" id="10_sheqp"]
 [ext_resource type="PackedScene" uid="uid://cscnitipmwjuw" path="res://assets/scenes/multiplayer_component.tscn" id="11_tc657"]
+[ext_resource type="PackedScene" uid="uid://c4hwgj67axalg" path="res://assets/ui/shieldbar.tscn" id="12_shbar"]
+[ext_resource type="PackedScene" uid="uid://q80db5gpmts3" path="res://assets/scenes/shield_component.tscn" id="13_shcmp"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
 size = Vector2(10, 7)
@@ -691,6 +693,12 @@ offset_top = 86.0
 offset_right = 305.0
 offset_bottom = 99.0
 
+[node name="Shieldbar" parent="CanvasLayer" unique_id=890013759 instance=ExtResource("12_shbar")]
+offset_left = 28.0
+offset_top = 112.0
+offset_right = 305.0
+offset_bottom = 125.0
+
 [node name="ComponentGroup" type="Node2D" parent="." unique_id=1633599240]
 
 [node name="PlayerController" type="Node2D" parent="ComponentGroup" node_paths=PackedStringArray("entity")]
@@ -735,5 +743,9 @@ base_phys_mult = 2.0
 entity_class = 3
 entity_weapon = 3
 character_sprite = NodePath("../../Sprite2D")
+
+[node name="ShieldComponent" parent="ComponentGroup" unique_id=2032574743 node_paths=PackedStringArray("combat_component", "shield_bar") instance=ExtResource("13_shcmp")]
+combat_component = NodePath("../CombatComponent")
+shield_bar = NodePath("../../CanvasLayer/Shieldbar")
 
 [node name="MultiplayerComponent" parent="ComponentGroup" unique_id=427533265 instance=ExtResource("11_tc657")]

@@ -28,6 +28,8 @@ const KNOCKBACK_DURATION := 0.25
 @export var movement_component: MovementComponent
 @export var health_component: HealthComponent
 @export var hitbox_component: HitboxComponent
+## Optional shield HP meter: blocking is unavailable while it is broken.
+@export var shield_component: ShieldComponent
 @export_range(0.0, 1.0) var slowed_speed_mult: float = 0.25
 
 var sm: ActionStateMachine
@@ -39,6 +41,7 @@ var _hit_targets: Dictionary = {}
 var _current_hit_mult: float = 1.0
 var _knockback_velocity: Vector2 = Vector2.ZERO
 var _neutral_intent := CombatIntent.new()
+var _gated_intent := CombatIntent.new()
 var _last_state: ActionStateMachine.State = ActionStateMachine.State.IDLE
 
 
@@ -53,6 +56,12 @@ func _ready() -> void:
 	_build_attack_hitbox()
 	if health_component:
 		health_component.died.connect(_on_died)
+	if shield_component == null and get_parent():
+		for sibling in get_parent().get_children():
+			if sibling is ShieldComponent:
+				shield_component = sibling
+	if shield_component:
+		shield_component.shield_broken.connect(_on_shield_broken)
 
 
 # ======================================================================
@@ -78,9 +87,16 @@ func _physics_process(delta: float) -> void:
 
 
 func _get_intent() -> CombatIntent:
+	var intent := _neutral_intent
 	if controller and "intent" in controller and controller.intent is CombatIntent:
-		return controller.intent
-	return _neutral_intent
+		intent = controller.intent
+	# A broken shield can't block; filter a copy so the controller's own
+	# intent is left untouched.
+	if intent.block_held and shield_component and not shield_component.can_block():
+		_gated_intent.copy_from(intent)
+		_gated_intent.block_held = false
+		return _gated_intent
+	return intent
 
 
 func _handle_event(e: Dictionary) -> void:
@@ -237,6 +253,12 @@ func receive_reaction(hit: HitData, knockback_force: float) -> void:
 
 func is_blocking_from(from_dir: Vector2) -> bool:
 	return sm != null and sm.is_blocking_from(from_dir)
+
+
+## Guard break: the shield ran out while blocking.
+func _on_shield_broken() -> void:
+	sm.apply_stagger(shield_component.stun_duration)
+	_emit_state_change()
 
 
 func _on_died() -> void:
