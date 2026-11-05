@@ -27,15 +27,20 @@ func _ready() -> void:
 	_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_label)
 	_label.pivot_offset = get_viewport().get_visible_rect().size * 0.5
+	_freeze_fighters() # before the first physics frame, so nobody acts (or dashes) early
 	call_deferred("_run")
 
 
-func _run() -> void:
+func _freeze_fighters() -> void:
 	for group_name in groups:
 		for node in get_tree().get_nodes_in_group(group_name):
 			if node is CharacterBody2D and not _frozen.has(node):
 				_frozen.append(node)
 				node.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+func _run() -> void:
+	_freeze_fighters() # catches anything added since _ready
 	for n in range(seconds, 0, -1):
 		await _show(str(n), 1.0)
 	for node in _frozen:

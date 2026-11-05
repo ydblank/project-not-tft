@@ -5,6 +5,9 @@
 
 [sub_resource type="Resource" id="Resource_light1"]
 script = ExtResource("2_move")
+startup = 0.05
+active = 0.07
+recovery = 0.05
 lunge_distance = 8.0
 reach = 15.0
 damage_mult = 0.4
@@ -14,6 +17,9 @@ vfx_scale = 0.8
 
 [sub_resource type="Resource" id="Resource_light2"]
 script = ExtResource("2_move")
+startup = 0.05
+active = 0.07
+recovery = 0.05
 lunge_distance = 8.0
 reach = 15.0
 damage_mult = 0.4
@@ -23,6 +29,9 @@ vfx_scale = 0.8
 
 [sub_resource type="Resource" id="Resource_light3"]
 script = ExtResource("2_move")
+startup = 0.05
+active = 0.07
+recovery = 0.05
 lunge_distance = 8.0
 reach = 15.0
 damage_mult = 0.4
@@ -32,6 +41,9 @@ vfx_scale = 0.8
 
 [sub_resource type="Resource" id="Resource_light4"]
 script = ExtResource("2_move")
+startup = 0.06
+active = 0.08
+recovery = 0.09
 lunge_distance = 16.0
 reach = 17.0
 damage_mult = 1.2

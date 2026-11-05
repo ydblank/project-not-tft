@@ -14,7 +14,7 @@ const SECTION := "dev"
 # type: "float" | "int" | "bool". group: header in the menu.
 const DEFS := [
 	# ---- Dash ----
-	{"key": "dash_charges", "group": "Dash", "label": "Charges", "type": "int", "min": 1, "max": 5, "step": 1, "default": 2},
+	{"key": "dash_charges", "group": "Dash", "label": "Charges", "type": "int", "min": 1, "max": 5, "step": 1, "default": 3},
 	{"key": "dash_recharge_time", "group": "Dash", "label": "Recharge per charge (s)", "type": "float", "min": 0.2, "max": 5.0, "step": 0.1, "default": 1.5},
 	{"key": "dash_reload_time", "group": "Dash", "label": "Slow reload when empty (s)", "type": "float", "min": 0.2, "max": 6.0, "step": 0.1, "default": 2.5},
 	{"key": "dash_gap", "group": "Dash", "label": "Gap between dashes (s)", "type": "float", "min": 0.0, "max": 0.6, "step": 0.01, "default": 0.0},

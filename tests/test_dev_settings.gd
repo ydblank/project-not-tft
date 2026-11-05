@@ -48,7 +48,7 @@ func test_save_and_load_round_trip() -> void:
 	assert_eq(cfg.save(TMP_PATH), OK)
 
 	DevSettings.reset_all()
-	assert_eq(DevSettings.get_value("dash_charges"), 2, "reset to default first")
+	assert_eq(DevSettings.get_value("dash_charges"), 3, "reset to default first")
 	assert_eq(DevSettings.load_file(TMP_PATH), OK)
 	assert_eq(DevSettings.get_value("dash_charges"), 4)
 	assert_eq(DevSettings.get_value("knockback_force"), 400.0)

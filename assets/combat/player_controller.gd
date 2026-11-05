@@ -36,7 +36,7 @@ func _physics_process(_delta: float) -> void:
 	intent.move_dir = Input.get_vector(input_left, input_right, input_up, input_down)
 	if entity:
 		var to_mouse := get_global_mouse_position() - entity.global_position
-		if to_mouse != Vector2.ZERO:
+		if to_mouse != Vector2.ZERO and to_mouse.is_finite():
 			intent.aim_dir = to_mouse.normalized()
 	intent.lunge_limit = _lunge_limit()
 	intent.attack_held = Input.is_action_pressed(input_attack)

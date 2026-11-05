@@ -44,7 +44,7 @@ func test_weapon_values_carried_over() -> void:
 	assert_eq(bow.kind, WeaponData.Kind.RANGED)
 	assert_eq(bow.heavy_max_mult, 2.0)
 	assert_eq(bow.heavy_hit_count(), 1, "bow heavy stays a single shot")
-	assert_eq(bow.light_combo_cooldown, 0.0, "bow has no quick-combo cooldown")
+	assert_gt(bow.light_combo_cooldown, 0.0, "bow has a cooldown between quick shots (no machine gun)")
 	assert_gt(bow.max_charge_time, sword.max_charge_time, "a full bow charge takes longer than melee")
 
 
