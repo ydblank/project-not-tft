@@ -12,7 +12,7 @@ recovery = 0.25
 lunge_distance = 0.0
 damage_mult = 1.0
 reaction = 1
-knockback_mult = 0.6
+knockback_mult = 0.2
 
 [sub_resource type="Resource" id="Resource_heavy"]
 script = ExtResource("2_move")
@@ -31,8 +31,10 @@ kind = 1
 projectile_scene = ExtResource("3_arrow")
 base_damage = 10.0
 attack_speed_bonus = 0.05
+light_combo_cooldown = 0.55
 light_moves = Array[ExtResource("2_move")]([SubResource("Resource_light1")])
 heavy_move = SubResource("Resource_heavy")
 heavy_min_mult = 0.5
-heavy_max_mult = 2.5
+max_charge_time = 2.2
+heavy_max_mult = 2.0
 ai_engage_range = 120.0

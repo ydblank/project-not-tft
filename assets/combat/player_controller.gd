@@ -15,6 +15,12 @@ class_name PlayerController
 
 var intent := CombatIntent.new()
 
+const LUNGE_SCAN_RANGE := 60.0
+## cos of the half-angle of the cone in front of you that counts as "your target".
+const LUNGE_CONE_DOT := 0.8
+## Stay this far from the target after lunging.
+const LUNGE_STOP_GAP := 8.0
+
 
 func _ready() -> void:
 	if entity == null:
@@ -32,6 +38,7 @@ func _physics_process(_delta: float) -> void:
 		var to_mouse := get_global_mouse_position() - entity.global_position
 		if to_mouse != Vector2.ZERO:
 			intent.aim_dir = to_mouse.normalized()
+	intent.lunge_limit = _lunge_limit()
 	intent.attack_held = Input.is_action_pressed(input_attack)
 	intent.block_held = Input.is_action_pressed(input_block)
 	intent.dash_held = Input.is_action_pressed(input_dash)
@@ -42,3 +49,26 @@ func _is_local_authority() -> bool:
 	if mp == null or mp.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return true
 	return entity == null or entity.is_multiplayer_authority()
+
+
+## Stop the attack lunge just short of whoever is in front, so a lunge never
+## carries you through (or past) the target and makes the rest of a combo whiff.
+func _lunge_limit() -> float:
+	if entity == null or intent.aim_dir == Vector2.ZERO:
+		return INF
+	var best := INF
+	for group_name in ["enemies", "dummies"]:
+		for node in get_tree().get_nodes_in_group(group_name):
+			var other := node as Node2D
+			if other == null or other == entity:
+				continue
+			var to_other := other.global_position - entity.global_position
+			var dist := to_other.length()
+			if dist > LUNGE_SCAN_RANGE or dist <= 0.0:
+				continue
+			if to_other.normalized().dot(intent.aim_dir) < LUNGE_CONE_DOT:
+				continue
+			best = minf(best, dist)
+	if best == INF:
+		return INF
+	return maxf(best - LUNGE_STOP_GAP, 0.0)

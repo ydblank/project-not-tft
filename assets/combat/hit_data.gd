@@ -16,3 +16,9 @@ var stagger_time: float = 0.2
 ## move.knockback_mult × charge multiplier.
 var knockback_force_mult: float = 1.0
 var hitstop: float = 0.05
+## Fired by a ranged weapon (arrow) rather than a melee swing.
+var is_ranged: bool = false
+## Came from a heavy move (charged or not).
+var is_heavy: bool = false
+## Non-final hit of a combo: the victim is held in hitstun while the combo continues.
+var is_combo_chain: bool = false

@@ -21,6 +21,8 @@ const SLASH_VFX: PackedScene = preload("res://assets/effects/slash.tscn")
 const HURTBOX_LAYER := 2
 const KNOCKBACK_FRICTION := 1000.0
 const KNOCKBACK_DURATION := 0.25
+## A combo can hold its victim in hitstun for at most this long in total.
+const COMBO_LOCK_MAX := 1.5
 
 @export var entity: CharacterBody2D
 @export var controller: Node
@@ -31,6 +33,23 @@ const KNOCKBACK_DURATION := 0.25
 ## Optional shield HP meter: blocking is unavailable while it is broken.
 @export var shield_component: ShieldComponent
 @export_range(0.0, 1.0) var slowed_speed_mult: float = 0.25
+## Set by the environment (e.g. ArenaBounds slows you outside the arena).
+## Scales walking / blocking / lunge speed; dashes and knockback are unaffected.
+var speed_multiplier: float = 1.0
+## No attack can hurt this entity while it is dashing (i-frames).
+@export var dash_invulnerable: bool = true
+## After a stagger / knockback ends, weak hits cannot stun again for this long
+## (damage still lands). Stops rapid light attacks from stunlocking. Heavy and
+## finisher knockbacks (strength >= 1.0) still break through.
+@export var post_stun_immunity: float = 0.5
+## Dev-tunable multiplier on attack speed (pause menu).
+var attack_speed_scale: float = 1.0
+var _stun_immunity_left: float = 0.0
+var _combo_lock_attacker: CombatComponent
+var _combo_lock_left: float = 0.0
+## Ranged weapons can strafe at this fraction of walk speed while shooting
+## (aim stays locked on the shot direction). 0 = stand still like melee.
+@export_range(0.0, 1.0) var ranged_attack_speed_mult: float = 0.15
 
 var sm: ActionStateMachine
 var weapon: WeaponData
@@ -51,8 +70,7 @@ func _ready() -> void:
 	weapon = stats_component.get_weapon_data() if stats_component else null
 	sm = ActionStateMachine.new(weapon, CombatGlobal.calculate_attack_speed(stats_component))
 	if stats_component:
-		sm.dash_duration = stats_component.dash_duration
-		sm.dash_cooldown = stats_component.dash_cooldown
+		sm.configure_dash(stats_component.dash_duration, stats_component.dash_cooldown, stats_component.dash_charges, stats_component.dash_recharge_time, stats_component.dash_reload_time)
 	_build_attack_hitbox()
 	if health_component:
 		health_component.died.connect(_on_died)
@@ -72,6 +90,8 @@ func _physics_process(delta: float) -> void:
 	if entity == null or sm == null:
 		return
 
+	_stun_immunity_left = maxf(_stun_immunity_left - delta, 0.0)
+	_update_combo_lock(delta)
 	var intent := _get_intent()
 	var events := sm.tick(intent, delta)
 	for e in events:
@@ -113,6 +133,8 @@ func _emit_state_change() -> void:
 	if sm.state != _last_state:
 		var from := _last_state
 		_last_state = sm.state
+		if _is_stun(from) and not _is_stun(sm.state) and sm.state != ActionStateMachine.State.DEAD:
+			_stun_immunity_left = post_stun_immunity
 		if sm.state != ActionStateMachine.State.KNOCKBACK:
 			_knockback_velocity = Vector2.ZERO
 		state_changed.emit(from, sm.state)
@@ -124,13 +146,16 @@ func _emit_state_change() -> void:
 
 func _compute_velocity(intent: CombatIntent, delta: float) -> Vector2:
 	var move_speed := movement_component.move_speed if movement_component else 100.0
+	# Archers strafe slowly while drawing / releasing a shot.
+	if sm.state == ActionStateMachine.State.ATTACK and weapon and weapon.kind == WeaponData.Kind.RANGED:
+		return intent.move_dir.limit_length(1.0) * move_speed * ranged_attack_speed_mult * speed_multiplier
 	match sm.movement_mode():
 		ActionStateMachine.MoveMode.FREE:
-			return intent.move_dir.limit_length(1.0) * move_speed
+			return intent.move_dir.limit_length(1.0) * move_speed * speed_multiplier
 		ActionStateMachine.MoveMode.SLOWED:
-			return intent.move_dir.limit_length(1.0) * move_speed * slowed_speed_mult
+			return intent.move_dir.limit_length(1.0) * move_speed * slowed_speed_mult * speed_multiplier
 		ActionStateMachine.MoveMode.LUNGE:
-			return sm.lunge_velocity()
+			return sm.lunge_velocity() * speed_multiplier
 		ActionStateMachine.MoveMode.DASH:
 			var dash_speed := movement_component.dash_speed if movement_component else 300.0
 			return sm.dash_dir * dash_speed
@@ -195,9 +220,13 @@ func _resolve_melee_hits() -> void:
 			continue
 		if hitbox_component and target_hurtbox.is_same_team(hitbox_component.team):
 			continue
-		_hit_targets[target.get_instance_id()] = true
 		var hit := build_hit(sm.current_move, (target.global_position - entity.global_position), _current_hit_mult)
 		var result := target_hurtbox.receive_hit(hit)
+		# A swing that was ignored (e.g. the target is mid-dash) can still land
+		# later in the same active window.
+		if result == HitboxComponent.Result.IGNORED:
+			continue
+		_hit_targets[target.get_instance_id()] = true
 		hit_landed.emit(target, result)
 
 
@@ -206,12 +235,18 @@ func build_hit(move: AttackMove, toward_target: Vector2, charge_mult: float) -> 
 	var hit := HitData.new()
 	hit.attacker = entity
 	hit.team = hitbox_component.team if hitbox_component else -1
-	hit.damage = maxf(CombatGlobal.calculate_attack_damage(stats_component) * move.damage_mult * charge_mult, 1.0)
+	hit.damage = maxf(CombatGlobal.calculate_attack_damage(stats_component) * move.damage_mult * charge_mult * Combat.damage_multiplier, 1.0)
 	hit.direction = toward_target.normalized() if toward_target != Vector2.ZERO else sm.attack_dir
 	hit.reaction = move.reaction
 	hit.stagger_time = move.stagger_time
+	# Mid-combo hits hold the victim until the next hit; only a dash breaks out.
+	if weapon and weapon.kind != WeaponData.Kind.RANGED and not sm.current_is_final and move.reaction == AttackMove.Reaction.STAGGER:
+		hit.stagger_time = maxf(move.stagger_time, weapon.combo_hitstun)
 	hit.knockback_force_mult = move.knockback_mult * charge_mult
 	hit.hitstop = move.hitstop
+	hit.is_ranged = weapon != null and weapon.kind == WeaponData.Kind.RANGED
+	hit.is_heavy = sm.current_is_heavy
+	hit.is_combo_chain = weapon != null and not hit.is_ranged and not sm.current_is_final
 	return hit
 
 
@@ -219,6 +254,7 @@ func _spawn_slash_vfx(move: AttackMove, dir: Vector2, is_heavy: bool) -> void:
 	var fx := SLASH_VFX.instantiate()
 	entity.get_parent().add_child(fx)
 	fx.global_position = entity.global_position
+	fx.follow_target = entity
 	fx.play(move.vfx_animation, dir.angle(), move.vfx_scale, is_heavy)
 
 
@@ -242,12 +278,21 @@ func _spawn_projectile(move: AttackMove, dir: Vector2, charge_mult: float) -> vo
 func receive_reaction(hit: HitData, knockback_force: float) -> void:
 	if sm.state == ActionStateMachine.State.DEAD:
 		return
+	if hit.is_ranged and not hit.is_heavy and _is_committed_to_heavy_melee():
+		return # a light arrow cannot interrupt a heavy melee charge / swing (damage still lands)
+	if _stun_immunity_left > 0.0 and not _is_stun(sm.state) and not _breaks_stun_immunity(hit):
+		return # just recovered: a light hit does damage but cannot stun again
 	if hit.reaction == AttackMove.Reaction.KNOCKBACK and knockback_force > 0.0:
 		sm.apply_knockback(KNOCKBACK_DURATION)
 		_emit_state_change()
 		_knockback_velocity = hit.direction.normalized() * knockback_force
 	else:
 		sm.apply_stagger(hit.stagger_time)
+		if hit.is_combo_chain:
+			var attacker_combat := CombatComponent.find_on(hit.attacker)
+			if attacker_combat != _combo_lock_attacker:
+				_combo_lock_left = COMBO_LOCK_MAX
+			_combo_lock_attacker = attacker_combat
 		_emit_state_change()
 
 
@@ -257,12 +302,19 @@ func is_blocking_from(from_dir: Vector2) -> bool:
 
 ## Guard break: the shield ran out while blocking.
 func _on_shield_broken() -> void:
-	sm.apply_stagger(shield_component.stun_duration)
+	sm.apply_stagger(shield_component.stun_duration, false)
 	_emit_state_change()
 
 
 func _on_died() -> void:
 	sm.kill()
+	_emit_state_change()
+
+
+## Respawn: leaves the DEAD state.
+func revive() -> void:
+	_knockback_velocity = Vector2.ZERO
+	sm.revive()
 	_emit_state_change()
 
 
@@ -284,6 +336,28 @@ func get_facing() -> Vector2:
 
 func get_charge_ratio() -> float:
 	return sm.charge_ratio() if sm else 0.0
+
+
+## Dash HUD info: chaining-gap ratio, charges, and the recharge / reload timer.
+func get_dash_charges() -> int:
+	return sm.dash_charges() if sm else 0
+
+
+func get_dash_max_charges() -> int:
+	return sm.dash_max_charges if sm else 0
+
+
+func get_dash_recharge_ratio() -> float:
+	return sm.dash_recharge_ratio() if sm else 0.0
+
+
+func is_dash_reloading() -> bool:
+	return sm.dash_is_reloading() if sm else false
+
+
+## 1.0 = dash just used, 0.0 = chaining gap over.
+func get_dash_cooldown_ratio() -> float:
+	return sm.dash_cooldown_ratio() if sm else 0.0
 
 
 func is_attacking() -> bool:
@@ -310,3 +384,56 @@ static func find_on(node: Node) -> CombatComponent:
 			if grandchild is CombatComponent:
 				return grandchild
 	return null
+
+
+## True while hits must be ignored (dash i-frames).
+func is_invulnerable() -> bool:
+	return dash_invulnerable and sm != null and sm.state == ActionStateMachine.State.DASH
+
+
+static func _is_stun(s: ActionStateMachine.State) -> bool:
+	return s == ActionStateMachine.State.STAGGER or s == ActionStateMachine.State.KNOCKBACK
+
+
+## Heavy hits / combo finishers cut through the post-stun immunity.
+func _breaks_stun_immunity(hit: HitData) -> bool:
+	return hit.reaction == AttackMove.Reaction.KNOCKBACK and hit.knockback_force_mult >= 1.0
+
+
+## Re-reads weapon and attack speed from the stats (after a class / weapon change).
+func refresh_loadout() -> void:
+	weapon = stats_component.get_weapon_data() if stats_component else null
+	sm.set_loadout(weapon, CombatGlobal.calculate_attack_speed(stats_component) * attack_speed_scale)
+	_emit_state_change()
+
+
+## Charging a heavy melee attack, or in the middle of the heavy swing itself.
+## Only heavy ranged attacks (charged arrows) can interrupt it.
+func _is_committed_to_heavy_melee() -> bool:
+	if weapon == null or weapon.kind != WeaponData.Kind.MELEE:
+		return false
+	if sm.state == ActionStateMachine.State.CHARGING:
+		return true
+	return sm.state == ActionStateMachine.State.ATTACK and sm.current_is_heavy
+
+
+func set_attack_speed_scale(scale: float) -> void:
+	attack_speed_scale = scale
+	if sm:
+		sm.attack_speed = CombatGlobal.calculate_attack_speed(stats_component) * attack_speed_scale
+
+
+## While the attacker keeps their combo going, a combo victim stays staggered so
+## the next hit connects. A dash (or the attacker breaking off) releases them.
+func _update_combo_lock(delta: float) -> void:
+	if _combo_lock_attacker == null:
+		return
+	if sm.state != ActionStateMachine.State.STAGGER:
+		_combo_lock_attacker = null
+		return
+	_combo_lock_left -= delta
+	if _combo_lock_left <= 0.0 or not is_instance_valid(_combo_lock_attacker) or _combo_lock_attacker.sm == null:
+		_combo_lock_attacker = null
+		return
+	if _combo_lock_attacker.sm.in_combo():
+		sm.hold_stagger(0.1)

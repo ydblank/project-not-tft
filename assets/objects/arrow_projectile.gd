@@ -20,6 +20,7 @@ func setup(p_hit: HitData, p_shooter: Node2D) -> void:
 
 
 func _ready() -> void:
+	add_to_group("projectiles") # lets the AI see incoming arrows
 	area_entered.connect(_on_area_entered)
 	get_tree().create_timer(lifetime, false).timeout.connect(_finish)
 

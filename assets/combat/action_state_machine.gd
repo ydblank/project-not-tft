@@ -21,12 +21,23 @@ enum MoveMode {FREE, SLOWED, LOCKED, LUNGE, DASH, KNOCKBACK}
 
 const DIRECTION_COUNT := 8
 const MIN_ATTACK_SPEED := 0.05
+## A dash press made slightly too early still fires once the dash is possible.
+const DASH_INPUT_BUFFER := 0.2
+## A dash can chain into the next once this fraction of it has elapsed.
+const DASH_CHAIN_PROGRESS := 0.5
 
 # ---- configuration ----
 var weapon: WeaponData
 var attack_speed: float = 1.0
 var dash_duration: float = 0.2
+## Pause after a dash ends before the next one (chaining gap).
 var dash_cooldown: float = 0.5
+## Dash charges. With recharge/reload times at 0 charges are not tracked (single dash).
+var dash_max_charges: int = 1
+## Seconds for each charge to come back, one at a time.
+var dash_recharge_time: float = 0.0
+## Slower return of the first charge after all were used in a row.
+var dash_reload_time: float = 0.0
 
 # ---- public state (read-only for other code) ----
 var state: State = State.IDLE
@@ -38,6 +49,8 @@ var current_move: AttackMove = null
 var current_is_heavy: bool = false
 var current_charge_mult: float = 1.0
 var current_is_final: bool = false
+## Index of the heavy-combo hit currently playing (0 for single heavies).
+var heavy_index: int = 0
 var attack_dir: Vector2 = Vector2.DOWN
 var attack_lunge_distance: float = 0.0
 ## Index of the light move currently playing (or last played).
@@ -50,12 +63,19 @@ var _prev_attack_held: bool = false
 var _prev_dash_held: bool = false
 var _press_active: bool = false
 var _press_time: float = 0.0
+var _heavy_pending: bool = false
+var _stagger_dashable: bool = true
 var _light_queued: bool = false
+var _light_cooldown_left: float = 0.0
 var _next_combo_index: int = 0
 var _combo_timer: float = 0.0
 var _phase_time_left: float = 0.0
 var _state_time_left: float = 0.0
 var _dash_cooldown_left: float = 0.0
+var _dash_buffer_left: float = 0.0
+var _dash_charges: int = 1
+var _recharge_left: float = 0.0
+var _recharge_total: float = 0.0
 
 
 func _init(p_weapon: WeaponData = null, p_attack_speed: float = 1.0) -> void:
@@ -84,6 +104,17 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 		return events
 
 	_dash_cooldown_left = maxf(_dash_cooldown_left - delta, 0.0)
+	_light_cooldown_left = maxf(_light_cooldown_left - delta, 0.0)
+	if _recharge_left > 0.0:
+		_recharge_left = maxf(_recharge_left - delta, 0.0)
+		if _recharge_left <= 0.0:
+			# One charge comes back at a time, so a single dash is available early.
+			_dash_charges = mini(_dash_charges + 1, dash_max_charges)
+			if _dash_charges < dash_max_charges and dash_recharge_time > 0.0:
+				_recharge_total = dash_recharge_time
+				_recharge_left = _recharge_total
+			elif _dash_charges < dash_max_charges:
+				_dash_charges = dash_max_charges
 
 	# ---- attack button tracking (independent of state) ----
 	var heavy_release := false
@@ -98,8 +129,24 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 		_press_active = false
 		if state == State.CHARGING:
 			heavy_release = true
-		elif _can_queue_light():
+		elif state == State.DASH and _press_time >= _charge_threshold():
+			# Charged, dashed, then let go mid-dash: the heavy fires as the dash ends.
+			_heavy_pending = true
+			charge_time = _press_time
+		elif _can_queue_light() and _light_cooldown_left <= _buffer_window():
 			_light_queued = true
+
+	# ---- dash: starts from almost any action; an early press is buffered ----
+	if dash_pressed:
+		_dash_buffer_left = DASH_INPUT_BUFFER
+	else:
+		_dash_buffer_left = maxf(_dash_buffer_left - delta, 0.0)
+	if _dash_buffer_left > 0.0 and _can_start_dash():
+		_dash_buffer_left = 0.0
+		if state == State.ATTACK or state == State.BLOCK:
+			_interrupt() # dash-cancel
+		# A held heavy charge survives the dash (keeps charging, release after).
+		_start_dash(intent, events)
 
 	# ---- state logic ----
 	match state:
@@ -117,9 +164,6 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 			elif intent.block_held:
 				_cancel_charge()
 				_enter_block(intent)
-			elif dash_pressed and _dash_cooldown_left <= 0.0:
-				_cancel_charge()
-				_start_dash(intent, events)
 			else:
 				charge_time = _press_time
 
@@ -162,8 +206,12 @@ func _tick_attack(intent: CombatIntent, delta: float, events: Array[Dictionary])
 				_phase_time_left += _scaled(current_move.recovery)
 				events.append({"type": "active_ended"})
 			Phase.RECOVERY:
-				_finish_attack()
-				_try_leave_idle(intent, false, events)
+				if current_is_heavy and heavy_index + 1 < weapon.heavy_hit_count():
+					# Heavy combo: the next hit follows on its own (no extra input).
+					_start_attack(true, intent, events, heavy_index + 1, true)
+				else:
+					_finish_attack()
+					_try_leave_idle(intent, false, events)
 
 
 # IDLE transitions, in priority order.
@@ -172,14 +220,18 @@ func _try_leave_idle(intent: CombatIntent, dash_pressed: bool, events: Array[Dic
 		return
 	if intent.block_held:
 		_enter_block(intent)
-	elif dash_pressed and _dash_cooldown_left <= 0.0:
+	elif dash_pressed and dash_ready():
 		_start_dash(intent, events)
+	elif _heavy_pending:
+		_heavy_pending = false
+		facing = _aim(intent)
+		_start_attack(true, intent, events)
 	elif _press_active and _press_time >= _charge_threshold():
 		_light_queued = false
 		charge_time = _press_time
 		facing = _aim(intent)
 		_set_state(State.CHARGING)
-	elif _light_queued:
+	elif _light_queued and _light_cooldown_left <= 0.0:
 		_light_queued = false
 		_start_attack(false, intent, events)
 
@@ -188,7 +240,9 @@ func _try_leave_idle(intent: CombatIntent, dash_pressed: bool, events: Array[Dic
 # Actions
 # ======================================================================
 
-func _start_attack(is_heavy: bool, intent: CombatIntent, events: Array[Dictionary]) -> void:
+## heavy_idx / continuing: later hits of a heavy combo keep the charge multiplier
+## of the first hit.
+func _start_attack(is_heavy: bool, intent: CombatIntent, events: Array[Dictionary], heavy_idx: int = 0, continuing: bool = false) -> void:
 	if weapon == null:
 		_set_state(State.IDLE)
 		return
@@ -196,9 +250,13 @@ func _start_attack(is_heavy: bool, intent: CombatIntent, events: Array[Dictionar
 	var move: AttackMove
 	var index := 0
 	if is_heavy:
-		move = weapon.heavy_move
-		current_charge_mult = lerpf(weapon.heavy_min_mult, weapon.heavy_max_mult, charge_ratio())
+		move = weapon.get_heavy_move(heavy_idx)
+		heavy_index = heavy_idx
+		index = heavy_idx
+		if not continuing:
+			current_charge_mult = lerpf(weapon.heavy_min_mult, weapon.heavy_max_mult, charge_ratio())
 	else:
+		heavy_index = 0
 		index = _next_combo_index if _combo_timer > 0.0 else 0
 		index = clampi(index, 0, maxi(weapon.light_move_count() - 1, 0))
 		move = weapon.get_light_move(index)
@@ -210,7 +268,10 @@ func _start_attack(is_heavy: bool, intent: CombatIntent, events: Array[Dictionar
 
 	current_move = move
 	current_is_heavy = is_heavy
-	current_is_final = is_heavy or index >= weapon.light_move_count() - 1
+	if is_heavy:
+		current_is_final = heavy_idx >= weapon.heavy_hit_count() - 1
+	else:
+		current_is_final = index >= weapon.light_move_count() - 1
 	combo_index = index
 	_combo_timer = 0.0
 	attack_dir = _aim(intent)
@@ -234,9 +295,14 @@ func _start_attack(is_heavy: bool, intent: CombatIntent, events: Array[Dictionar
 
 
 func _finish_attack() -> void:
+	heavy_index = 0
 	if current_is_heavy or current_is_final:
 		_next_combo_index = 0
 		_combo_timer = 0.0
+		# Finished the whole quick combo: lock quick attacks for a moment.
+		if not current_is_heavy and weapon and weapon.light_combo_cooldown > 0.0:
+			_light_cooldown_left = weapon.light_combo_cooldown
+			_light_queued = false
 	else:
 		_next_combo_index = combo_index + 1
 		_combo_timer = weapon.combo_window
@@ -253,12 +319,37 @@ func _start_dash(intent: CombatIntent, events: Array[Dictionary]) -> void:
 	_reset_combo()
 	_light_queued = false
 	_state_time_left = dash_duration
+	_spend_dash_charge()
 	_set_state(State.DASH)
 	events.append({"type": "dash_started", "dir": dash_dir})
 
 
+# Using the last charge restarts a slower full reload; otherwise the first use
+# starts the normal recharge. With no recharge times configured, charges are
+# not tracked (plain single dash with just the chaining gap).
+func _spend_dash_charge() -> void:
+	if dash_recharge_time <= 0.0 and dash_reload_time <= 0.0:
+		return
+	_dash_charges = maxi(_dash_charges - 1, 0)
+	if _dash_charges <= 0:
+		_recharge_total = maxf(dash_reload_time, dash_recharge_time)
+		_recharge_left = _recharge_total
+	elif _recharge_left <= 0.0:
+		_recharge_total = dash_recharge_time
+		_recharge_left = _recharge_total
+
+
+func _refill_dash() -> void:
+	_dash_charges = dash_max_charges
+	_recharge_left = 0.0
+	_recharge_total = 0.0
+	_dash_cooldown_left = 0.0
+	_dash_buffer_left = 0.0
+
+
 func _enter_block(intent: CombatIntent) -> void:
 	_press_active = false
+	_heavy_pending = false
 	_light_queued = false
 	_reset_combo()
 	_update_block_dir(_aim(intent))
@@ -274,11 +365,13 @@ func _cancel_charge() -> void:
 # Reactions (called by CombatComponent when a hit lands)
 # ======================================================================
 
-func apply_stagger(duration: float) -> void:
+## can_dash_out: the victim may dash out of this stun (combo breaker). Guard breaks cannot.
+func apply_stagger(duration: float, can_dash_out: bool = true) -> void:
 	if state == State.DEAD or state == State.KNOCKBACK:
 		return
 	_interrupt()
 	_state_time_left = maxf(duration, 0.0)
+	_stagger_dashable = can_dash_out
 	_set_state(State.STAGGER)
 
 
@@ -295,12 +388,37 @@ func kill() -> void:
 	_set_state(State.DEAD)
 
 
+## Swaps weapon / attack speed at runtime (loadout change): drops whatever
+## attack, charge or combo was in progress.
+func set_loadout(p_weapon: WeaponData, p_attack_speed: float) -> void:
+	weapon = p_weapon
+	attack_speed = p_attack_speed
+	if state == State.DEAD:
+		return
+	_interrupt()
+	if state == State.ATTACK or state == State.CHARGING or state == State.BLOCK:
+		_set_state(State.IDLE)
+
+
+## Brings a DEAD machine back to IDLE (respawn).
+func revive() -> void:
+	if state != State.DEAD:
+		return
+	_interrupt()
+	_prev_attack_held = false
+	_prev_dash_held = false
+	_refill_dash()
+	_set_state(State.IDLE)
+
+
 func _interrupt() -> void:
 	phase = Phase.NONE
 	current_move = null
 	_press_active = false
+	_heavy_pending = false
 	_light_queued = false
 	charge_time = 0.0
+	heavy_index = 0
 	_reset_combo()
 
 
@@ -368,7 +486,59 @@ func is_in_combo_window() -> bool:
 
 
 func dash_ready() -> bool:
-	return _dash_cooldown_left <= 0.0
+	return _dash_cooldown_left <= 0.0 and _dash_charges > 0
+
+
+## Dash is allowed out of idle, charging, attacking (dash-cancel), blocking and
+## (breakable) stagger,
+## and again mid-dash once the first one is half done. Not in knockback or dead.
+func _can_start_dash() -> bool:
+	if not dash_ready():
+		return false
+	match state:
+		State.IDLE, State.CHARGING, State.ATTACK, State.BLOCK:
+			return true
+		State.STAGGER:
+			return _stagger_dashable # dash is the way out of a combo
+		State.DASH:
+			return _state_time_left <= dash_duration * DASH_CHAIN_PROGRESS
+	return false
+
+
+## Sets all dash tuning at once and refills the charges.
+func configure_dash(duration: float, gap: float, max_charges: int, recharge_time: float, reload_time: float) -> void:
+	dash_duration = duration
+	dash_cooldown = gap
+	dash_max_charges = maxi(max_charges, 1)
+	dash_recharge_time = recharge_time
+	dash_reload_time = reload_time
+	_refill_dash()
+
+
+func dash_charges() -> int:
+	return _dash_charges
+
+
+## 1.0 while dashing or right after, falling to 0.0 when the chaining gap is over.
+func dash_cooldown_ratio() -> float:
+	if state == State.DASH:
+		return 1.0
+	if dash_cooldown <= 0.0:
+		return 0.0
+	return clampf(_dash_cooldown_left / dash_cooldown, 0.0, 1.0)
+
+
+## 1.0 right when a charge starts recharging (or a full reload starts), 0.0 when
+## nothing is recharging.
+func dash_recharge_ratio() -> float:
+	if _recharge_left <= 0.0 or _recharge_total <= 0.0:
+		return 0.0
+	return clampf(_recharge_left / _recharge_total, 0.0, 1.0)
+
+
+## True when the slow reload (all charges used in a row) is running.
+func dash_is_reloading() -> bool:
+	return _dash_charges <= 0 and _recharge_left > 0.0
 
 
 static func direction_to_index(dir: Vector2) -> int:
@@ -418,3 +588,28 @@ func _can_track_attack_press() -> bool:
 
 func _can_queue_light() -> bool:
 	return state == State.IDLE or state == State.ATTACK or state == State.DASH
+
+
+## A tap made this close to the end of the quick-combo cooldown is remembered.
+func _buffer_window() -> float:
+	return weapon.input_buffer if weapon else 0.0
+
+
+## Seconds until quick attacks are available again after a full quick combo.
+func light_cooldown_left() -> float:
+	return _light_cooldown_left
+
+
+## True while this fighter is mid-combo: swinging a non-final hit, or inside the
+## window to continue a quick combo. Used to keep a hit victim locked in hitstun.
+func in_combo() -> bool:
+	if state == State.ATTACK:
+		# The final swing still counts until it has landed (recovery = it is over).
+		return not current_is_final or phase != Phase.RECOVERY
+	return _combo_timer > 0.0 and _next_combo_index > 0 and state != State.DEAD
+
+
+## Keeps a stagger running for at least `seconds` more (combo hitstun).
+func hold_stagger(seconds: float) -> void:
+	if state == State.STAGGER:
+		_state_time_left = maxf(_state_time_left, seconds)

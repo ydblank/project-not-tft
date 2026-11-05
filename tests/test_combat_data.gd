@@ -35,12 +35,17 @@ func test_weapon_values_carried_over() -> void:
 	assert_eq([sword.light_moves[0].damage_mult, sword.light_moves[1].damage_mult, sword.light_moves[2].damage_mult], [0.5, 0.5, 1.2])
 	assert_eq(sword.light_moves[2].reaction, AttackMove.Reaction.KNOCKBACK, "final sword hit knocks back")
 	assert_eq(sword.light_moves[0].reaction, AttackMove.Reaction.STAGGER)
+	assert_eq(sword.heavy_hit_count(), 3, "sword heavy is a 3-hit combo")
+	assert_true(sword.light_combo_cooldown > 0.0, "sword has a quick-combo cooldown")
 	var dagger := Weapons.get_weapon_data(Weapons.WEAPONS.DAGGER)
 	assert_eq(dagger.base_damage, 5.0)
 	assert_eq(dagger.light_move_count(), 4)
 	var bow := Weapons.get_weapon_data(Weapons.WEAPONS.BOW)
 	assert_eq(bow.kind, WeaponData.Kind.RANGED)
-	assert_eq(bow.heavy_max_mult, 2.5)
+	assert_eq(bow.heavy_max_mult, 2.0)
+	assert_eq(bow.heavy_hit_count(), 1, "bow heavy stays a single shot")
+	assert_eq(bow.light_combo_cooldown, 0.0, "bow has no quick-combo cooldown")
+	assert_gt(bow.max_charge_time, sword.max_charge_time, "a full bow charge takes longer than melee")
 
 
 func test_damage_and_speed_formulas() -> void:

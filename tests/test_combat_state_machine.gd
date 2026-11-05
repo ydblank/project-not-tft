@@ -214,18 +214,20 @@ func test_hold_through_attack_charges_when_attack_ends() -> void:
 
 # ---------------------------------------------------------------- block
 
-func test_block_prevents_attack_and_dash() -> void:
+func test_block_prevents_attack_but_allows_dash() -> void:
 	var sm := _sm()
 	sm.tick(_intent(false, true), DT)
 	assert_eq(sm.state, ActionStateMachine.State.BLOCK)
 	var ev: Array[Dictionary] = []
 	ev.append_array(sm.tick(_intent(true, true), DT))
 	ev.append_array(sm.tick(_intent(false, true), DT))
-	ev.append_array(sm.tick(_intent(false, true, true), DT))
-	assert_eq(ev.size(), 0, "no attack or dash while blocking")
+	assert_eq(ev.size(), 0, "no attack while blocking")
 	assert_eq(sm.state, ActionStateMachine.State.BLOCK)
-	sm.tick(_intent(), DT)
-	assert_eq(sm.state, ActionStateMachine.State.IDLE, "release block -> idle")
+	var dash := _of_type(sm.tick(_intent(false, true, true), DT), "dash_started")
+	assert_eq(dash.size(), 1, "dash cancels the block")
+	assert_eq(sm.state, ActionStateMachine.State.DASH)
+	_run(sm, _intent(), 0.25)
+	assert_eq(sm.state, ActionStateMachine.State.IDLE)
 	var after := _of_type(sm.tick(_intent(), DT), "attack_started")
 	assert_eq(after.size(), 0, "tap made during block is not replayed")
 
@@ -278,19 +280,122 @@ func test_dash_and_cooldown() -> void:
 	assert_eq(sm.state, ActionStateMachine.State.DASH, "dash after cooldown")
 
 
-func test_dash_not_allowed_during_attack() -> void:
+func test_dash_cancels_attack() -> void:
 	var sm := _sm()
 	_tap(sm)
-	sm.tick(_intent(false, false, true), DT)
 	assert_eq(sm.state, ActionStateMachine.State.ATTACK)
+	var ev := sm.tick(_intent(false, false, true), DT)
+	assert_eq(_of_type(ev, "dash_started").size(), 1)
+	assert_eq(sm.state, ActionStateMachine.State.DASH, "dash cancels an attack")
+	assert_true(sm.current_move == null, "attack was cancelled")
 
 
-func test_dash_cancels_charge() -> void:
+func test_dash_press_during_cooldown_is_buffered() -> void:
+	var sm := _sm()
+	sm.dash_cooldown = 0.1
+	sm.tick(_intent(false, false, true), DT) # dash 1 (0.2s), gap until ~0.3s
+	_run(sm, _intent(), 0.25)
+	assert_eq(sm.state, ActionStateMachine.State.IDLE)
+	var ev: Array[Dictionary] = []
+	ev.append_array(sm.tick(_intent(false, false, true), DT)) # too early: gap still running
+	assert_eq(_of_type(ev, "dash_started").size(), 0)
+	ev.append_array(_run(sm, _intent(), 0.1))
+	assert_eq(_of_type(ev, "dash_started").size(), 1, "buffered press fires as soon as the gap ends")
+
+
+func test_dash_can_chain_midway_through_a_dash() -> void:
+	var sm := _charged_sm() # gap 0.15 would block, so zero it
+	sm.dash_cooldown = 0.0
+	sm.tick(_intent(false, false, true), DT)
+	sm.tick(_intent(), DT)
+	_run(sm, _intent(), 0.12) # past half of the 0.2s dash
+	assert_eq(sm.state, ActionStateMachine.State.DASH)
+	var ev := sm.tick(_intent(false, false, true, Vector2.RIGHT, Vector2.LEFT), DT)
+	assert_eq(_of_type(ev, "dash_started").size(), 1, "second dash starts without waiting")
+	assert_eq(sm.dash_dir, Vector2.LEFT, "new dash takes the new direction")
+	assert_eq(sm.dash_charges(), 0)
+
+
+func test_dash_cannot_chain_in_first_half_of_a_dash() -> void:
+	var sm := _charged_sm()
+	sm.dash_cooldown = 0.0
+	sm.tick(_intent(false, false, true), DT)
+	sm.tick(_intent(), DT)
+	_run(sm, _intent(), 0.03)
+	var ev := sm.tick(_intent(false, false, true), DT)
+	assert_eq(_of_type(ev, "dash_started").size(), 0)
+	assert_eq(sm.dash_charges(), 1)
+
+
+func test_dash_allowed_out_of_stagger() -> void:
+	var sm := _sm()
+	sm.apply_stagger(0.3)
+	var ev := sm.tick(_intent(false, false, true), DT)
+	assert_eq(_of_type(ev, "dash_started").size(), 1, "dash breaks the combo")
+	assert_eq(sm.state, ActionStateMachine.State.DASH)
+
+
+func test_dash_not_allowed_out_of_guard_break_stun() -> void:
+	var sm := _sm()
+	sm.apply_stagger(0.3, false)
+	var ev := sm.tick(_intent(false, false, true), DT)
+	assert_eq(_of_type(ev, "dash_started").size(), 0)
+	assert_eq(sm.state, ActionStateMachine.State.STAGGER)
+
+
+func test_dash_not_allowed_in_knockback() -> void:
+	var sm := _sm()
+	sm.apply_knockback(0.3)
+	var ev := sm.tick(_intent(false, false, true), DT)
+	assert_eq(_of_type(ev, "dash_started").size(), 0)
+	assert_eq(sm.state, ActionStateMachine.State.KNOCKBACK)
+
+func test_charge_survives_dash_and_releases_after() -> void:
+	var sm := _sm()
+	_run(sm, _intent(true), 0.6)
+	assert_eq(sm.state, ActionStateMachine.State.CHARGING)
+	sm.tick(_intent(true, false, true), DT)
+	assert_eq(sm.state, ActionStateMachine.State.DASH)
+	# keep holding through the dash: back to charging, charge kept
+	_run(sm, _intent(true), sm.dash_duration + 0.05)
+	assert_eq(sm.state, ActionStateMachine.State.CHARGING, "charging again after dash")
+	assert_true(sm.charge_time >= 0.6, "charge kept growing")
+	var ev := _run(sm, _intent(false), 0.05)
+	var started := _of_type(ev, "attack_started")
+	assert_eq(started.size(), 1, "heavy released")
+	assert_true(started[0].is_heavy, "is heavy")
+
+
+func test_release_during_dash_fires_heavy_when_dash_ends() -> void:
 	var sm := _sm()
 	_run(sm, _intent(true), 0.6)
 	sm.tick(_intent(true, false, true), DT)
-	assert_eq(sm.state, ActionStateMachine.State.DASH)
-	var ev := _run(sm, _intent(false), 0.3)
+	var ev := _run(sm, _intent(false), 0.05) # let go mid-dash
+	assert_eq(_of_type(ev, "attack_started").size(), 0, "not yet")
+	ev = _run(sm, _intent(false), sm.dash_duration + 0.05)
+	var started := _of_type(ev, "attack_started")
+	assert_eq(started.size(), 1, "heavy fires after dash")
+	assert_true(started[0].is_heavy)
+	assert_true(started[0].charge_mult > 1.0, "kept the charge")
+
+
+func test_uncharged_hold_released_in_dash_is_not_heavy() -> void:
+	var sm := _sm()
+	sm.tick(_intent(true), DT)
+	sm.tick(_intent(true, false, true), DT)
+	_run(sm, _intent(false), 0.05)
+	var ev := _run(sm, _intent(false), 0.4)
+	for e in _of_type(ev, "attack_started"):
+		assert_false(e.is_heavy, "short press is light")
+
+
+func test_stagger_clears_pending_heavy() -> void:
+	var sm := _sm()
+	_run(sm, _intent(true), 0.6)
+	sm.tick(_intent(true, false, true), DT)
+	_run(sm, _intent(false), 0.05)
+	sm.apply_stagger(0.2)
+	var ev := _run(sm, _intent(false), 0.6)
 	assert_eq(_of_type(ev, "attack_started").size(), 0)
 
 
@@ -350,6 +455,116 @@ func test_dead_ignores_everything() -> void:
 	assert_eq(sm.state, ActionStateMachine.State.DEAD)
 
 
+func test_revive_returns_dead_to_idle_and_allows_attacking() -> void:
+	var sm := _sm()
+	sm.kill()
+	sm.revive()
+	assert_eq(sm.state, ActionStateMachine.State.IDLE)
+	var ev := _tap(sm)
+	var started := false
+	for e in ev:
+		if e.type == "attack_started":
+			started = true
+	assert_true(started)
+
+
+func test_dash_cooldown_ratio_runs_from_full_to_ready() -> void:
+	var sm := _sm()
+	assert_eq(sm.dash_cooldown_ratio(), 0.0)
+	sm.dash_duration = 0.2
+	sm.dash_cooldown = 0.5
+	sm.tick(_intent(false, false, true), DT) # dash pressed
+	assert_eq(sm.state, ActionStateMachine.State.DASH)
+	assert_eq(sm.dash_cooldown_ratio(), 1.0)
+	_run(sm, _intent(), 0.25) # dash ends, cooldown starts at 1.0
+	assert_eq(sm.state, ActionStateMachine.State.IDLE)
+	var mid := sm.dash_cooldown_ratio()
+	assert_true(mid > 0.0 and mid < 1.0, "cooldown in progress: %s" % mid)
+	_run(sm, _intent(), 0.6)
+	assert_eq(sm.dash_cooldown_ratio(), 0.0)
+	assert_true(sm.dash_ready())
+
+
+func _charged_sm() -> ActionStateMachine:
+	var sm := _sm()
+	# duration 0.2, gap 0.15, 2 charges, recharge 0.8, reload 1.8
+	sm.configure_dash(0.2, 0.15, 2, 0.8, 1.8)
+	return sm
+
+
+## One dash press (press + release) followed by `wait` seconds of idling.
+func _dash_then_wait(sm: ActionStateMachine, wait: float) -> void:
+	sm.tick(_intent(false, false, true), DT)
+	sm.tick(_intent(), DT)
+	_run(sm, _intent(), wait)
+
+
+func test_two_dashes_in_a_row_then_locked_until_reload() -> void:
+	var sm := _charged_sm()
+	assert_eq(sm.dash_charges(), 2)
+	_dash_then_wait(sm, 0.4) # dash (0.2) + gap (0.15) passed
+	assert_eq(sm.dash_charges(), 1)
+	assert_true(sm.dash_ready(), "second charge usable right away")
+	_dash_then_wait(sm, 0.4)
+	assert_eq(sm.dash_charges(), 0)
+	assert_false(sm.dash_ready(), "out of charges")
+	assert_true(sm.dash_is_reloading())
+	# Using both in a row means the first charge takes the slow 1.8s.
+	_run(sm, _intent(), 1.0)
+	assert_eq(sm.dash_charges(), 0, "still reloading after 1.0s")
+	_run(sm, _intent(), 1.0)
+	assert_eq(sm.dash_charges(), 1, "one charge is back, the other is still recharging")
+	assert_true(sm.dash_ready(), "early dash without waiting for both")
+	_run(sm, _intent(), 0.9)
+	assert_eq(sm.dash_charges(), 2, "second charge returns after its own timer")
+
+
+func test_charges_come_back_one_at_a_time() -> void:
+	var sm := _charged_sm()
+	_dash_then_wait(sm, 0.4)
+	_dash_then_wait(sm, 0.4)
+	_run(sm, _intent(), 2.0) # slow reload finished -> 1 charge
+	assert_eq(sm.dash_charges(), 1)
+	assert_false(sm.dash_is_reloading(), "second charge uses the normal recharge")
+	assert_true(sm.dash_recharge_ratio() > 0.0, "next charge already recharging")
+
+
+func test_single_dash_recharges_faster() -> void:
+	var sm := _charged_sm()
+	_dash_then_wait(sm, 0.3)
+	assert_eq(sm.dash_charges(), 1)
+	assert_false(sm.dash_is_reloading())
+	_run(sm, _intent(), 0.7) # 1.0s total since the dash > 0.8s recharge
+	assert_eq(sm.dash_charges(), 2)
+
+
+func test_chaining_gap_blocks_instant_second_dash() -> void:
+	var sm := _charged_sm()
+	sm.tick(_intent(false, false, true), DT)
+	_run(sm, _intent(), 0.21) # dash just ended, gap running
+	assert_eq(sm.state, ActionStateMachine.State.IDLE)
+	assert_false(sm.dash_ready(), "gap not over")
+	_run(sm, _intent(), 0.2)
+	assert_true(sm.dash_ready())
+
+
+func test_revive_refills_dash_charges() -> void:
+	var sm := _charged_sm()
+	_dash_then_wait(sm, 0.4)
+	_dash_then_wait(sm, 0.4)
+	sm.kill()
+	sm.revive()
+	assert_eq(sm.dash_charges(), 2)
+	assert_true(sm.dash_ready())
+
+
+func test_revive_does_nothing_when_alive() -> void:
+	var sm := _sm()
+	sm.apply_stagger(0.2)
+	sm.revive()
+	assert_eq(sm.state, ActionStateMachine.State.STAGGER)
+
+
 # ---------------------------------------------------------------- movement / facing
 
 func test_movement_modes() -> void:
@@ -389,3 +604,136 @@ func test_attack_speed_scales_duration() -> void:
 	_tap(sm)
 	_run(sm, _intent(), LIGHT_TOTAL / 2.0 + 0.03)
 	assert_eq(sm.state, ActionStateMachine.State.IDLE, "twice as fast")
+
+
+# ---------------------------------------------------------------- heavy combo / quick-combo cooldown
+
+## Melee-style weapon: 3-hit heavy combo and a cooldown after the quick combo.
+func _combo_sm(light_cooldown := 0.6) -> ActionStateMachine:
+	var w := _weapon(3)
+	var hits: Array[AttackMove] = []
+	for i in 3:
+		hits.append(_move(0.1, 0.1, 0.08, 10.0))
+	w.heavy_combo = hits
+	w.light_combo_cooldown = light_cooldown
+	w.input_buffer = 0.3
+	return SM.new(w, 1.0)
+
+
+func test_one_charge_release_plays_a_three_hit_heavy_combo() -> void:
+	var sm := _combo_sm()
+	_run(sm, _intent(true), 1.0)
+	var ev := sm.tick(_intent(false), DT)
+	ev.append_array(_run(sm, _intent(), 1.5)) # no further input at all
+	var started := _of_type(ev, "attack_started")
+	assert_eq(started.size(), 3, "one release = three heavy hits")
+	for i in 3:
+		assert_true(started[i].is_heavy)
+		assert_eq(started[i].combo_index, i)
+	assert_false(started[0].is_final)
+	assert_false(started[1].is_final)
+	assert_true(started[2].is_final, "the third hit is the finisher")
+	assert_eq(sm.state, ActionStateMachine.State.IDLE, "combo over")
+
+
+func test_heavy_combo_keeps_the_charge_multiplier_on_every_hit() -> void:
+	var sm := _combo_sm()
+	_run(sm, _intent(true), 1.6) # full charge
+	var ev := sm.tick(_intent(false), DT)
+	ev.append_array(_run(sm, _intent(), 1.5))
+	var started := _of_type(ev, "attack_started")
+	assert_eq(started.size(), 3)
+	for e in started:
+		assert_eq(snappedf(e.charge_mult, 0.001), 1.5, "same charge on every hit")
+
+
+func test_stagger_cancels_the_rest_of_a_heavy_combo() -> void:
+	var sm := _combo_sm()
+	_run(sm, _intent(true), 1.0)
+	sm.tick(_intent(false), DT)
+	_run(sm, _intent(), 0.1)
+	assert_eq(sm.state, ActionStateMachine.State.ATTACK)
+	sm.apply_stagger(0.2)
+	var ev := _run(sm, _intent(), 1.0)
+	assert_eq(_of_type(ev, "attack_started").size(), 0, "no more hits after being staggered")
+
+
+func test_quick_combo_needs_a_click_for_every_hit() -> void:
+	var sm := _combo_sm()
+	var ev := _tap(sm)
+	ev.append_array(_run(sm, _intent(), 1.0)) # waits, no more clicks
+	assert_eq(_of_type(ev, "attack_started").size(), 1, "one click = one hit")
+
+
+func test_cooldown_after_the_full_quick_combo() -> void:
+	var sm := _combo_sm(0.6)
+	for i in 3:
+		_tap(sm)
+		_run(sm, _intent(), 0.36) # a light hit takes 0.1 + 0.1 + 0.15 = 0.35s
+	assert_eq(sm.state, ActionStateMachine.State.IDLE)
+	assert_true(sm.light_cooldown_left() > 0.3, "cooldown running after the finisher")
+	# A tap right away is ignored (too early even for the buffer).
+	var early := _tap(sm)
+	early.append_array(_run(sm, _intent(), 0.2))
+	assert_eq(_of_type(early, "attack_started").size(), 0, "locked out during the cooldown")
+	# After the cooldown a tap starts a fresh combo at hit 1.
+	_run(sm, _intent(), 0.7)
+	var fresh := _of_type(_tap(sm), "attack_started")
+	assert_eq(fresh.size(), 1)
+	assert_eq(fresh[0].combo_index, 0)
+
+
+func test_tap_just_before_the_cooldown_ends_is_buffered() -> void:
+	var sm := _combo_sm(0.6)
+	for i in 3:
+		_tap(sm)
+		_run(sm, _intent(), 0.36)
+	var left := sm.light_cooldown_left()
+	_run(sm, _intent(), maxf(left - 0.2, 0.0)) # inside the 0.3s buffer window
+	var ev := _tap(sm)
+	ev.append_array(_run(sm, _intent(), 0.4))
+	assert_eq(_of_type(ev, "attack_started").size(), 1, "buffered tap fires once the cooldown ends")
+
+
+func test_heavy_charge_is_allowed_during_the_quick_combo_cooldown() -> void:
+	var sm := _combo_sm(0.6)
+	for i in 3:
+		_tap(sm)
+		_run(sm, _intent(), 0.36)
+	assert_true(sm.light_cooldown_left() > 0.0)
+	_run(sm, _intent(true), 0.6)
+	assert_eq(sm.state, ActionStateMachine.State.CHARGING, "can still charge a heavy")
+
+
+func test_no_cooldown_for_single_move_weapons() -> void:
+	var sm := _sm(1)
+	_tap(sm)
+	_run(sm, _intent(), 0.4)
+	assert_eq(sm.light_cooldown_left(), 0.0)
+	var ev := _of_type(_tap(sm), "attack_started")
+	assert_eq(ev.size(), 1, "bow-style weapons can fire again right away")
+
+
+# ---------------------------------------------------------------- combo lock helpers
+
+func test_in_combo_during_non_final_light_and_window() -> void:
+	var sm := _sm()
+	assert_false(sm.in_combo(), "idle")
+	_tap(sm)
+	_run(sm, _intent(), 0.1)
+	assert_true(sm.in_combo(), "mid first hit")
+	_run(sm, _intent(), LIGHT_TOTAL)
+	assert_true(sm.in_combo(), "inside the window to continue")
+	_run(sm, _intent(), 0.8)
+	assert_false(sm.in_combo(), "window expired")
+
+
+func test_hold_stagger_extends_only_stagger() -> void:
+	var sm := _sm()
+	sm.apply_stagger(0.05)
+	sm.hold_stagger(0.5)
+	_run(sm, _intent(), 0.3)
+	assert_eq(sm.state, ActionStateMachine.State.STAGGER, "still held")
+	var idle := _sm()
+	idle.hold_stagger(0.5)
+	assert_eq(idle.state, ActionStateMachine.State.IDLE)
