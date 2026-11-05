@@ -13,13 +13,16 @@ class_name AIComponent
 #   CHARGE    hold a heavy until the rolled charge, then release
 #   BLOCK     hold the shield toward a threatening target
 #   RECOVER   attack cooldown: keep spacing until it can attack again
+#
+# Dodge: on top of the modes, the AI can dash out of the way of an incoming
+# arrow or the target's wind-up (dash gives i-frames). See _update_dodge().
 
 enum Mode {IDLE, CHASE, CAUTIOUS, RETREAT, ENGAGE, CHARGE, BLOCK, RECOVER}
 enum Personality {COURAGEOUS, COWARDLY}
 
 const PERSONALITY_VALUES := {
-	Personality.COURAGEOUS: {"chase": 0.9, "dash_forward": 1.0, "dash_backward": 0.5, "block": 0.3, "heavy": 0.3},
-	Personality.COWARDLY: {"chase": 0.6, "dash_forward": 0.5, "dash_backward": 1.0, "block": 0.6, "heavy": 0.15},
+	Personality.COURAGEOUS: {"chase": 0.9, "dash_forward": 1.0, "dash_backward": 0.5, "block": 0.3, "heavy": 0.3, "dodge": 0.5},
+	Personality.COWARDLY: {"chase": 0.6, "dash_forward": 0.5, "dash_backward": 1.0, "block": 0.6, "heavy": 0.15, "dodge": 0.8},
 }
 
 @export var entity: CharacterBody2D
@@ -28,7 +31,7 @@ const PERSONALITY_VALUES := {
 @export var hitbox_component: HitboxComponent
 
 @export_group("Targeting")
-@export var target_groups: Array[String] = ["players"]
+@export var target_groups: Array[String] = ["players", "allies"]
 ## Only target hurtboxes on this team (-1 = any other team).
 @export var target_team: int = 0
 @export var detection_range: float = 200.0
@@ -42,12 +45,28 @@ const PERSONALITY_VALUES := {
 @export var retreat_probe_distance: float = 16.0
 
 @export_group("Timing")
-@export var attack_cooldown: float = 1.5
-@export var personality_interval: float = 3.0
+@export var attack_cooldown: float = 0.7
+@export var personality_interval: float = 1.2
 @export var retreat_duration: float = 1.0
 @export var dash_decision_interval: float = 1.5
 @export var block_hold_max: float = 0.8
 @export var path_update_interval: float = 0.1
+
+@export_group("Arena")
+## Treat the arena edge like a wall: no steps or dashes that leave it, and walk back in if pushed out.
+@export var stay_in_arena: bool = true
+## How far ahead (pixels) a step is checked to stay inside the arena.
+@export var arena_lookahead: float = 12.0
+
+@export_group("Dodge")
+## Dash out of the way of incoming arrows / wind-ups (chance per threat comes from the personality).
+@export var dodge_enabled: bool = true
+## Minimum seconds between two dodges.
+@export var dodge_cooldown: float = 0.8
+## An arrow is dodged when it would hit within this many seconds.
+@export var dodge_reaction_time: float = 0.4
+## How close to the arrow's path counts as "in line" (pixels).
+@export var projectile_hit_radius: float = 14.0
 
 @export_group("Behaviour")
 @export var personality: Personality = Personality.COURAGEOUS
@@ -81,6 +100,11 @@ var _wander_target: Vector2 = Vector2.ZERO
 var _attack_tap_down: bool = false
 var _tap_released_this_frame: bool = false
 var _dash_tap_down: bool = false
+var _dodge_timer: float = 0.0
+var _dodge_pending: bool = false
+var _dodge_dir: Vector2 = Vector2.ZERO
+var _dodge_was_threatened: bool = false
+var _rolled_arrows: Dictionary = {} # arrow instance id -> true (each arrow is rolled once)
 
 @onready var navigation_agent: NavigationAgent2D = get_node_or_null("NavigationAgent2D")
 
@@ -119,6 +143,7 @@ func _physics_process(delta: float) -> void:
 
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	_dash_timer = maxf(_dash_timer - delta, 0.0)
+	_dodge_timer = maxf(_dodge_timer - delta, 0.0)
 	_path_timer += delta
 	_mode_time += delta
 
@@ -145,9 +170,12 @@ func _physics_process(delta: float) -> void:
 	intent.lunge_limit = maxf(distance - min_distance, 0.0)
 
 	_update_personality(delta)
+	_update_dodge(distance, to_target)
 	_check_threat(distance)
 	_update_mode(distance)
 	_act(distance, to_target)
+	_apply_dodge()
+	_keep_in_arena()
 
 
 # ======================================================================
@@ -247,7 +275,7 @@ func _check_threat(distance: float) -> void:
 	var threatened := _target_is_threatening(distance)
 	var rising := threatened and not _was_threatened
 	_was_threatened = threatened
-	if not rising or mode == Mode.BLOCK:
+	if not rising or mode == Mode.BLOCK or _dodge_pending:
 		return
 	if combat_component.get_state() != ActionStateMachine.State.IDLE:
 		return
@@ -349,11 +377,17 @@ func _press_attack() -> void:
 func _try_dash(chance: float) -> void:
 	if _dash_timer > 0.0 or not combat_component.sm.dash_ready():
 		return
+	# Movement dashes keep the last charge in reserve so there is always one for a dodge.
+	if dodge_enabled and combat_component.sm.dash_max_charges > 1 and combat_component.sm.dash_charges() <= 1:
+		return
+	# Never dash out of the arena.
+	var dash_dir := intent.move_dir.normalized() if intent.move_dir != Vector2.ZERO else combat_component.get_facing()
+	if not _inside_after(dash_dir, _dash_length()):
+		return
 	_dash_timer = dash_decision_interval
 	if randf() < chance:
 		intent.dash_held = true
 		_dash_tap_down = true
-
 
 func _dash_length() -> float:
 	if movement_component == null or combat_component.sm == null:
@@ -367,7 +401,7 @@ func _pick_escape_direction(away: Vector2) -> Vector2:
 		away = Vector2.RIGHT
 	for angle_deg in RETREAT_ESCAPE_ANGLES:
 		var dir := away.rotated(deg_to_rad(angle_deg))
-		if not entity.test_move(entity.global_transform, dir * retreat_probe_distance):
+		if not entity.test_move(entity.global_transform, dir * retreat_probe_distance) and _inside_after(dir, retreat_probe_distance * 2.0):
 			return dir
 	return Vector2.ZERO
 
@@ -484,3 +518,154 @@ func get_mode() -> Mode:
 
 func get_current_target() -> Node2D:
 	return current_target
+
+
+# ======================================================================
+# Dodge (dash out of the way)
+#   - an arrow flying at us that would land within dodge_reaction_time, or
+#   - the target starting a wind-up (attack / charge) within its reach.
+# Each threat is rolled once against the personality's "dodge" chance, and the
+# dash itself gives i-frames, so a well-timed dodge makes the attack whiff.
+# ======================================================================
+
+func _update_dodge(distance: float, to_target: Vector2) -> void:
+	_dodge_pending = false
+	# Track the target's wind-up every frame so only its start counts as a threat.
+	var threatened := _target_is_threatening(distance)
+	var rising := threatened and not _dodge_was_threatened
+	_dodge_was_threatened = threatened
+
+	if not dodge_enabled or _dodge_timer > 0.0:
+		return
+	var own_state := combat_component.get_state()
+	if own_state != ActionStateMachine.State.IDLE and own_state != ActionStateMachine.State.CHARGING \
+			and own_state != ActionStateMachine.State.ATTACK and own_state != ActionStateMachine.State.BLOCK:
+		return
+	if not combat_component.sm.dash_ready():
+		return
+
+	# 1) Incoming arrows.
+	var arrow_dir := _incoming_arrow_dodge_dir()
+	if arrow_dir != Vector2.ZERO:
+		_queue_dodge(arrow_dir, "arrow")
+		return
+
+	# 2) The target winding up an attack at us (rising edge only).
+	if rising and randf() < _trait("dodge"):
+		var away := -to_target.normalized() if distance > 0.0 else Vector2.RIGHT
+		var dir := _free_dash_direction([away.rotated(randf_range(-0.7, 0.7)), away.rotated(1.2), away.rotated(-1.2), away])
+		if dir != Vector2.ZERO:
+			_queue_dodge(dir, "wind-up")
+
+
+func _queue_dodge(dir: Vector2, reason: String) -> void:
+	_dodge_pending = true
+	_dodge_dir = dir
+	_log("dodge (", reason, ") -> ", dir)
+
+
+## Direction to dash to leave the line of an arrow that would hit us soon.
+## Returns ZERO when there is none, it was already rolled, or the roll failed.
+func _incoming_arrow_dodge_dir() -> Vector2:
+	var arrows := get_tree().get_nodes_in_group("projectiles")
+	if arrows.is_empty():
+		_rolled_arrows.clear()
+		return Vector2.ZERO
+	for node in arrows:
+		var arrow := node as ArrowProjectile
+		if arrow == null or arrow.shooter == entity or arrow.hit == null:
+			continue
+		if hitbox_component and arrow.hit.team == hitbox_component.team:
+			continue
+		var id := arrow.get_instance_id()
+		if _rolled_arrows.has(id):
+			continue
+		var path := Vector2.RIGHT.rotated(arrow.rotation)
+		var rel := entity.global_position - arrow.global_position
+		var along := rel.dot(path)
+		if along <= 0.0 or along / maxf(arrow.projectile_speed, 1.0) > dodge_reaction_time:
+			continue
+		var side := rel.dot(path.orthogonal()) # which side of the arrow's line we are on
+		if absf(side) > projectile_hit_radius:
+			continue
+		_rolled_arrows[id] = true # decide once per arrow
+		if randf() >= _trait("dodge"):
+			continue
+		var perp := path.orthogonal() * (1.0 if side >= 0.0 else -1.0)
+		return _free_dash_direction([perp, -perp, perp.rotated(0.6), (-perp).rotated(-0.6)])
+	return Vector2.ZERO
+
+
+## First candidate direction with room to dash (not blocked by a wall).
+func _free_dash_direction(candidates: Array) -> Vector2:
+	var length := _dash_length()
+	for candidate in candidates:
+		var dir: Vector2 = candidate
+		if dir == Vector2.ZERO:
+			continue
+		dir = dir.normalized()
+		if not entity.test_move(entity.global_transform, dir * length) and _inside_after(dir, length):
+			return dir
+	return Vector2.ZERO
+
+
+## Turns a queued dodge into a dash tap this frame (cancels what we were doing).
+func _apply_dodge() -> void:
+	if not _dodge_pending:
+		return
+	_dodge_pending = false
+	if mode == Mode.ENGAGE or mode == Mode.CHARGE or mode == Mode.BLOCK:
+		_end_attack_sequence()
+	intent.move_dir = _dodge_dir
+	intent.dash_held = true
+	_dash_tap_down = true
+	_dodge_timer = dodge_cooldown
+
+
+# ======================================================================
+# Staying inside the arena
+# ======================================================================
+
+var _arena: ArenaBounds
+
+
+func _get_arena() -> ArenaBounds:
+	if not stay_in_arena:
+		return null
+	if not is_instance_valid(_arena):
+		_arena = get_tree().get_first_node_in_group("arena") as ArenaBounds
+	return _arena
+
+
+## True if standing `distance` pixels along `dir` is still inside the arena
+## (always true when there is no arena).
+func _inside_after(dir: Vector2, distance: float) -> bool:
+	var arena := _get_arena()
+	if arena == null or dir == Vector2.ZERO:
+		return true
+	return arena.is_inside(entity.global_position + dir.normalized() * distance)
+
+
+## Final pass over the intent: never walk out of the arena, slide along the edge
+## instead, and head back in if we are already outside (knocked out).
+func _keep_in_arena() -> void:
+	var arena := _get_arena()
+	if arena == null or intent.dash_held:
+		return # a dash was already checked when it was chosen
+	var pos := entity.global_position
+	if not arena.is_inside(pos):
+		var back := arena.closest_inside_point(pos) - pos
+		if back.length() > 0.5:
+			intent.move_dir = back.normalized()
+		return
+	if intent.move_dir == Vector2.ZERO:
+		return
+	var dir := intent.move_dir.normalized()
+	if arena.is_inside(pos + dir * arena_lookahead):
+		return
+	for angle in [35.0, -35.0, 70.0, -70.0, 100.0, -100.0]:
+		var alt := dir.rotated(deg_to_rad(angle))
+		if arena.is_inside(pos + alt * arena_lookahead):
+			intent.move_dir = alt * intent.move_dir.length()
+			return
+	intent.move_dir = Vector2.ZERO

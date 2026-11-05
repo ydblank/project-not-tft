@@ -1,0 +1,26 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/characters/enemy_character.tscn" id="1_base"]
+
+[node name="EnemyArcher" instance=ExtResource("1_base")]
+
+[node name="Label" parent="CanvasLayer" index="0"]
+offset_left = 985.0
+offset_top = 118.0
+offset_right = 1097.0
+offset_bottom = 141.0
+text = "Archer (ranged)"
+
+[node name="Healthbar" parent="CanvasLayer" index="1"]
+offset_top = 154.0
+offset_bottom = 167.0
+
+[node name="AIComponent" parent="ComponentGroup" index="0"]
+min_distance = 90.0
+flee_range = 110.0
+heavy_range = 140.0
+personality = 1
+
+[node name="StatsComponent" parent="ComponentGroup" index="6"]
+entity_class = 2
+entity_weapon = 3

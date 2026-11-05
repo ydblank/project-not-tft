@@ -7,6 +7,16 @@
 [ext_resource type="PackedScene" uid="uid://x50qjtctt5e" path="res://assets/objects/dummy.tscn" id="6_57ibc"]
 [ext_resource type="Script" uid="uid://drmhjgqpudjh" path="res://assets/ui/dialogue_ui.gd" id="7_dialogue_ui"]
 [ext_resource type="PackedScene" path="res://assets/ui/controls_hint.tscn" id="8_controls"]
+[ext_resource type="Script" uid="uid://drtbntbdpu7rt" path="res://assets/levels/arena_bounds.gd" id="9_arena"]
+[ext_resource type="Script" uid="uid://c17i2wbdu2u1d" path="res://assets/levels/enemy_respawner.gd" id="10_respawn"]
+[ext_resource type="Script" uid="uid://cadbvw41flms6" path="res://assets/levels/loadout_switcher.gd" id="11_loadout"]
+[ext_resource type="PackedScene" path="res://assets/characters/enemy_archer.tscn" id="12_archer"]
+[ext_resource type="PackedScene" path="res://assets/characters/ally_archer.tscn" id="13_ally"]
+[ext_resource type="Script" uid="uid://b2lk8tey8p5ee" path="res://assets/dev/dev_tuning.gd" id="14_tuning"]
+[ext_resource type="Script" uid="uid://bl81aqnd7pvxt" path="res://assets/dev/pause_menu.gd" id="15_pause"]
+[ext_resource type="Script" uid="uid://blr3locgrteq4" path="res://assets/levels/fight_countdown.gd" id="16_countdown"]
+[ext_resource type="Script" uid="uid://cuvbrtumogrcx" path="res://assets/levels/control_switcher.gd" id="17_control"]
+[ext_resource type="Script" uid="uid://1glljwh0s36t" path="res://assets/levels/camera_follow.gd" id="18_camfollow"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -141,6 +151,7 @@ navigation_layer_0/layers = 1
 sources/0 = SubResource("TileSetAtlasSource_kdubu")
 
 [node name="Node2D" type="Node2D" unique_id=1816832915]
+y_sort_enabled = true
 material = SubResource("CanvasItemMaterial_0e48y")
 script = ExtResource("1_57ibc")
 
@@ -150,6 +161,7 @@ zoom = Vector2(3, 3)
 limit_enabled = false
 
 [node name="TileMap" type="TileMap" parent="." unique_id=2116660538]
+z_index = -1
 texture_filter = 5
 tile_set = SubResource("TileSet_d21ai")
 format = 2
@@ -202,6 +214,12 @@ text = "localhost"
 [node name="EnemyCharacter" parent="." unique_id=164712311 instance=ExtResource("3_57ibc")]
 position = Vector2(130, -4)
 
+[node name="EnemyArcher" parent="." unique_id=2000952801 instance=ExtResource("12_archer")]
+position = Vector2(120, 55)
+
+[node name="AllyArcher" parent="." unique_id=318595713 instance=ExtResource("13_ally")]
+position = Vector2(-70, 35)
+
 [node name="PlayerCharacter" parent="." unique_id=832934949 instance=ExtResource("3_mipta")]
 position = Vector2(-36, -6)
 
@@ -217,7 +235,32 @@ offset_top = 470.0
 offset_right = 1115.0
 offset_bottom = 616.0
 
-[node name="ControlsHint" parent="." instance=ExtResource("8_controls")]
+[node name="ControlsHint" parent="." unique_id=1918122867 instance=ExtResource("8_controls")]
+
+[node name="ArenaBounds" type="Node2D" parent="." unique_id=1138040395]
+script = ExtResource("9_arena")
+
+[node name="EnemyRespawner" type="Node" parent="." unique_id=1947002926]
+script = ExtResource("10_respawn")
+
+[node name="LoadoutSwitcher" type="Node" parent="." unique_id=664912951]
+script = ExtResource("11_loadout")
+
+[node name="DevTuning" type="Node" parent="." unique_id=499058795]
+script = ExtResource("14_tuning")
+
+[node name="PauseMenu" type="CanvasLayer" parent="." unique_id=956577695]
+script = ExtResource("15_pause")
+
+[node name="FightCountdown" type="CanvasLayer" parent="." unique_id=1414731202]
+script = ExtResource("16_countdown")
+
+[node name="ControlSwitcher" type="Node" parent="." unique_id=391361616]
+script = ExtResource("17_control")
+
+[node name="CameraFollow" type="Node" parent="." unique_id=2050758459 node_paths=PackedStringArray("camera")]
+script = ExtResource("18_camfollow")
+camera = NodePath("../Camera2D")
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]

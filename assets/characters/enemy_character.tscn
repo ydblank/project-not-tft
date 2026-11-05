@@ -678,11 +678,11 @@ parameters/Walk/blend_position = Vector2(-0.017543852, 0.12322283)
 
 [node name="Label" type="Label" parent="CanvasLayer" unique_id=926261605]
 texture_filter = 1
-offset_left = 1044.0
+offset_left = 985.0
 offset_top = 53.0
 offset_right = 1097.0
 offset_bottom = 76.0
-text = "Enemy"
+text = "Knight (melee)"
 
 [node name="Healthbar" parent="CanvasLayer" unique_id=1950464810 instance=ExtResource("3_55elk")]
 offset_left = 825.0

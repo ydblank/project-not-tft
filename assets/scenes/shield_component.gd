@@ -59,6 +59,13 @@ func _process(delta: float) -> void:
 		_set_hp(shield_hp + regen_per_sec * delta)
 
 
+## Full shield, no longer broken (respawn).
+func reset() -> void:
+	_is_broken = false
+	_regen_delay_timer = 0.0
+	_set_hp(max_shield_hp)
+
+
 func can_block() -> bool:
 	return not _is_broken and shield_hp > 0.0
 

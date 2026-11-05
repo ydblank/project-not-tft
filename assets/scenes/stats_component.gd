@@ -16,7 +16,14 @@ enum f {FAILED, SUCCESS}
 # Dash
 @export var dash_speed: float = 300.0
 @export var dash_duration: float = 0.2
-@export var dash_cooldown: float = 0.5
+## Pause between chained dashes (starts when a dash ends). 0 = instant.
+@export var dash_cooldown: float = 0.0
+## Dash charges; dashing again right away uses the next one.
+@export var dash_charges: int = 2
+## Seconds for each charge to come back (one at a time).
+@export var dash_recharge_time: float = 1.5
+## Slower: how long the first charge takes to return after all were used in a row.
+@export var dash_reload_time: float = 2.5
 
 @export var entity_class: Classes.CLASSES = Classes.CLASSES.NONE: set = _set_entity_class
 @export var entity_weapon: Weapons.WEAPONS = Weapons.WEAPONS.NONE: set = _set_entity_weapon

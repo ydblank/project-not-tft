@@ -1,5 +1,8 @@
 extends CharacterBody2D
 
+func _enter_tree() -> void:
+	add_to_group("dummies") # lets fighters stop their lunge short of it
+
 #@export var stats: StatsComponent
 #@export var health: HealthComponent
 #

@@ -1,0 +1,129 @@
+extends RefCounted
+class_name DevSettings
+
+# Dev-tunable "game feel" variables. The pause menu edits them, DevTuning
+# pushes them into the running game, and they are saved to disk so they survive
+# restarts. Defaults match the values the game ships with, so an untouched
+# settings file changes nothing.
+#
+# To add a setting: add a row to DEFS, then apply it in DevTuning.
+
+const SAVE_PATH := "user://dev_settings.cfg"
+const SECTION := "dev"
+
+# type: "float" | "int" | "bool". group: header in the menu.
+const DEFS := [
+	# ---- Dash ----
+	{"key": "dash_charges", "group": "Dash", "label": "Charges", "type": "int", "min": 1, "max": 5, "step": 1, "default": 2},
+	{"key": "dash_recharge_time", "group": "Dash", "label": "Recharge per charge (s)", "type": "float", "min": 0.2, "max": 5.0, "step": 0.1, "default": 1.5},
+	{"key": "dash_reload_time", "group": "Dash", "label": "Slow reload when empty (s)", "type": "float", "min": 0.2, "max": 6.0, "step": 0.1, "default": 2.5},
+	{"key": "dash_gap", "group": "Dash", "label": "Gap between dashes (s)", "type": "float", "min": 0.0, "max": 0.6, "step": 0.01, "default": 0.0},
+	{"key": "dash_speed", "group": "Dash", "label": "Dash speed", "type": "float", "min": 100.0, "max": 800.0, "step": 10.0, "default": 300.0},
+	{"key": "dash_duration", "group": "Dash", "label": "Dash duration (s)", "type": "float", "min": 0.05, "max": 0.6, "step": 0.01, "default": 0.2},
+	{"key": "dash_invulnerable", "group": "Dash", "label": "Invulnerable while dashing", "type": "bool", "default": true},
+
+	# ---- Movement ----
+	{"key": "move_speed_mult", "group": "Movement", "label": "Walk speed x", "type": "float", "min": 0.3, "max": 2.5, "step": 0.05, "default": 1.0},
+	{"key": "ranged_strafe_speed", "group": "Movement", "label": "Strafe speed while shooting", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.15},
+	{"key": "charge_block_speed", "group": "Movement", "label": "Speed while charging / blocking", "type": "float", "min": 0.05, "max": 1.0, "step": 0.05, "default": 0.25},
+
+	# ---- Combat ----
+	{"key": "attack_speed_mult", "group": "Combat", "label": "Attack speed x", "type": "float", "min": 0.3, "max": 3.0, "step": 0.05, "default": 1.0},
+	{"key": "damage_mult", "group": "Combat", "label": "Damage x", "type": "float", "min": 0.1, "max": 5.0, "step": 0.1, "default": 1.0},
+	{"key": "knockback_force", "group": "Combat", "label": "Knockback force", "type": "float", "min": 0.0, "max": 800.0, "step": 10.0, "default": 220.0},
+	{"key": "hitstop_mult", "group": "Combat", "label": "Hitstop x", "type": "float", "min": 0.0, "max": 4.0, "step": 0.1, "default": 1.0},
+	{"key": "shake_mult", "group": "Combat", "label": "Camera shake x", "type": "float", "min": 0.0, "max": 3.0, "step": 0.1, "default": 1.0},
+	{"key": "light_combo_cooldown", "group": "Combat", "label": "Quick-combo cooldown (s)", "type": "float", "min": 0.0, "max": 2.0, "step": 0.05, "default": 0.6},
+	{"key": "combo_hitstun", "group": "Combat", "label": "Combo hitstun (s)", "type": "float", "min": 0.0, "max": 1.5, "step": 0.05, "default": 0.55},
+	{"key": "post_stun_immunity", "group": "Combat", "label": "Stun immunity after a stun (s)", "type": "float", "min": 0.0, "max": 1.5, "step": 0.05, "default": 0.5},
+
+	# ---- Camera ----
+	{"key": "camera_follow", "group": "Camera", "label": "Follow strength", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.35},
+
+	# ---- Arena ----
+	{"key": "arena_damage_percent", "group": "Arena", "label": "Outside damage (% max HP / s)", "type": "float", "min": 0.0, "max": 40.0, "step": 1.0, "default": 8.0},
+	{"key": "arena_slow", "group": "Arena", "label": "Outside speed x", "type": "float", "min": 0.1, "max": 1.0, "step": 0.05, "default": 0.5},
+
+	# ---- AI ----
+	{"key": "ai_attack_cooldown", "group": "AI", "label": "Attack cooldown (s)", "type": "float", "min": 0.1, "max": 3.0, "step": 0.1, "default": 0.7},
+	{"key": "ai_dodge_enabled", "group": "AI", "label": "Dodging", "type": "bool", "default": true},
+	{"key": "ai_dodge_cooldown", "group": "AI", "label": "Dodge cooldown (s)", "type": "float", "min": 0.1, "max": 3.0, "step": 0.1, "default": 0.8},
+	{"key": "respawn_delay", "group": "AI", "label": "Respawn delay (s)", "type": "float", "min": 0.5, "max": 10.0, "step": 0.5, "default": 2.5},
+]
+
+static var values: Dictionary = {}
+static var _loaded: bool = false
+
+
+## Loads defaults, then the saved file on top. Safe to call repeatedly.
+static func ensure_loaded() -> void:
+	if _loaded:
+		return
+	_loaded = true
+	reset_all()
+	load_file()
+
+
+static func get_value(key: String) -> Variant:
+	ensure_loaded()
+	return values.get(key, default_of(key))
+
+
+static func set_value(key: String, value: Variant) -> void:
+	ensure_loaded()
+	var def := def_for(key)
+	if def.is_empty():
+		return
+	values[key] = _coerce(def, value)
+
+
+static func default_of(key: String) -> Variant:
+	var def := def_for(key)
+	return def.get("default")
+
+
+static func def_for(key: String) -> Dictionary:
+	for def in DEFS:
+		if def.key == key:
+			return def
+	return {}
+
+
+static func reset_all() -> void:
+	values.clear()
+	for def in DEFS:
+		values[def.key] = def.default
+
+
+static func is_default(key: String) -> bool:
+	return get_value(key) == default_of(key)
+
+
+static func save() -> Error:
+	ensure_loaded()
+	var cfg := ConfigFile.new()
+	for def in DEFS:
+		cfg.set_value(SECTION, def.key, values[def.key])
+	return cfg.save(SAVE_PATH)
+
+
+## Reads the save file (if any). Unknown keys are ignored, bad values clamped.
+static func load_file(path: String = SAVE_PATH) -> Error:
+	var cfg := ConfigFile.new()
+	var err := cfg.load(path)
+	if err != OK:
+		return err
+	for def in DEFS:
+		if cfg.has_section_key(SECTION, def.key):
+			values[def.key] = _coerce(def, cfg.get_value(SECTION, def.key))
+	return OK
+
+
+static func _coerce(def: Dictionary, value: Variant) -> Variant:
+	match def.type:
+		"bool":
+			return bool(value)
+		"int":
+			return clampi(int(value), int(def.min), int(def.max))
+		_:
+			return clampf(float(value), float(def.min), float(def.max))

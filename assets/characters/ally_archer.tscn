@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/characters/enemy_archer.tscn" id="1_base"]
+[ext_resource type="Script" path="res://assets/characters/ally_character.gd" id="2_ally"]
+
+[node name="AllyArcher" instance=ExtResource("1_base")]
+script = ExtResource("2_ally")
+
+[node name="Label" parent="CanvasLayer" index="0"]
+offset_left = 33.0
+offset_top = 140.0
+offset_right = 200.0
+offset_bottom = 163.0
+text = "Ally archer"
+
+[node name="Healthbar" parent="CanvasLayer" index="1"]
+offset_left = 28.0
+offset_top = 166.0
+offset_right = 305.0
+offset_bottom = 179.0
+
+[node name="AIComponent" parent="ComponentGroup" index="0"]
+target_groups = Array[String](["enemies"])
+target_team = 1
+
+[node name="HitboxComponent" parent="ComponentGroup" index="4"]
+team = 0
