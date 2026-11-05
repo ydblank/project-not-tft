@@ -2,54 +2,6 @@
 
 [ext_resource type="Script" path="res://assets/ui/controls_hint.gd" id="1_ctrls"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ctrls"]
-bg_color = Color(0.08, 0.08, 0.1, 0.78)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(1, 1, 1, 0.2)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
 [node name="ControlsHint" type="CanvasLayer"]
 layer = 10
 script = ExtResource("1_ctrls")
-
-[node name="Panel" type="PanelContainer" parent="."]
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -12.0
-offset_top = 12.0
-offset_right = -12.0
-offset_bottom = 12.0
-grow_horizontal = 0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_ctrls")
-
-[node name="Margin" type="MarginContainer" parent="Panel"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
-
-[node name="VBox" type="VBoxContainer" parent="Panel/Margin"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 6
-
-[node name="Title" type="Label" parent="Panel/Margin/VBox"]
-layout_mode = 2
-text = "Controls"
-
-[node name="Grid" type="GridContainer" parent="Panel/Margin/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/h_separation = 14
-theme_override_constants/v_separation = 4
-columns = 2
