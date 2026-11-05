@@ -1,0 +1,55 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://assets/combat/weapon_data.gd" id="1_weapon"]
+[ext_resource type="Script" path="res://assets/combat/attack_move.gd" id="2_move"]
+
+[sub_resource type="Resource" id="Resource_light1"]
+script = ExtResource("2_move")
+lunge_distance = 10.0
+reach = 18.0
+damage_mult = 0.5
+reaction = 0
+vfx_animation = &"slash"
+
+[sub_resource type="Resource" id="Resource_light2"]
+script = ExtResource("2_move")
+lunge_distance = 10.0
+reach = 18.0
+damage_mult = 0.5
+reaction = 0
+vfx_animation = &"slash_2"
+
+[sub_resource type="Resource" id="Resource_light3"]
+script = ExtResource("2_move")
+lunge_distance = 20.0
+reach = 20.0
+damage_mult = 1.2
+reaction = 1
+hitstop = 0.07
+vfx_animation = &"slash"
+vfx_scale = 1.2
+
+[sub_resource type="Resource" id="Resource_heavy"]
+script = ExtResource("2_move")
+startup = 0.15
+active = 0.12
+recovery = 0.25
+lunge_distance = 15.0
+reach = 22.0
+width = 26.0
+damage_mult = 1.5
+reaction = 1
+hitstop = 0.08
+vfx_animation = &"slash_2"
+vfx_scale = 1.3
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Sword"
+base_damage = 10.0
+attack_speed_bonus = 0.1
+light_moves = Array[ExtResource("2_move")]([SubResource("Resource_light1"), SubResource("Resource_light2"), SubResource("Resource_light3")])
+heavy_move = SubResource("Resource_heavy")
+heavy_min_mult = 1.0
+heavy_max_mult = 1.5
+ai_engage_range = 30.0

@@ -6,10 +6,10 @@
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_o4qoj"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_088tr"]
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_sheqp"]
-[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_tc657"]
+[ext_resource type="PackedScene" path="res://assets/combat/combat_component.tscn" id="7_tc657"]
 [ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_tn02o"]
 [ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_088tr"]
-[ext_resource type="PackedScene" uid="uid://cys71e6y2rg41" path="res://assets/scenes/shield_component.tscn" id="10_sheqp"]
+[ext_resource type="Script" path="res://assets/combat/player_controller.gd" id="10_sheqp"]
 [ext_resource type="PackedScene" uid="uid://cscnitipmwjuw" path="res://assets/scenes/multiplayer_component.tscn" id="11_tc657"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_ij6vw"]
@@ -374,6 +374,122 @@ tracks/1/keys = {
 "values": [false]
 }
 
+[sub_resource type="Animation" id="Animation_blkdn"]
+resource_name = "block_down"
+length = 0.1
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [0]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Sprite2D:flip_h")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+
+[sub_resource type="Animation" id="Animation_blkup"]
+resource_name = "block_up"
+length = 0.1
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [8]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Sprite2D:flip_h")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+
+[sub_resource type="Animation" id="Animation_blklf"]
+resource_name = "block_left"
+length = 0.1
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [16]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Sprite2D:flip_h")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+
+[sub_resource type="Animation" id="Animation_blkrt"]
+resource_name = "block_right"
+length = 0.1
+loop_mode = 1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Sprite2D:frame")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [16]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Sprite2D:flip_h")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_dd465"]
 _data = {
 &"RESET": SubResource("Animation_ghijl"),
@@ -381,6 +497,10 @@ _data = {
 &"attack_left": SubResource("Animation_02psr"),
 &"attack_right": SubResource("Animation_2ee4m"),
 &"attack_up": SubResource("Animation_7eqks"),
+&"block_down": SubResource("Animation_blkdn"),
+&"block_left": SubResource("Animation_blklf"),
+&"block_right": SubResource("Animation_blkrt"),
+&"block_up": SubResource("Animation_blkup"),
 &"idle_down": SubResource("Animation_ij6vw"),
 &"idle_left": SubResource("Animation_6a5hm"),
 &"idle_right": SubResource("Animation_xuiqj"),
@@ -460,6 +580,47 @@ blend_point_3/node = SubResource("AnimationNodeAnimation_73nau")
 blend_point_3/pos = Vector2(0, -1)
 blend_mode = 1
 
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_blkdn"]
+animation = &"block_down"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_blkup"]
+animation = &"block_up"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_blklf"]
+animation = &"block_left"
+
+[sub_resource type="AnimationNodeAnimation" id="AnimationNodeAnimation_blkrt"]
+animation = &"block_right"
+
+[sub_resource type="AnimationNodeBlendSpace2D" id="AnimationNodeBlendSpace2D_block"]
+blend_point_0/node = SubResource("AnimationNodeAnimation_blkdn")
+blend_point_0/pos = Vector2(0, 1)
+blend_point_1/node = SubResource("AnimationNodeAnimation_blkup")
+blend_point_1/pos = Vector2(0, -1)
+blend_point_2/node = SubResource("AnimationNodeAnimation_blklf")
+blend_point_2/pos = Vector2(-1, 0)
+blend_point_3/node = SubResource("AnimationNodeAnimation_blkrt")
+blend_point_3/pos = Vector2(1, 0)
+blend_point_4/node = SubResource("AnimationNodeAnimation_blkrt")
+blend_point_4/pos = Vector2(0.7, -0.7)
+blend_point_5/node = SubResource("AnimationNodeAnimation_blkrt")
+blend_point_5/pos = Vector2(0.7, 0.7)
+blend_point_6/node = SubResource("AnimationNodeAnimation_blklf")
+blend_point_6/pos = Vector2(-0.7, 0.7)
+blend_point_7/node = SubResource("AnimationNodeAnimation_blklf")
+blend_point_7/pos = Vector2(-0.7, -0.7)
+blend_mode = 1
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_idlblk"]
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_blkidl"]
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_wlkblk"]
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_blkwlk"]
+
+[sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_atkblk"]
+
 [sub_resource type="AnimationNodeStateMachineTransition" id="AnimationNodeStateMachineTransition_ye16i"]
 advance_mode = 2
 
@@ -474,13 +635,15 @@ advance_mode = 2
 [sub_resource type="AnimationNodeStateMachine" id="AnimationNodeStateMachine_2u5n8"]
 states/Attack/node = SubResource("AnimationNodeBlendSpace2D_6a5hm")
 states/Attack/position = Vector2(251, 233)
+states/Block/node = SubResource("AnimationNodeBlendSpace2D_block")
+states/Block/position = Vector2(510, 233)
 states/End/position = Vector2(896, 100)
 states/Idle/node = SubResource("AnimationNodeBlendSpace2D_sxias")
 states/Idle/position = Vector2(251, 100)
 states/Start/position = Vector2(101, 100)
 states/Walk/node = SubResource("AnimationNodeBlendSpace2D_skrk8")
 states/Walk/position = Vector2(510, 100)
-transitions = ["Start", "Idle", SubResource("AnimationNodeStateMachineTransition_ye16i"), "Idle", "Walk", SubResource("AnimationNodeStateMachineTransition_75u2t"), "Walk", "Idle", SubResource("AnimationNodeStateMachineTransition_7qa1u"), "Idle", "Attack", SubResource("AnimationNodeStateMachineTransition_7eqks"), "Attack", "Idle", SubResource("AnimationNodeStateMachineTransition_02psr")]
+transitions = ["Start", "Idle", SubResource("AnimationNodeStateMachineTransition_ye16i"), "Idle", "Walk", SubResource("AnimationNodeStateMachineTransition_75u2t"), "Walk", "Idle", SubResource("AnimationNodeStateMachineTransition_7qa1u"), "Idle", "Attack", SubResource("AnimationNodeStateMachineTransition_7eqks"), "Attack", "Idle", SubResource("AnimationNodeStateMachineTransition_02psr"), "Idle", "Block", SubResource("AnimationNodeStateMachineTransition_idlblk"), "Block", "Idle", SubResource("AnimationNodeStateMachineTransition_blkidl"), "Walk", "Block", SubResource("AnimationNodeStateMachineTransition_wlkblk"), "Block", "Walk", SubResource("AnimationNodeStateMachineTransition_blkwlk"), "Attack", "Block", SubResource("AnimationNodeStateMachineTransition_atkblk")]
 graph_offset = Vector2(-1, 48)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sheqp"]
@@ -530,20 +693,24 @@ offset_bottom = 99.0
 
 [node name="ComponentGroup" type="Node2D" parent="." unique_id=1633599240]
 
-[node name="AnimationComponent" parent="ComponentGroup" unique_id=172466746 node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_sheqp")]
+[node name="PlayerController" type="Node2D" parent="ComponentGroup" node_paths=PackedStringArray("entity")]
+script = ExtResource("10_sheqp")
+entity = NodePath("../..")
+
+[node name="CombatComponent" parent="ComponentGroup" node_paths=PackedStringArray("entity", "controller", "stats_component", "movement_component", "health_component", "hitbox_component") instance=ExtResource("7_tc657")]
+entity = NodePath("../..")
+controller = NodePath("../PlayerController")
+stats_component = NodePath("../StatsComponent")
 movement_component = NodePath("../MovementComponent")
-attack_component = NodePath("../AttackComponent")
+health_component = NodePath("../HealthComponent")
+hitbox_component = NodePath("../HitboxComponent")
+
+[node name="AnimationComponent" parent="ComponentGroup" unique_id=172466746 node_paths=PackedStringArray("combat_component", "movement_component") instance=ExtResource("6_sheqp")]
+combat_component = NodePath("../CombatComponent")
+movement_component = NodePath("../MovementComponent")
 animation_player_path = NodePath("../../AnimationPlayer")
 animation_tree_path = NodePath("../../AnimationTree")
 sprite_path = NodePath("../../Sprite2D")
-
-[node name="AttackComponent" parent="ComponentGroup" unique_id=1595937806 node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity") instance=ExtResource("7_tc657")]
-stats_component = NodePath("../StatsComponent")
-movement_component = NodePath("../MovementComponent")
-animation_component = NodePath("../AnimationComponent")
-health_component = NodePath("../HealthComponent")
-hitbox_component = NodePath("../HitboxComponent")
-entity = NodePath("../..")
 
 [node name="HealthComponent" parent="ComponentGroup" unique_id=296194798 node_paths=PackedStringArray("healthbar", "stats") instance=ExtResource("8_tn02o")]
 healthbar = NodePath("../../CanvasLayer/Healthbar")
@@ -566,9 +733,7 @@ entity = NodePath("../..")
 base_max_health = 200.0
 base_phys_mult = 2.0
 entity_class = 3
-entity_weapon = 2
+entity_weapon = 3
 character_sprite = NodePath("../../Sprite2D")
-
-[node name="ShieldComponent" parent="ComponentGroup" unique_id=247168261 instance=ExtResource("10_sheqp")]
 
 [node name="MultiplayerComponent" parent="ComponentGroup" unique_id=427533265 instance=ExtResource("11_tc657")]

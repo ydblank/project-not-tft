@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://dwk3apd8gpdh6" path="res://assets/characters/player_character.tscn" id="3_mipta"]
 [ext_resource type="PackedScene" uid="uid://x50qjtctt5e" path="res://assets/objects/dummy.tscn" id="6_57ibc"]
 [ext_resource type="Script" uid="uid://drmhjgqpudjh" path="res://assets/ui/dialogue_ui.gd" id="7_dialogue_ui"]
+[ext_resource type="PackedScene" path="res://assets/ui/controls_hint.tscn" id="8_controls"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -215,6 +216,8 @@ offset_left = 43.0
 offset_top = 470.0
 offset_right = 1115.0
 offset_bottom = 616.0
+
+[node name="ControlsHint" parent="." instance=ExtResource("8_controls")]
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]

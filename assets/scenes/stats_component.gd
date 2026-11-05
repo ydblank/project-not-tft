@@ -18,65 +18,34 @@ enum f {FAILED, SUCCESS}
 @export var dash_duration: float = 0.2
 @export var dash_cooldown: float = 0.5
 
-# Lunge
-@export var lunge_distance: float = 10.0
-@export var lunge_burst_time: float = 0.1
-@export var lunge_pause_time: float = 0.2
-
-# Combo
-@export var combo_max_hits: int = 3
-@export var combo_chain_speed_multiplier: float = 0.6
-@export var combo_final_cooldown: float = .5
-@export var combo_chain_window: float = 0.5
-@export var combo_stagger_duration: float = 0.2
-@export var combo_pre_final_delay_multiplier: float = 1.15
-@export var melee_slash_spawn_delay: float = 0.1
-@export var combo_pause_time: float = 0.25
-
-
 @export var entity_class: Classes.CLASSES = Classes.CLASSES.NONE: set = _set_entity_class
 @export var entity_weapon: Weapons.WEAPONS = Weapons.WEAPONS.NONE: set = _set_entity_weapon
 
 @export var character_sprite: Sprite2D
 
 var class_obj: Dictionary = {}
-var weapon_obj: Dictionary = {}
-
-var max_health: float = 0.0
-var attack: int = 0
-var defense: int = 0
-var knockback_res: int = 0
-var attack_speed_mult: float = 1.0
-var move_speed: float = 0.0
+var weapon_data: WeaponData = null
 
 func _ready() -> void:
 	_assign_obj()
-	
+
 func _set_entity_class(value: Classes.CLASSES) -> void:
 	entity_class = value
 	_assign_obj()
-	
+
 func _set_entity_weapon(value: Weapons.WEAPONS) -> void:
 	entity_weapon = value
 	_assign_obj()
-	
+
 func _get_class_obj(_class: Classes.CLASSES) -> Dictionary:
 	var fallback: Dictionary = Classes.classStats.get(Classes.CLASSES.NONE, {})
 	return Classes.classStats.get(_class, fallback)
-	
-func _get_weapon_obj(_weapon: Weapons.WEAPONS) -> Dictionary:
-	var fallback: Dictionary = Weapons.weaponStats.get(Weapons.WEAPONS.NONE, {})
-	return Weapons.weaponStats.get(_weapon, fallback)
 
-func _assign_obj(_class: Classes.CLASSES = Classes.CLASSES.NONE, _weapon: Weapons.WEAPONS = Weapons.WEAPONS.NONE) -> bool:
-	var stat_class: Classes.CLASSES = _class if _class != Classes.CLASSES.NONE else entity_class
-	var stat_weapon: Weapons.WEAPONS = _weapon if _weapon != Weapons.WEAPONS.NONE else entity_weapon
+func _assign_obj() -> bool:
+	class_obj = _get_class_obj(entity_class)
+	weapon_data = Weapons.get_weapon_data(entity_weapon)
 
-	class_obj = _get_class_obj(stat_class)
-	weapon_obj = _get_weapon_obj(stat_weapon)
-	
-	
-	if character_sprite and class_obj.sprite_path:
+	if character_sprite and class_obj.get("sprite_path", "") != "":
 		character_sprite.texture = load(class_obj.sprite_path)
 
 	return f.SUCCESS
@@ -84,7 +53,7 @@ func _assign_obj(_class: Classes.CLASSES = Classes.CLASSES.NONE, _weapon: Weapon
 # Get entity stats (base + class)
 func get_entity_stats() -> Dictionary:
 	var class_stats: Dictionary = class_obj
-	
+
 	return {
 		"hp": base_max_health + float(class_stats.get("bonus_hp", 0)),
 		"str": float(base_str) + float(class_stats.get("bonus_str", 0)),
@@ -94,6 +63,7 @@ func get_entity_stats() -> Dictionary:
 		"move_speed": base_move_speed + float(class_stats.get("bonus_move_speed", 0))
 	}
 
-# Get weapon stats
-func get_entity_weapon() -> Dictionary:
-	return weapon_obj
+func get_weapon_data() -> WeaponData:
+	if weapon_data == null:
+		weapon_data = Weapons.get_weapon_data(entity_weapon)
+	return weapon_data

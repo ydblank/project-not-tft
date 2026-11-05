@@ -6,7 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://dailykf4sim6y" path="res://assets/scenes/hitbox_component.tscn" id="4_e3xsg"]
 [ext_resource type="PackedScene" uid="uid://bg7bnvmwuv5tj" path="res://assets/scenes/movement_component.tscn" id="5_qxlet"]
 [ext_resource type="PackedScene" uid="uid://bqxciphj62g30" path="res://assets/scenes/animation_component.tscn" id="6_8a1ug"]
-[ext_resource type="PackedScene" uid="uid://ce3xfyyreirff" path="res://assets/scenes/attack_component.tscn" id="7_js133"]
+[ext_resource type="PackedScene" path="res://assets/combat/combat_component.tscn" id="7_js133"]
 [ext_resource type="PackedScene" uid="uid://bb7qw638hb61e" path="res://assets/scenes/health_component.tscn" id="8_n0klf"]
 [ext_resource type="PackedScene" uid="uid://bye0h4v8hg8gt" path="res://assets/scenes/stats_component.tscn" id="9_ucxfk"]
 
@@ -545,17 +545,16 @@ debug_color = Color(0.5045533, 0.54286903, 0.85489804, 0.12941177)
 stats_component = NodePath("../StatsComponent")
 entity = NodePath("../..")
 
-[node name="AnimationComponent" parent="ComponentGroup" node_paths=PackedStringArray("movement_component", "attack_component") instance=ExtResource("6_8a1ug")]
+[node name="AnimationComponent" parent="ComponentGroup" node_paths=PackedStringArray("combat_component", "movement_component") instance=ExtResource("6_8a1ug")]
 movement_component = NodePath("../MovementComponent")
-attack_component = NodePath("../AttackComponent")
+combat_component = NodePath("../CombatComponent")
 animation_player_path = NodePath("../../AnimationPlayer")
 animation_tree_path = NodePath("../../AnimationTree")
 sprite_path = NodePath("../../Sprite2D")
 
-[node name="AttackComponent" parent="ComponentGroup" node_paths=PackedStringArray("stats_component", "movement_component", "animation_component", "health_component", "hitbox_component", "entity") instance=ExtResource("7_js133")]
+[node name="CombatComponent" parent="ComponentGroup" node_paths=PackedStringArray("stats_component", "movement_component", "health_component", "hitbox_component", "entity") instance=ExtResource("7_js133")]
 stats_component = NodePath("../StatsComponent")
 movement_component = NodePath("../MovementComponent")
-animation_component = NodePath("../AnimationComponent")
 health_component = NodePath("../HealthComponent")
 hitbox_component = NodePath("../HitboxComponent")
 entity = NodePath("../..")

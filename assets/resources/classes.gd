@@ -1,7 +1,9 @@
+@tool
 extends Resource
 class_name Classes
 
 enum CLASSES {NONE, KNIGHT, ROGUE, ARCHER}
+
 
 static var classStats = {
 	CLASSES.NONE: {

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="WeaponData" format=3]
+
+[ext_resource type="Script" path="res://assets/combat/weapon_data.gd" id="1_weapon"]
+[ext_resource type="Script" path="res://assets/combat/attack_move.gd" id="2_move"]
+[ext_resource type="PackedScene" path="res://assets/objects/arrow_projectile.tscn" id="3_arrow"]
+
+[sub_resource type="Resource" id="Resource_light1"]
+script = ExtResource("2_move")
+startup = 0.15
+active = 0.05
+recovery = 0.25
+lunge_distance = 0.0
+damage_mult = 1.0
+reaction = 1
+knockback_mult = 0.6
+
+[sub_resource type="Resource" id="Resource_heavy"]
+script = ExtResource("2_move")
+startup = 0.15
+active = 0.05
+recovery = 0.3
+lunge_distance = 0.0
+damage_mult = 1.5
+reaction = 1
+hitstop = 0.07
+
+[resource]
+script = ExtResource("1_weapon")
+display_name = "Bow"
+kind = 1
+projectile_scene = ExtResource("3_arrow")
+base_damage = 10.0
+attack_speed_bonus = 0.05
+light_moves = Array[ExtResource("2_move")]([SubResource("Resource_light1")])
+heavy_move = SubResource("Resource_heavy")
+heavy_min_mult = 0.5
+heavy_max_mult = 2.5
+ai_engage_range = 120.0
