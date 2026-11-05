@@ -7,12 +7,14 @@ extends Node2D
 @onready var label: Label = $Label
 
 var _pending_amount: int = 0
+var _pending_text: String = ""
 var _pending_color: Color = Color(1, 1, 1, 1)
 var _pending_world_position: Vector2 = Vector2.ZERO
 var _has_pending_setup: bool = false
 var _is_ready: bool = false
 
-func setup(amount: int, world_position: Vector2, color: Color = Color(1, 1, 1, 1)) -> void:
+func setup(amount: int, world_position: Vector2, color: Color = Color(1, 1, 1, 1), text: String = "") -> void:
+	_pending_text = text
 	_pending_amount = amount
 	_pending_world_position = world_position
 	_pending_color = color
@@ -29,7 +31,7 @@ func _try_start() -> void:
 		return
 
 	global_position = _pending_world_position
-	label.text = str(_pending_amount)
+	label.text = _pending_text if _pending_text != "" else str(_pending_amount)
 	label.modulate = _pending_color
 
 	if spread_x != 0.0:

@@ -101,3 +101,12 @@ static func _root(host: Node) -> Node:
 
 static func _safe_dir(dir: Vector2) -> Vector2:
 	return dir.normalized() if dir != Vector2.ZERO else Vector2.RIGHT
+
+
+## Shield shatter: a ring of blue / white shards flying out in every direction.
+static func shatter(host: Node, pos: Vector2) -> void:
+	var root := _root(host)
+	if root == null:
+		return
+	_burst(root, pos, Vector2.UP, Color(0.55, 0.8, 1.0), 16, 140.0, 180.0)
+	_burst(root, pos, Vector2.UP, Color(1, 1, 1), 10, 90.0, 180.0)

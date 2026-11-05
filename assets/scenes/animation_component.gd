@@ -26,6 +26,11 @@ class_name AnimationComponent
 @export var hit_flash_color: Color = Color(1, 0.2, 0.2, 1)
 @export var hit_flash_time: float = 0.08
 @export var charge_shake_strength: float = 0.1
+## Archers shiver while drawing a heavy shot (pixels; grows a little with the draw).
+@export var ranged_charge_shake: float = 0.18
+## Frame held while drawing a ranged heavy aimed left or right: the weapon-extended frame of the side attack.
+## (Aimed up or down, or while walking, the normal animation plays and only the shiver shows.)
+@export var aim_pose_frame: int = 115
 ## Faded look while the dash makes you untouchable.
 @export var dash_tint: Color = Color(1, 1, 1, 0.5)
 ## Brief bright flash when a hit is blocked.
@@ -60,6 +65,8 @@ var _has_reaction_states: bool = false
 var _flash_left: float = 0.0
 var _block_flash_left: float = 0.0
 var _trail_timer: float = 0.0
+var _aim_pose: bool = false
+var _kick: Vector2 = Vector2.ZERO # push-back when a hit is blocked
 var _charge_time: float = 0.0
 
 
@@ -75,6 +82,8 @@ func _ready() -> void:
 	if combat_component and combat_component.hitbox_component:
 		combat_component.hitbox_component.hit_received.connect(_on_hit_received)
 		combat_component.hitbox_component.hit_blocked.connect(_on_hit_blocked)
+		combat_component.hitbox_component.blocked_hit.connect(_on_blocked_hit)
+	_setup_block_visual.call_deferred() # the entity is still setting up its children
 
 
 func _physics_process(delta: float) -> void:
@@ -83,8 +92,13 @@ func _physics_process(delta: float) -> void:
 	var state := combat_component.get_state()
 	var facing := combat_component.get_facing()
 
-	_set_blend(facing)
-	state_machine.travel(_pick_state(state))
+	var drawing := _is_drawing_ranged_heavy(state, facing)
+	_set_aim_pose(drawing)
+	if drawing:
+		_pose_aim(facing)
+	else:
+		_set_blend(facing)
+		state_machine.travel(_pick_state(state))
 	_update_feedback(state, delta)
 	_update_dash_trail(state, delta)
 
@@ -205,7 +219,8 @@ func _update_feedback(state: ActionStateMachine.State, delta: float) -> void:
 	if state == ActionStateMachine.State.CHARGING:
 		_charge_time += delta
 		var ratio := combat_component.get_charge_ratio()
-		var shake := charge_shake_strength * (1.0 + ratio)
+		var strength := ranged_charge_shake if _is_ranged() else charge_shake_strength
+		var shake := strength * (1.0 + ratio * (0.8 if _is_ranged() else 1.0))
 		sprite.position = Vector2(
 			sin(_charge_time * (10.0 + 10.0 * ratio)) * shake,
 			cos(_charge_time * (15.0 + 15.0 * ratio)) * shake)
@@ -215,6 +230,10 @@ func _update_feedback(state: ActionStateMachine.State, delta: float) -> void:
 		_charge_time = 0.0
 		sprite.position = Vector2.ZERO
 		sprite.self_modulate = Color(1, 1, 1, 1)
+
+	# Push-back from a blocked hit, easing out.
+	sprite.position += _kick
+	_kick = _kick.move_toward(Vector2.ZERO, delta * 25.0)
 
 	# Hit flash wins over the block tint.
 	_flash_left = maxf(_flash_left - delta, 0.0)
@@ -257,3 +276,58 @@ func _update_dash_trail(state: ActionStateMachine.State, delta: float) -> void:
 	if _trail_timer <= 0.0:
 		_trail_timer = dash_trail_interval
 		HitFX.afterimage(sprite, dash_trail_color)
+
+
+func _is_ranged() -> bool:
+	return combat_component != null and combat_component.weapon != null \
+			and combat_component.weapon.kind == WeaponData.Kind.RANGED
+
+
+func _is_drawing_ranged_heavy(state: ActionStateMachine.State, aim: Vector2) -> bool:
+	return state == ActionStateMachine.State.CHARGING and _is_ranged() and sprite != null \
+			and animation_tree != null and not _is_moving() and absf(aim.x) > absf(aim.y)
+
+
+## While drawing, the animation tree is paused and the pose is set by hand:
+## the weapon-extended frame, flipped toward the aim (no tilt).
+func _set_aim_pose(on: bool) -> void:
+	if on == _aim_pose:
+		return
+	_aim_pose = on
+	if on:
+		animation_tree.active = false
+	else:
+		animation_tree.active = true
+		sprite.rotation = 0.0
+
+
+func _pose_aim(aim: Vector2) -> void:
+	if aim == Vector2.ZERO:
+		aim = Vector2.LEFT
+	sprite.frame = aim_pose_frame
+	var facing_right := aim.x > 0.0
+	sprite.flip_h = facing_right # the sheet's side frames point left
+	sprite.rotation = 0.0
+
+
+# ---- block visuals ----
+
+func _setup_block_visual() -> void:
+	if combat_component == null or combat_component.entity == null or combat_component.shield_component == null:
+		return
+	var visual := BlockVisual.new()
+	visual.name = "BlockVisual"
+	combat_component.entity.add_child(visual)
+	visual.setup(combat_component, combat_component.shield_component)
+	combat_component.shield_component.shield_broken.connect(_on_shield_broken)
+
+
+func _on_blocked_hit(direction: Vector2, is_heavy: bool) -> void:
+	_kick = direction * (3.0 if is_heavy else 1.8)
+
+
+func _on_shield_broken() -> void:
+	_flash_left = 0.25 # red flash, longer than a normal hit
+	_kick = Vector2.ZERO
+	if combat_component and combat_component.entity:
+		HitFX.shatter(combat_component.entity, combat_component.entity.global_position + Vector2(0, -2))

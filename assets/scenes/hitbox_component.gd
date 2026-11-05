@@ -9,6 +9,8 @@ enum Result {IGNORED, BLOCKED, HIT}
 
 signal hit_received(attacker: Node, damage: float, direction: Vector2)
 signal hit_blocked()
+## direction: attacker -> us. Used for the block flash and push-back.
+signal blocked_hit(direction: Vector2, is_heavy: bool)
 
 @export var team: int = 0
 @export var can_be_hit: bool = true
@@ -27,6 +29,8 @@ signal hit_blocked()
 @export_group("Damage Settings")
 @export var use_combat_calculations: bool = true
 @export var damage_number_scene: PackedScene
+## Used for "BLOCKED" and "GUARD BREAK!" when no damage number scene is set.
+const POPUP_SCENE: PackedScene = preload("res://assets/effects/damage_number.tscn")
 
 @export_group("Knockback")
 @export var base_knockback_force: float = 220.0
@@ -102,6 +106,8 @@ func receive_hit(hit: HitData) -> Result:
 				hit_blocked.emit()
 				_impact(hit, 0.5, 1.2)
 				_spawn_hit_fx(hit, true)
+				blocked_hit.emit(hit.direction, hit.is_heavy)
+				_show_text("BLOCKED", Color(0.6, 0.85, 1.0))
 				return Result.BLOCKED
 
 	knockback_scale = minf(knockback_scale + knockback_scale_gain_per_hit + final_damage * knockback_scale_gain_per_damage, knockback_scale_max)
@@ -119,10 +125,14 @@ func receive_hit(hit: HitData) -> Result:
 		print("[HIT] ", get_entity().name, " dmg=", snappedf(final_damage, 0.01), " reaction=", hit.reaction, " force=", snappedf(force, 0.1), " scale=", snappedf(knockback_scale, 0.01))
 
 	_show_damage_number(int(round(final_damage)))
+	if guard_broken:
+		_show_text("GUARD BREAK!", Color(1.0, 0.6, 0.2))
 	# Heavy hits freeze a touch longer and kick the camera harder.
 	var strength := 4.0 if hit.is_heavy else 1.8
 	if health.is_dead():
 		strength += 3.0
+	if guard_broken:
+		strength += 2.0
 	_impact(hit, 1.0 if hit.is_heavy else 0.7, strength)
 	_spawn_hit_fx(hit, false)
 	return Result.HIT
@@ -214,3 +224,14 @@ func _spawn_hit_fx(hit: HitData, blocked: bool) -> void:
 		HitFX.blood(self, pos, hit.direction, hit.is_heavy or health.is_dead())
 	else:
 		HitFX.sparks(self, pos, hit.direction, hit.is_heavy)
+
+
+## Floating word above the fighter ("BLOCKED", "GUARD BREAK!").
+func _show_text(text: String, color: Color) -> void:
+	if not is_inside_tree():
+		return
+	var dn = (damage_number_scene if damage_number_scene else POPUP_SCENE).instantiate()
+	get_tree().current_scene.add_child(dn)
+	var spawn_pos := global_position + Vector2(0, -24)
+	if dn.has_method("setup"):
+		dn.call("setup", 0, spawn_pos, color, text)
