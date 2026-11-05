@@ -21,8 +21,8 @@ enum Mode {IDLE, CHASE, CAUTIOUS, RETREAT, ENGAGE, CHARGE, BLOCK, RECOVER}
 enum Personality {COURAGEOUS, COWARDLY}
 
 const PERSONALITY_VALUES := {
-	Personality.COURAGEOUS: {"chase": 0.9, "dash_forward": 1.0, "dash_backward": 0.5, "block": 0.3, "heavy": 0.3, "dodge": 0.5},
-	Personality.COWARDLY: {"chase": 0.6, "dash_forward": 0.5, "dash_backward": 1.0, "block": 0.6, "heavy": 0.15, "dodge": 0.8},
+	Personality.COURAGEOUS: {"chase": 0.9, "dash_forward": 1.0, "dash_backward": 0.5, "block": 0.3, "heavy": 0.3, "dodge": 0.5, "combo_break": 0.6, "punish": 0.8},
+	Personality.COWARDLY: {"chase": 0.6, "dash_forward": 0.5, "dash_backward": 1.0, "block": 0.6, "heavy": 0.15, "dodge": 0.8, "combo_break": 0.85, "punish": 0.5},
 }
 
 @export var entity: CharacterBody2D
@@ -68,6 +68,26 @@ const PERSONALITY_VALUES := {
 ## How close to the arrow's path counts as "in line" (pixels).
 @export var projectile_hit_radius: float = 14.0
 
+@export_group("Smarts")
+## Dash out of a combo that has us locked in hitstun.
+@export var smart_combo_break: bool = true
+## Seconds into a stun before the AI reacts and tries to break out.
+@export var combo_break_reaction: float = 0.22
+## Dash in to punish a target that is stunned or recovering from a swing.
+@export var smart_punish: bool = true
+## Soft changes (chase / retreat) wait at least this long, so the AI stops flip-flopping.
+@export var mode_min_hold: float = 0.7
+## Pick targets by opening, health and teammates instead of just the nearest.
+@export var smart_targeting: bool = true
+## Seconds a target is kept before a better one can take over.
+@export var target_hold_time: float = 1.0
+## Flank with a teammate and peel for a low-health teammate.
+@export var teamwork: bool = true
+## Block / dodge more against a target that spams attacks; wait out dashes before a heavy.
+@export var adapt_to_target: bool = true
+## Push the target toward the arena edge, and stay away from it ourselves.
+@export var use_arena_edge: bool = true
+
 @export_group("Behaviour")
 @export var personality: Personality = Personality.COURAGEOUS
 @export var idle_wander: bool = false
@@ -105,6 +125,12 @@ var _dodge_pending: bool = false
 var _dodge_dir: Vector2 = Vector2.ZERO
 var _dodge_was_threatened: bool = false
 var _rolled_arrows: Dictionary = {} # arrow instance id -> true (each arrow is rolled once)
+var _stagger_time: float = 0.0
+var _stagger_rolled: bool = false
+var _retreat_lockout: float = 0.0
+var _target_hold_left: float = 0.0
+var _watched_combat: CombatComponent = null
+var _target_attack_times: Array[float] = []
 
 @onready var navigation_agent: NavigationAgent2D = get_node_or_null("NavigationAgent2D")
 
@@ -116,6 +142,8 @@ func _ready() -> void:
 	_spawn_position = entity.global_position
 	_wander_target = _spawn_position
 	_personality_timer = personality_interval
+	_dash_timer = 0.6 # no instant dash the moment the fight starts
+	add_to_group("ai_fighters")
 	if navigation_agent:
 		navigation_agent.path_desired_distance = 4.0
 		navigation_agent.target_desired_distance = min_distance
@@ -144,6 +172,8 @@ func _physics_process(delta: float) -> void:
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	_dash_timer = maxf(_dash_timer - delta, 0.0)
 	_dodge_timer = maxf(_dodge_timer - delta, 0.0)
+	_retreat_lockout = maxf(_retreat_lockout - delta, 0.0)
+	_target_hold_left = maxf(_target_hold_left - delta, 0.0)
 	_path_timer += delta
 	_mode_time += delta
 
@@ -156,7 +186,10 @@ func _physics_process(delta: float) -> void:
 		intent.clear()
 		if mode == Mode.ENGAGE or mode == Mode.CHARGE or mode == Mode.BLOCK:
 			_end_attack_sequence()
+		_update_combo_break(own_state, delta)
 		return
+	_stagger_time = 0.0
+	_stagger_rolled = false
 
 	_update_target()
 	if current_target == null:
@@ -174,6 +207,7 @@ func _physics_process(delta: float) -> void:
 	_check_threat(distance)
 	_update_mode(distance)
 	_act(distance, to_target)
+	_apply_arena_tactics(distance)
 	_apply_dodge()
 	_keep_in_arena()
 
@@ -194,7 +228,7 @@ func _update_mode(distance: float) -> void:
 				elif distance <= heavy_range:
 					if not _heavy_rolled:
 						_heavy_rolled = true
-						if randf() < _trait("heavy"):
+						if randf() < _heavy_chance():
 							_target_charge_ratio = randf_range(0.3, 1.0)
 							_set_mode(Mode.CHARGE)
 				else:
@@ -260,10 +294,17 @@ func _update_personality(delta: float) -> void:
 	_personality_timer -= delta
 	if _personality_timer > 0.0:
 		return
-	_personality_timer = personality_interval
+	_personality_timer = personality_interval * randf_range(0.8, 1.6)
 	if mode != Mode.CHASE and mode != Mode.CAUTIOUS and mode != Mode.RETREAT and mode != Mode.RECOVER:
 		return
-	if randf() < _trait("chase"):
+	if _mode_time < mode_min_hold:
+		return # committed to the current plan for a moment
+	var chase_chance := _trait("chase")
+	if _own_health_ratio() < 0.35:
+		chase_chance *= 0.5 # hurt: much more likely to back off
+	if _retreat_lockout > 0.0:
+		chase_chance = 1.0 # we just got cornered, don't run straight back into it
+	if randf() < chase_chance:
 		if mode != Mode.RECOVER:
 			_set_mode(Mode.CHASE)
 	else:
@@ -279,7 +320,7 @@ func _check_threat(distance: float) -> void:
 		return
 	if combat_component.get_state() != ActionStateMachine.State.IDLE:
 		return
-	if randf() < _trait("block"):
+	if randf() < _adapted("block"):
 		_attacks_this_engage = 0
 		intent.attack_held = false
 		_set_mode(Mode.BLOCK)
@@ -308,6 +349,7 @@ func _act(distance: float, to_target: Vector2) -> void:
 			var dash_len := _dash_length()
 			if intent.move_dir != Vector2.ZERO and distance > min_distance + dash_len:
 				_try_dash(_trait("dash_forward"))
+			_try_punish_dash(distance, toward)
 		Mode.CAUTIOUS, Mode.RECOVER:
 			if distance < flee_range - cautious_tolerance:
 				intent.move_dir = -toward * 0.8
@@ -316,10 +358,12 @@ func _act(distance: float, to_target: Vector2) -> void:
 			else:
 				intent.move_dir = Vector2.ZERO
 			_apply_min_distance(distance, toward)
+			_try_punish_dash(distance, toward)
 		Mode.RETREAT:
 			var escape := _pick_escape_direction(-toward)
 			if escape == Vector2.ZERO or _is_retreat_stuck():
 				_log("cornered -> CHASE")
+				_retreat_lockout = 1.5
 				_set_mode(Mode.CHASE)
 				intent.move_dir = Vector2.ZERO
 			else:
@@ -349,6 +393,10 @@ func _apply_min_distance(distance: float, toward: Vector2) -> void:
 
 
 func _chase_direction(toward: Vector2) -> Vector2:
+	return _flanked(_path_direction(toward), toward)
+
+
+func _path_direction(toward: Vector2) -> Vector2:
 	if not use_pathfinding or navigation_agent == null or not _has_navigation():
 		return toward
 	if _path_timer >= path_update_interval:
@@ -420,28 +468,76 @@ func _is_retreat_stuck() -> bool:
 # Targeting
 # ======================================================================
 
+const TARGET_SWITCH_MARGIN := 25.0
+
+
 func _update_target() -> void:
 	if current_target and (not _is_valid_target(current_target) or _distance_to(current_target) > chase_range):
 		current_target = null
-	var nearest := _find_nearest_target()
-	if nearest and (current_target == null or _distance_to(nearest) < _distance_to(current_target)):
-		current_target = nearest
+	var best := _find_best_target()
+	if best and best != current_target:
+		if current_target == null:
+			_switch_target(best)
+		elif not smart_targeting:
+			if _distance_to(best) < _distance_to(current_target):
+				_switch_target(best)
+		elif _target_hold_left <= 0.0 and _target_score(best) + TARGET_SWITCH_MARGIN < _target_score(current_target):
+			_switch_target(best)
 	_target_combat = CombatComponent.find_on(current_target) if current_target else null
+	_watch_target(_target_combat)
 
 
-func _find_nearest_target() -> Node2D:
+func _switch_target(target: Node2D) -> void:
+	current_target = target
+	_target_hold_left = target_hold_time
+
+
+func _find_best_target() -> Node2D:
 	var best: Node2D = null
-	var best_distance := INF
+	var best_score := INF
 	for group_name in target_groups:
 		for node in get_tree().get_nodes_in_group(group_name):
 			var target := node as Node2D
 			if target == null or not _is_valid_target(target):
 				continue
-			var d := _distance_to(target)
-			if d <= detection_range and d < best_distance:
-				best_distance = d
+			if _distance_to(target) > detection_range:
+				continue
+			var score := _target_score(target) if smart_targeting else _distance_to(target)
+			if score < best_score:
+				best_score = score
 				best = target
 	return best
+
+
+## Lower is better: distance, minus bonuses for an opening / a hurt target / a
+## target threatening a hurt friend, plus a penalty when a teammate is already on it.
+func _target_score(target: Node2D) -> float:
+	var score := _distance_to(target)
+	if not smart_targeting:
+		return score
+	var combat := CombatComponent.find_on(target)
+	if combat:
+		match combat.get_state():
+			ActionStateMachine.State.STAGGER, ActionStateMachine.State.KNOCKBACK:
+				score -= 30.0
+			ActionStateMachine.State.ATTACK:
+				if combat.get_phase() == ActionStateMachine.Phase.RECOVERY:
+					score -= 30.0
+			ActionStateMachine.State.CHARGING:
+				score -= 10.0
+	var hurtbox := _find_hurtbox(target)
+	if hurtbox and hurtbox.health:
+		score -= 50.0 * (1.0 - clampf(hurtbox.health.get_hp_percentage() / 100.0, 0.0, 1.0))
+	if teamwork:
+		for mate in _teammates():
+			if mate.current_target == target:
+				score += 20.0
+		for friend in _friends():
+			var friend_hurtbox := _find_hurtbox(friend)
+			if friend_hurtbox and friend_hurtbox.health and friend_hurtbox.health.get_hp_percentage() < 35.0 \
+					and friend.global_position.distance_to(target.global_position) < 70.0:
+				score -= 45.0 # peel: go after whoever is on top of a hurt friend
+	return score
 
 
 func _is_valid_target(target: Node2D) -> bool:
@@ -551,7 +647,7 @@ func _update_dodge(distance: float, to_target: Vector2) -> void:
 		return
 
 	# 2) The target winding up an attack at us (rising edge only).
-	if rising and randf() < _trait("dodge"):
+	if rising and randf() < _adapted("dodge"):
 		var away := -to_target.normalized() if distance > 0.0 else Vector2.RIGHT
 		var dir := _free_dash_direction([away.rotated(randf_range(-0.7, 0.7)), away.rotated(1.2), away.rotated(-1.2), away])
 		if dir != Vector2.ZERO:
@@ -589,7 +685,7 @@ func _incoming_arrow_dodge_dir() -> Vector2:
 		if absf(side) > projectile_hit_radius:
 			continue
 		_rolled_arrows[id] = true # decide once per arrow
-		if randf() >= _trait("dodge"):
+		if randf() >= _adapted("dodge"):
 			continue
 		var perp := path.orthogonal() * (1.0 if side >= 0.0 else -1.0)
 		return _free_dash_direction([perp, -perp, perp.rotated(0.6), (-perp).rotated(-0.6)])
@@ -669,3 +765,201 @@ func _keep_in_arena() -> void:
 			intent.move_dir = alt * intent.move_dir.length()
 			return
 	intent.move_dir = Vector2.ZERO
+
+
+# ======================================================================
+# Smarts
+# ======================================================================
+
+# ---- 1. Break out of a combo with a dash --------------------------------
+
+func _update_combo_break(state: ActionStateMachine.State, delta: float) -> void:
+	if not smart_combo_break or state != ActionStateMachine.State.STAGGER or not combat_component.sm.can_dash_out():
+		_stagger_time = 0.0
+		return
+	_stagger_time += delta
+	if _stagger_rolled or _stagger_time < combo_break_reaction:
+		return
+	_stagger_rolled = true # one decision per stun
+	if not combat_component.sm.dash_ready() or randf() >= _trait("combo_break"):
+		return
+	var away := Vector2.RIGHT.rotated(randf() * TAU)
+	if is_instance_valid(current_target):
+		away = (entity.global_position - current_target.global_position).normalized()
+	var dir := _free_dash_direction([away, away.rotated(1.0), away.rotated(-1.0), away.rotated(1.9), away.rotated(-1.9)])
+	if dir == Vector2.ZERO:
+		return
+	_log("combo break -> ", dir)
+	intent.move_dir = dir
+	intent.dash_held = true
+	_dash_tap_down = true
+
+
+# ---- 2. Dash in on an opening (can spend the last charge) ----------------
+
+func _try_punish_dash(distance: float, toward: Vector2) -> void:
+	if not smart_punish or _dash_timer > 0.0 or _target_combat == null:
+		return
+	if not combat_component.sm.dash_ready() or not _target_is_open():
+		return
+	var reach := _engage_range()
+	if distance <= reach + 4.0 or distance > reach + _dash_length() * 0.9:
+		return
+	if not _inside_after(toward, minf(distance, _dash_length())):
+		return
+	_dash_timer = 0.8
+	if randf() < _trait("punish"):
+		_log("punish dash")
+		intent.move_dir = toward
+		intent.dash_held = true
+		_dash_tap_down = true
+
+
+## Target is stunned, knocked back or recovering from a swing.
+func _target_is_open() -> bool:
+	if _target_combat == null:
+		return false
+	match _target_combat.get_state():
+		ActionStateMachine.State.STAGGER, ActionStateMachine.State.KNOCKBACK:
+			return true
+		ActionStateMachine.State.ATTACK:
+			return _target_combat.get_phase() == ActionStateMachine.Phase.RECOVERY
+	return false
+
+
+# ---- 5. Teamwork ----------------------------------------------------------
+
+## Other active AI fighters on our team.
+func _teammates() -> Array[AIComponent]:
+	var out: Array[AIComponent] = []
+	if hitbox_component == null:
+		return out
+	for node in get_tree().get_nodes_in_group("ai_fighters"):
+		var mate := node as AIComponent
+		if mate == null or mate == self or not mate.can_process() or mate.hitbox_component == null:
+			continue
+		if mate.hitbox_component.team != hitbox_component.team or mate.combat_component == null:
+			continue
+		if mate.combat_component.get_state() == ActionStateMachine.State.DEAD:
+			continue
+		out.append(mate)
+	return out
+
+
+## Living fighters on our team (AI or human), not counting us.
+func _friends() -> Array[Node2D]:
+	var out: Array[Node2D] = []
+	if hitbox_component == null:
+		return out
+	var seen: Dictionary = {}
+	for group_name in ["players", "allies", "enemies"]:
+		for node in get_tree().get_nodes_in_group(group_name):
+			var fighter := node as Node2D
+			if fighter == null or fighter == entity or seen.has(fighter):
+				continue
+			seen[fighter] = true
+			var hurtbox := _find_hurtbox(fighter)
+			if hurtbox and hurtbox.team == hitbox_component.team and (hurtbox.health == null or not hurtbox.health.is_dead()):
+				out.append(fighter)
+	return out
+
+
+## Two fighters on the same target come in from opposite sides.
+func _flanked(dir: Vector2, _toward: Vector2) -> Vector2:
+	if not teamwork or current_target == null:
+		return dir
+	for mate in _teammates():
+		if mate.current_target == current_target:
+			var side := 1.0 if get_instance_id() < mate.get_instance_id() else -1.0
+			var strength := clampf((_distance_to(current_target) - _engage_range()) / 60.0, 0.0, 1.0)
+			return dir.rotated(side * 0.6 * strength)
+	return dir
+
+
+# ---- 6. Adapt to the target ------------------------------------------------
+
+func _watch_target(combat: CombatComponent) -> void:
+	if combat == _watched_combat:
+		return
+	if is_instance_valid(_watched_combat) and _watched_combat.attack_started.is_connected(_on_watched_attack):
+		_watched_combat.attack_started.disconnect(_on_watched_attack)
+	_watched_combat = combat
+	_target_attack_times.clear()
+	if combat:
+		combat.attack_started.connect(_on_watched_attack)
+
+
+func _on_watched_attack(_move: AttackMove, _is_heavy: bool) -> void:
+	_target_attack_times.append(Time.get_ticks_msec() / 1000.0)
+
+
+## 0 = calm target, 1 = spamming attacks (3+ in the last 3 seconds ramps it up).
+func _spam_pressure() -> float:
+	var now := Time.get_ticks_msec() / 1000.0
+	while not _target_attack_times.is_empty() and now - _target_attack_times[0] > 3.0:
+		_target_attack_times.remove_at(0)
+	return clampf((_target_attack_times.size() - 2) / 3.0, 0.0, 1.0)
+
+
+## Personality chance, raised against an attack-spamming target (block / dodge).
+func _adapted(key: String) -> float:
+	var value := _trait(key)
+	if adapt_to_target and (key == "block" or key == "dodge"):
+		value = minf(value * (1.0 + _spam_pressure() * 0.8), 0.95)
+	return value
+
+
+## Heavies are risky while the target can still dash away: bait the dash first.
+func _heavy_chance() -> float:
+	var value := _trait("heavy")
+	if adapt_to_target and _target_combat:
+		if _target_is_open():
+			value *= 1.5
+		elif _target_combat.get_dash_charges() > 0:
+			value *= 0.35
+		else:
+			value *= 1.6 # out of dashes: a heavy can't be sidestepped
+	return clampf(value, 0.0, 0.9)
+
+
+func _own_health_ratio() -> float:
+	if hitbox_component and hitbox_component.health:
+		return clampf(hitbox_component.health.get_hp_percentage() / 100.0, 0.0, 1.0)
+	return 1.0
+
+
+# ---- 7. Use the arena edge ---------------------------------------------------
+
+## Sum of directions that leave the arena within `probe` pixels (ZERO = clear of the edge).
+func _edge_vector(arena: ArenaBounds, point: Vector2, probe: float) -> Vector2:
+	var out := Vector2.ZERO
+	for i in 8:
+		var dir := Vector2.RIGHT.rotated(i * TAU / 8.0)
+		if not arena.is_inside(point + dir * probe):
+			out += dir
+	return out
+
+
+func _apply_arena_tactics(distance: float) -> void:
+	if not use_arena_edge or intent.dash_held:
+		return
+	var arena := _get_arena()
+	if arena == null or current_target == null:
+		return
+	var pos := entity.global_position
+	var my_edge := _edge_vector(arena, pos, 22.0)
+	if my_edge != Vector2.ZERO:
+		# Don't hang around the edge: drift back toward the middle unless we are mid-fight.
+		if mode == Mode.CAUTIOUS or mode == Mode.RECOVER or mode == Mode.RETREAT:
+			intent.move_dir = (intent.move_dir - my_edge.normalized() * 0.7).limit_length(1.0)
+		return
+	if mode != Mode.CHASE or intent.move_dir == Vector2.ZERO:
+		return
+	var target_edge := _edge_vector(arena, current_target.global_position, 26.0)
+	if target_edge == Vector2.ZERO or distance <= _engage_range() * 1.2:
+		return
+	# Approach from the inside so every hit pushes them toward the edge.
+	var spot := current_target.global_position - target_edge.normalized() * _engage_range() * 0.9
+	var to_spot := spot - pos
+	if to_spot.length() > 1.0:
+		intent.move_dir = intent.move_dir.lerp(to_spot.normalized(), 0.5).limit_length(1.0)

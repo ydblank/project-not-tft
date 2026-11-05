@@ -365,13 +365,13 @@ func _cancel_charge() -> void:
 # Reactions (called by CombatComponent when a hit lands)
 # ======================================================================
 
-## can_dash_out: the victim may dash out of this stun (combo breaker). Guard breaks cannot.
-func apply_stagger(duration: float, can_dash_out: bool = true) -> void:
+## dashable: the victim may dash out of this stun (combo breaker). Guard breaks cannot.
+func apply_stagger(duration: float, dashable: bool = true) -> void:
 	if state == State.DEAD or state == State.KNOCKBACK:
 		return
 	_interrupt()
 	_state_time_left = maxf(duration, 0.0)
-	_stagger_dashable = can_dash_out
+	_stagger_dashable = dashable
 	_set_state(State.STAGGER)
 
 
@@ -613,3 +613,8 @@ func in_combo() -> bool:
 func hold_stagger(seconds: float) -> void:
 	if state == State.STAGGER:
 		_state_time_left = maxf(_state_time_left, seconds)
+
+
+## True while staggered in a way a dash can escape (combo hitstun, not a guard break).
+func can_dash_out() -> bool:
+	return state == State.STAGGER and _stagger_dashable
