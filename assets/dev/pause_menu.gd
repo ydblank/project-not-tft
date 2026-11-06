@@ -6,7 +6,7 @@ class_name PauseMenu
 # apply live, and are saved to disk (Save button, and automatically on Resume).
 
 ## Bump this whenever a change is made, so the number in the pause menu shows which build is running.
-const CHANGE_NUMBER := 46
+const CHANGE_NUMBER := 63
 
 @export var tuning: DevTuning
 
@@ -16,6 +16,12 @@ var _settings_panel: PanelContainer
 ## Holds the test / mode buttons (AI Bots, Teams, ...) at their usual spots, shown only while paused.
 var _option_layer: CanvasLayer
 var _resume_button: Button
+var _difficulty_button: Button
+## "Exit the game?" panel with Confirm / Cancel.
+var _confirm_panel: PanelContainer
+var _cancel_button: Button
+## Controller button hints ("A Confirm  B Back"), one per panel; shown only while a controller is in use.
+var _hints: Dictionary = {} # panel -> Label
 var _status: Label
 var _rows: Dictionary = {} # key -> {"control": Control, "value": Label}
 var _dirty: bool = false
@@ -28,6 +34,7 @@ func _ready() -> void:
 	if tuning == null and get_parent():
 		tuning = get_parent().get_node_or_null("DevTuning") as DevTuning
 	_build()
+	_update_difficulty_text()
 	visible = false
 	_collect_options.call_deferred() # after every level tool has built its button
 
@@ -38,8 +45,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	if not visible:
 		open()
-	elif _settings_panel.visible:
-		_show_main()
+	elif _settings_panel.visible or _confirm_panel.visible:
+		_show_main() # Esc / B = cancel or back
 	else:
 		resume()
 
@@ -49,6 +56,7 @@ func open() -> void:
 	get_tree().paused = true
 	visible = true
 	_option_layer.visible = true
+	_set_option_focus(true)
 	_show_main()
 
 
@@ -57,7 +65,27 @@ func resume() -> void:
 	_save_if_dirty()
 	visible = false
 	_option_layer.visible = false
+	_set_option_focus(false)
 	get_tree().paused = false
+
+
+## The paused top buttons can be reached with the D-pad while the menu is open; in play they must not take
+## focus, or a key like Space would press the last one.
+func _set_option_focus(enabled: bool) -> void:
+	for node in get_tree().get_nodes_in_group("game_option"):
+		var control := node as Control
+		if control:
+			control.focus_mode = Control.FOCUS_ALL if enabled else Control.FOCUS_NONE
+	if not enabled:
+		get_viewport().gui_release_focus()
+
+
+func _ask_exit() -> void:
+	_main_panel.visible = false
+	_settings_panel.visible = false
+	_confirm_panel.visible = true
+	_cancel_button.grab_focus() # the safe answer is pre-selected, so a stray A press does not quit
+	_update_hints()
 
 
 func _exit_game() -> void:
@@ -69,13 +97,48 @@ func _exit_game() -> void:
 func _show_main() -> void:
 	_main_panel.visible = true
 	_settings_panel.visible = false
+	_confirm_panel.visible = false
+	_update_difficulty_text()
 	_resume_button.grab_focus()
+	_update_hints()
 
 
 func _show_settings() -> void:
 	_main_panel.visible = false
 	_settings_panel.visible = true
+	_confirm_panel.visible = false
 	_status.text = ""
+	_update_hints()
+
+
+## Easy -> Normal -> Hard -> Easy. Saved with the other settings; the Settings slider follows.
+func _cycle_difficulty() -> void:
+	var next := (int(DevSettings.get_value("difficulty")) + 1) % Difficulty.NAMES.size()
+	_changed("difficulty", next)
+	if _rows.has("difficulty"):
+		(_rows["difficulty"].control as HSlider).set_value_no_signal(float(next))
+		_rows["difficulty"].value.text = str(next)
+	_save_now()
+	_update_difficulty_text()
+	Sfx.play(&"ui_open", -6.0, 1.0, 0.0, 0.0)
+
+
+func _update_difficulty_text() -> void:
+	if _difficulty_button:
+		_difficulty_button.text = "Difficulty: " + Difficulty.name_of(int(DevSettings.get_value("difficulty")))
+
+
+## "A Confirm   B Back" under the menu, only while a controller is switched on.
+func _update_hints() -> void:
+	for panel in _hints:
+		var label: Label = _hints[panel]
+		label.visible = GamepadControls.active
+		if panel == _confirm_panel:
+			label.text = "A  Confirm      B  Cancel"
+		elif panel == _settings_panel:
+			label.text = "A  Confirm      B  Back"
+		else:
+			label.text = "A  Confirm      B  Resume"
 
 
 ## Moves the game's test / mode buttons (AI Bots, Teams, Parry Training, Host / Join, ...) onto a layer above the pause
@@ -111,6 +174,7 @@ func _build() -> void:
 	_main_panel.set_anchors_preset(Control.PRESET_CENTER)
 	_main_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_main_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_place_below_buttons(_main_panel)
 	add_child(_main_panel)
 	var main_box := _padded_vbox(_main_panel, 14)
 	var title := Label.new()
@@ -119,14 +183,34 @@ func _build() -> void:
 	title.add_theme_font_size_override("font_size", 26)
 	main_box.add_child(title)
 	_resume_button = _button("Resume", resume, main_box)
+	_difficulty_button = _button("Difficulty", _cycle_difficulty, main_box)
 	_button("Settings", _show_settings, main_box)
-	_button("Exit", _exit_game, main_box)
+	_button("Exit", _ask_exit, main_box)
+	_add_hint(_main_panel, main_box)
 	var change_label := Label.new()
 	change_label.text = "change #%d" % CHANGE_NUMBER
 	change_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	change_label.add_theme_font_size_override("font_size", 16)
 	change_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	main_box.add_child(change_label)
+
+	# ---- exit confirmation ----
+	_confirm_panel = PanelContainer.new()
+	_confirm_panel.add_theme_stylebox_override("panel", _panel_style())
+	_confirm_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_confirm_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_confirm_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_place_below_buttons(_confirm_panel)
+	add_child(_confirm_panel)
+	var confirm_box := _padded_vbox(_confirm_panel, 14)
+	var confirm_title := Label.new()
+	confirm_title.text = "Exit the game?"
+	confirm_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	confirm_title.add_theme_font_size_override("font_size", 24)
+	confirm_box.add_child(confirm_title)
+	_button("Confirm", _exit_game, confirm_box)
+	_cancel_button = _button("Cancel", _show_main, confirm_box)
+	_add_hint(_confirm_panel, confirm_box)
 
 	# ---- settings ----
 	_settings_panel = PanelContainer.new()
@@ -164,6 +248,7 @@ func _build() -> void:
 	_button("Save", _save_now, buttons)
 	_button("Reset to defaults", _reset_defaults, buttons)
 	_button("Back", _show_main, buttons)
+	_add_hint(_settings_panel, box)
 
 
 func _build_rows(list: VBoxContainer) -> void:
@@ -218,6 +303,23 @@ func _build_row(def: Dictionary) -> HBoxContainer:
 	row.add_child(value_label)
 	_rows[def.key] = {"control": control, "value": value_label}
 	return row
+
+
+## Sits a panel a little below the screen's centre, so it clears the paused buttons stacked at the top.
+func _place_below_buttons(panel: PanelContainer) -> void:
+	panel.anchor_top = 0.62
+	panel.anchor_bottom = 0.62
+
+
+## Adds the (initially hidden) controller hint line at the bottom of a panel.
+func _add_hint(panel: PanelContainer, box: VBoxContainer) -> void:
+	var label := Label.new()
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 14)
+	label.add_theme_color_override("font_color", Color(0.65, 0.78, 0.95))
+	label.visible = false
+	box.add_child(label)
+	_hints[panel] = label
 
 
 func _padded_vbox(panel: PanelContainer, separation: int) -> VBoxContainer:

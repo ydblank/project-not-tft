@@ -9,6 +9,8 @@ const HITSTOP_TIME_SCALE := 0.0 # full freeze frame
 ## Dev-tunable (pause menu): scales every hitstop duration and all damage dealt.
 var hitstop_multiplier: float = 1.0
 var damage_multiplier: float = 1.0
+## Extra multiplier on damage dealt by enemy bots only (the difficulty setting; 1 = Normal).
+var enemy_damage_multiplier: float = 1.0
 ## Floating damage numbers above fighters, and the red wind-up warnings on bots (pause menu toggles).
 var show_damage_numbers: bool = true
 var enemy_tells: bool = true

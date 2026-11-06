@@ -26,6 +26,8 @@
 [ext_resource type="Script" path="res://assets/levels/shrinking_zone.gd" id="25_zone"]
 [ext_resource type="Script" path="res://assets/levels/music_player.gd" id="26_music"]
 [ext_resource type="Script" path="res://assets/levels/death_slowmo.gd" id="28_death"]
+[ext_resource type="Script" path="res://assets/levels/gamepad_controls.gd" id="29_pad"]
+[ext_resource type="Script" path="res://assets/levels/display_toggle.gd" id="30_display"]
 [ext_resource type="AudioStream" path="res://assets/audio/music/battle_theme_loop.wav" id="27_battle"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
@@ -296,6 +298,12 @@ script = ExtResource("25_zone")
 
 [node name="DeathSlowMo" type="Node" parent="."]
 script = ExtResource("28_death")
+
+[node name="GamepadControls" type="Node" parent="."]
+script = ExtResource("29_pad")
+
+[node name="DisplayToggle" type="Node" parent="."]
+script = ExtResource("30_display")
 
 [node name="Music" type="AudioStreamPlayer" parent="."]
 stream = ExtResource("27_battle")

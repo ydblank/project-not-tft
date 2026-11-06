@@ -314,12 +314,19 @@ func _check_wall_hit() -> void:
 	HitFX.wall_impact(entity, point, normal, sfx_db() + WALL_HIT_DB)
 
 
+## The difficulty setting only changes damage dealt by enemy bots (not a human-controlled enemy, not your team).
+func _difficulty_damage_scale() -> float:
+	if entity != null and controller is AIComponent and entity.is_in_group("enemies"):
+		return Combat.enemy_damage_multiplier
+	return 1.0
+
+
 ## Builds the HitData for one move. Also used by projectiles.
 func build_hit(move: AttackMove, toward_target: Vector2, charge_mult: float) -> HitData:
 	var hit := HitData.new()
 	hit.attacker = entity
 	hit.team = hitbox_component.team if hitbox_component else -1
-	hit.damage = maxf(CombatGlobal.calculate_attack_damage(stats_component) * move.damage_mult * charge_mult * Combat.damage_multiplier, 1.0)
+	hit.damage = maxf(CombatGlobal.calculate_attack_damage(stats_component) * move.damage_mult * charge_mult * Combat.damage_multiplier * _difficulty_damage_scale(), 1.0)
 	hit.direction = toward_target.normalized() if toward_target != Vector2.ZERO else sm.attack_dir
 	hit.reaction = move.reaction
 	hit.stagger_time = move.stagger_time

@@ -13,10 +13,17 @@ const SECTION := "dev"
 
 # type: "float" | "int" | "bool". group: header in the menu.
 const DEFS := [
+	# ---- Difficulty (also the pause menu's Difficulty button) ----
+	{"key": "difficulty", "group": "Difficulty", "label": "0 Easy, 1 Normal, 2 Hard", "type": "int", "min": 0, "max": 2, "step": 1, "default": 1},
+	# ---- Match ----
+	{"key": "skip_countdown", "group": "Match", "label": "Skip the 3-2-1 countdown (next launch)", "type": "bool", "default": false},
+	# ---- Match ----
+	{"key": "skip_countdown", "group": "Match", "label": "Skip the 3-2-1 countdown (next launch)", "type": "bool", "default": false},
 	# ---- Dash ----
 	{"key": "dash_charges", "group": "Dash", "label": "Charges", "type": "int", "min": 1, "max": 5, "step": 1, "default": 3},
 	{"key": "dash_recharge_time", "group": "Dash", "label": "Recharge per charge (s)", "type": "float", "min": 0.2, "max": 5.0, "step": 0.1, "default": 1.5},
 	{"key": "dash_reload_time", "group": "Dash", "label": "Slow reload when empty (s)", "type": "float", "min": 0.2, "max": 6.0, "step": 0.1, "default": 2.5},
+	{"key": "dash_first_charge_speed", "group": "Dash", "label": "First charge back after all used: speed x", "type": "float", "min": 1.0, "max": 4.0, "step": 0.25, "default": 2.0},
 	{"key": "dash_gap", "group": "Dash", "label": "Gap between dashes (s)", "type": "float", "min": 0.0, "max": 0.6, "step": 0.01, "default": 0.0},
 	{"key": "dash_speed", "group": "Dash", "label": "Dash speed", "type": "float", "min": 100.0, "max": 800.0, "step": 10.0, "default": 300.0},
 	{"key": "dash_duration", "group": "Dash", "label": "Dash duration (s)", "type": "float", "min": 0.05, "max": 0.6, "step": 0.01, "default": 0.2},

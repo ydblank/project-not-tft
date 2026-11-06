@@ -193,7 +193,7 @@ func _build_ui() -> void:
 	_label = Label.new()
 	_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_label.offset_top = 142.0
+	_label.offset_top = 210.0 # below the paused buttons (the last one sits at 172)
 	_label.add_theme_font_size_override("font_size", 14)
 	_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	_label.add_theme_constant_override("outline_size", 4)

@@ -62,7 +62,7 @@ The sheet's "damage" column is the **power** stat. The formulas are in [Calculat
 
 ## Dash
 
-- **Triple dash with recharge:** 3 charges that each recharge on their own (1.5s each). Using all of them in a row triggers a slower reload (2.5s).
+- **Triple dash with recharge:** 3 charges that each recharge on their own (1.5s each). Using all of them in a row triggers a slower reload (2.5s) for the **first** charge to come back, which is then **2x faster** (about 1.25s; the "First charge back after all used: speed x" dev setting, default 2); the others keep their 1.5s pace.
 - **Faster and looser:** near-instant, and usable out of almost any action (attacks, charging, blocking, even stagger).
 - **Invulnerable while dashing** (i-frames).
 - **Charge through a dash:** hold a heavy charge, dash, keep holding, then release after (or release mid-dash and it fires when the dash ends).

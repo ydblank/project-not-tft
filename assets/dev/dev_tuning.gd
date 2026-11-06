@@ -40,6 +40,7 @@ func apply_all() -> void:
 func _apply_globals() -> void:
 	Combat.hitstop_multiplier = DevSettings.get_value("hitstop_mult")
 	Combat.damage_multiplier = DevSettings.get_value("damage_mult")
+	Combat.enemy_damage_multiplier = Difficulty.preset(int(DevSettings.get_value("difficulty"))).damage
 	Combat.shake_multiplier = DevSettings.get_value("shake_mult")
 	Sfx.set_sfx_volume(DevSettings.get_value("sfx_volume"))
 	Sfx.set_music_volume(DevSettings.get_value("music_volume"))
@@ -80,6 +81,7 @@ func _apply_entity(entity: Node) -> void:
 		stats.dash_speed = v.call("dash_speed")
 		stats.dash_duration = v.call("dash_duration")
 		var sm := combat.sm
+		sm.dash_first_charge_speedup = v.call("dash_first_charge_speed")
 		# Only touch the dash state when something changed (configure refills charges).
 		if sm.dash_max_charges != stats.dash_charges \
 				or not is_equal_approx(sm.dash_recharge_time, stats.dash_recharge_time) \
@@ -112,9 +114,22 @@ func _apply_entity(entity: Node) -> void:
 	# ---- AI (only enemies / allies have one) ----
 	var ai := _find_ai(entity)
 	if ai:
-		ai.attack_cooldown = v.call("ai_attack_cooldown")
+		# Difficulty only changes the enemy bots, not your teammate.
+		var diff := Difficulty.preset(int(v.call("difficulty")) if entity.is_in_group("enemies") else Difficulty.NORMAL)
+		ai.attack_cooldown = float(v.call("ai_attack_cooldown")) * diff.attack_cooldown
 		ai.dodge_enabled = v.call("ai_dodge_enabled")
-		ai.dodge_cooldown = v.call("ai_dodge_cooldown")
+		ai.dodge_cooldown = float(v.call("ai_dodge_cooldown")) * diff.dodge_cooldown
+		_scale_from_base(ai, "dodge_reaction_time", diff.dodge_reaction)
+		_scale_from_base(ai, "combo_break_reaction", diff.combo_break)
+		_scale_from_base(ai, "dash_decision_interval", diff.dash_interval)
+
+
+## Sets an AI timer to `multiplier` x its original value (remembered the first time, so applying again never compounds).
+func _scale_from_base(ai: AIComponent, property: String, multiplier: float) -> void:
+	var key := "base_" + property
+	if not ai.has_meta(key):
+		ai.set_meta(key, ai.get(property))
+	ai.set(property, float(ai.get_meta(key)) * multiplier)
 
 
 func _find_ai(entity: Node) -> AIComponent:

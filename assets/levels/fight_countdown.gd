@@ -17,6 +17,11 @@ var _tween: Tween
 
 
 func _ready() -> void:
+	# Dev setting ("Skip the 3-2-1 countdown" in the pause menu's Settings): no countdown, nobody frozen. Handy for testing.
+	if DevSettings.get_value("skip_countdown"):
+		active = false
+		queue_free()
+		return
 	layer = 15
 	active = true
 	_label = Label.new()

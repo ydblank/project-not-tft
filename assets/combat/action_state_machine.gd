@@ -38,6 +38,8 @@ var dash_max_charges: int = 1
 var dash_recharge_time: float = 0.0
 ## Slower return of the first charge after all were used in a row.
 var dash_reload_time: float = 0.0
+## That first charge comes back this many times faster (1 = as written above; the game's dev setting makes it 2).
+var dash_first_charge_speedup: float = 1.0
 
 # ---- public state (read-only for other code) ----
 var state: State = State.IDLE
@@ -357,7 +359,7 @@ func _spend_dash_charge() -> void:
 		return
 	_dash_charges = maxi(_dash_charges - 1, 0)
 	if _dash_charges <= 0:
-		_recharge_total = maxf(dash_reload_time, dash_recharge_time)
+		_recharge_total = maxf(dash_reload_time, dash_recharge_time) / maxf(dash_first_charge_speedup, 0.01)
 		_recharge_left = _recharge_total
 	elif _recharge_left <= 0.0:
 		_recharge_total = dash_recharge_time

@@ -31,6 +31,21 @@ All can be switched off per fighter in the AIComponent **"Smarts"** export group
 
 Pause-menu tunables: attack cooldown, dodging on/off, dodge cooldown, respawn delay.
 
+## Difficulty
+
+The pause menu's **Difficulty** button (Easy / Normal / Hard, saved) scales the **enemy bots**. Your teammate, your own fighter and a human-controlled enemy are not touched. It changes how hard they hit and how quickly they react; it does not change their HP. The numbers live in `assets/commons/difficulty.gd` and are applied by `DevTuning` (and to respawned bots as they appear), on top of the dev sliders:
+
+| | Easy | Normal | Hard |
+|---|---|---|---|
+| Damage dealt | x0.6 | x1 | x1.3 |
+| Wait between attacks | x1.6 (1.12s) | x1 (0.7s) | x0.6 (0.42s) |
+| Dodge cooldown | x2 | x1 | x0.6 |
+| Delay before dodging an arrow | x1.6 | x1 | x0.6 |
+| Delay before dashing out of a combo | x1.6 | x1 | x0.6 |
+| How often it thinks about dashing | x1.5 | x1 | x0.7 |
+
+The first values were chosen by feel, not play-tested; tune them in the table.
+
 ## Known limitations
 
 - The AI only stands at the arena edge if you are outside; it does not follow you out.
