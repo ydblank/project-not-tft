@@ -86,3 +86,11 @@ res://
 - `sfx/` at the repo root holds raw licensed sound packs; it is git-ignored. Only the files in `assets/audio/sfx/` belong in the game.
 - Never edit `addons/`: `godot_ai` and `netfox.*` are third-party.
 - The `tests/` suites extend `McpTestSuite` from the `godot_ai` addon, so they only run where that plugin is enabled.
+
+## Shipping changes
+
+- Put the Linear ticket ID (for example `GAM-80`) in the commit message and in the changelog line. Say "part 1" when a ticket is only partly done.
+- Add a line to `docs/CHANGELOG.md` under "Unreleased" and update the matching `docs/features/*.md` in the same commit.
+- Stage files by name. Never commit `*.tmp` leftovers or unrelated working-tree edits.
+- Sync with: `git stash && git pull --rebase && git push && git stash pop`.
+- Do not rewrite or force-push commits already on `main`. Fix a missing detail with a follow-up commit.
