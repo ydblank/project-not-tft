@@ -23,7 +23,7 @@ Tunables (pause menu): outside damage %, outside speed.
 - **Ally archer** fights on your side. Enemies are a **Knight (melee)** and an **Archer (ranged)**.
 - **Team colour:** a stronger tint plus an outline (blue = your team, red = enemies). Shader: `assets/effects/team_tint.gdshader`.
 - **Switch character (R):** swaps control with your teammate. The fighter you leave goes to the AI. A gold arrow marks who you control. If your controlled fighter dies for good, control jumps to a living teammate.
-- **Loadout switcher (F2 or the button at the top):** try Archer / Knight / Rogue on the player.
+- **Loadout switcher (F2 or the button at the top):** try Archer / Knight / Thief on the player.
 
 ## Turning fighters off
 

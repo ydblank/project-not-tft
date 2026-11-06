@@ -14,7 +14,7 @@ How a human drives a fighter. Input is polled every physics frame by `PlayerCont
 | Space | Dash |
 | **R** | **Switch to your teammate** |
 | F1 | Show / hide the on-screen controller overlay |
-| F2 | Cycle test loadout: Archer, Knight, Rogue |
+| F2 | Cycle test loadout: Archer, Knight, Thief |
 | Esc | Pause menu (Resume / Settings / Exit) |
 
 You start as the **Knight with the sword**.

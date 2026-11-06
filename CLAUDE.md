@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 "Project Not TFT clone": a 2D top-down arena fighter in **Godot 4.7** (GDScript, Mobile renderer). Main scene is `assets/levels/node_2d.tscn`. Feature behaviour is documented per feature in [docs/](docs/README.md); read the matching doc before changing a feature and update it in the same commit.
 
+## Issue tracking
+
+Issues live in Linear, reached through the `linear` MCP server in `.mcp.json`. It reads `LINEAR_API_KEY` from the environment; the key is never written to a tracked file.
+
+- **Team:** file and search issues in the **Gamedev** team. The key can see every team in the workspace, so name Gamedev explicitly on each call and leave other teams alone until this section says otherwise.
+- **Link work to issues:** put the issue ID in the branch name and in the commit or PR title.
+- **Docs:** when an issue changes a feature, update its doc under `docs/features/` in the same commit.
+
 ## Commands
 
 Godot lives at `/Applications/Godot.app/Contents/MacOS/Godot` (not on `PATH`).
