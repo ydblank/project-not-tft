@@ -1,0 +1,59 @@
+# Combat
+
+Melee and ranged fighting: combos, blocking, parry, armor, clashes, stun and dash rules.
+
+**Code:** `assets/combat/`. The rules live in `action_state_machine.gd` (pure logic, unit-tested); `combat_component.gd` feeds it and applies the results. Weapons are data: `weapon_data.gd`, `attack_move.gd`, `hit_data.gd`, and the `.tres` files in `assets/combat/weapons/`. See [CLAUDE.md](../../CLAUDE.md#combat-pipeline) for how the pieces connect.
+
+## Melee
+
+- **Heavy:** one charge and release plays a **3-hit combo** (the finisher knocks back).
+- **Quick:** each hit needs its own click. After the full 3-hit quick combo there is a short cooldown.
+- **Combo lock:** hitting someone mid-combo keeps them staggered (can't attack or block) until the combo ends. **A dash is the way out.** Capped at 1.5s total.
+- **Lunge:** your lunge stops just short of the target, so the final hit no longer whiffs by overshooting.
+
+## Ranged
+
+- **Bow rebalanced:** slower full charge (2.2s), lower damage cap (x2.0), light arrows have very light knockback (x0.2).
+- **Strafing:** you can move slowly while shooting.
+- **Quick shots slowed:** about 1 per second.
+- **Arrows:** a blocked arrow snaps in two and the halves drop away. Arrows fly through fighters who are already staggered or knocked back, so a stunned target cannot be machine-gunned.
+- **Bow charge indicator:** while you draw a heavy shot, an aim line grows with the draw and a ring fills around you, turning gold and pulsing at full power.
+
+## Defence
+
+- **Shield:** a block holds 14 points before it breaks. A broken guard stuns for 2s and the shield refills in about 2s.
+- **Parry:** raise your block just before a normal hit lands (the first 0.2s of a fresh block) and the hit does nothing:
+  - you take no shield damage;
+  - the attacker is stunned for 0.7s and cannot dash out;
+  - a parried arrow flies back at its shooter, faster and 50% harder.
+  - Mashing block does not work: after letting go there is a 0.45s pause before the parry window is available again.
+  - Heavy attacks (melee, or a fully drawn arrow) cannot be parried. They hit the block as usual, drain the shield and can break it, which stuns you.
+- **Super armor on heavies:** while charging or swinging a heavy melee attack, light hits (including arrows) do not interrupt you (the damage still lands). The armor has durability like a shield (10 points by default): each light hit wears it down, and when it runs out you are stunned for 1s and the heavy is lost ("ARMOR BREAK!"). A heavy hit breaks through at once. A ring around the fighter shows the armor left.
+- **Attack clashes:** two melee swings of the same weight (light vs light, heavy vs heavy) that meet in the air cancel out. Both fighters are thrown back and nobody takes damage. A heavy against a light swing is not a clash: the heavy's armor wins.
+
+## Stun rules
+
+- **Stun immunity:** 0.5s after a stun ends, weak hits do damage but can't stun again (fixes light-arrow stunlock).
+- **Heavy melee protected:** light ranged hits can't interrupt a heavy melee charge or swing; heavy ranged hits can.
+
+## Dash
+
+- **Triple dash with recharge:** 3 charges that each recharge on their own (1.5s each). Using all of them in a row triggers a slower reload (2.5s).
+- **Faster and looser:** near-instant, and usable out of almost any action (attacks, charging, blocking, even stagger).
+- **Invulnerable while dashing** (i-frames).
+- **Charge through a dash:** hold a heavy charge, dash, keep holding, then release after (or release mid-dash and it fires when the dash ends).
+
+## Feedback on hits
+
+- **Hit-confirm:** the last hit of a combo, and every heavy, gets a bigger effect: orange ring, streak along the hit, hot spark burst, deeper impact sound, longer freeze frame, harder camera shake.
+- **Damage numbers** above every fighter: red when you are hit, white when you hit, grey between bots, gold and larger for heavy hits and finishers, orange for arena damage.
+- **Enemy wind-up warnings** (bots only): a red box shows where a swing will land and fills in as it nears impact; a charging heavy shows a closing red ring and a blinking "!"; a ranged bot drawing or aiming shows a red aim line.
+
+Pause-menu settings for all of this: see [UI and dev tools](ui-and-dev-tools.md#dev-settings).
+
+## Known limitations
+
+- The 3-hit heavy combo reuses the single attack animation for every hit.
+- Parry, armor, clashes and wind-up warnings were checked one by one in the running game with staged hits, not in long live fights. They need real play to tune.
+- The "Vector2 cannot be normalized" warnings in the game log are engine noise from the grounded movement mode used by enemies and the ally.
+- Safety nets against invalid positions (NaN) were added after a blank-screen report that could not be reproduced. If it happens again the log prints a `[NaN guard]` line.
