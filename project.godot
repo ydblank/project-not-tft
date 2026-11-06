@@ -24,6 +24,7 @@ config/icon="res://icon.svg"
 Noray="*uid://gu4bv4tgms3x"
 PacketHandshake="*uid://tt3j25a05n7c"
 Combat="*res://assets/commons/combat.gd"
+Sfx="*res://assets/commons/sfx.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [editor_plugins]
@@ -112,3 +113,4 @@ Block={
 [rendering]
 
 renderer/rendering_method="mobile"
+environment/defaults/default_clear_color=Color(0.0941176, 0.0784314, 0.145098, 1)
