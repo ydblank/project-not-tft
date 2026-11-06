@@ -12,6 +12,10 @@ class_name ControlSwitcher
 
 @export var key: Key = KEY_R
 @export var show_hint: bool = true
+## Off while local co-op is running (R does nothing, no automatic hand-over).
+@export var enabled: bool = true: set = _set_enabled
+
+signal control_changed(entity: Node2D)
 
 const AI_SCENE := preload("res://assets/scenes/ai_component.tscn")
 const MARKER_NAME := "ControlMarker"
@@ -27,12 +31,16 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not enabled:
+		return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == key:
 		get_viewport().set_input_as_handled()
 		switch()
 
 
 func _process(_delta: float) -> void:
+	if not enabled:
+		return
 	# The fighter we controlled is gone: hand control to a living teammate.
 	if _controlled() == null:
 		var next := _next_teammate(null)
@@ -65,7 +73,7 @@ func _controlled() -> Node2D:
 func _next_teammate(current: Node2D) -> Node2D:
 	for node in get_tree().get_nodes_in_group("allies"):
 		var candidate := node as Node2D
-		if candidate and candidate != current and not _is_dead(candidate):
+		if candidate and candidate != current and not _is_dead(candidate) and not BotToggle.is_asleep(candidate):
 			return candidate
 	return null
 
@@ -154,6 +162,7 @@ func _give_to_ai(entity: Node2D, template: AIComponent) -> void:
 
 
 func _after_swap() -> void:
+	control_changed.emit(_controlled())
 	_mark_controlled()
 	var tuning := get_parent().get_node_or_null("DevTuning") if get_parent() else null
 	if tuning and tuning.has_method("apply_all"):
@@ -193,3 +202,15 @@ func _build_hint() -> void:
 	_hint.add_theme_color_override("font_color", Color(1, 1, 1, 0.8))
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(_hint)
+
+
+func _set_enabled(value: bool) -> void:
+	enabled = value
+	if _hint:
+		_hint.visible = value # the "R: switch character" hint only makes sense while R works
+
+
+## Shows or hides the "R: switch character" label (local co-op prints its own key list).
+func set_hint_visible(value: bool) -> void:
+	if _hint:
+		_hint.visible = value

@@ -19,6 +19,9 @@
 [ext_resource type="Script" uid="uid://1glljwh0s36t" path="res://assets/levels/camera_follow.gd" id="18_camfollow"]
 [ext_resource type="Script" uid="uid://budmxrj5jvax2" path="res://assets/levels/dummy_toggle.gd" id="19_dummytoggle"]
 [ext_resource type="Script" uid="uid://m72d2jao4c2m" path="res://assets/levels/out_of_arena_indicator.gd" id="20_ooa"]
+[ext_resource type="Script" uid="uid://hthm6utoo0tr" path="res://assets/levels/local_coop.gd" id="21_coop"]
+[ext_resource type="Script" uid="uid://fwuqo64a2v0b" path="res://assets/levels/bot_toggle.gd" id="22_bots"]
+[ext_resource type="Script" uid="uid://bw4vtq0heun1p" path="res://assets/levels/team_size.gd" id="23_teams"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -269,6 +272,15 @@ script = ExtResource("19_dummytoggle")
 
 [node name="OutOfArenaIndicator" type="CanvasLayer" parent="." unique_id=1181359131]
 script = ExtResource("20_ooa")
+
+[node name="LocalCoop" type="Node" parent="." unique_id=1827031649]
+script = ExtResource("21_coop")
+
+[node name="BotToggle" type="Node" parent="." unique_id=811152634]
+script = ExtResource("22_bots")
+
+[node name="TeamSize" type="Node" parent="." unique_id=919887908]
+script = ExtResource("23_teams")
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]

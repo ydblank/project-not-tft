@@ -21,6 +21,8 @@ class_name OutOfArenaIndicator
 const COLOR_CLOSER := Color(0.35, 1.0, 0.45)
 const COLOR_AWAY := Color(1.0, 0.3, 0.25)
 const COLOR_STILL := Color(1.0, 0.85, 0.3)
+## A fighter this many screen pixels inside the screen edge counts as "on screen".
+const SCREEN_MARGIN := 10.0
 const MASK_SHADER := """
 shader_type canvas_item;
 void fragment() {
@@ -110,7 +112,7 @@ func _process(delta: float) -> void:
 	_place_bubble()
 	var player := _local_player()
 	var arena := _get_arena()
-	if player == null or arena == null or arena.is_inside(player.global_position):
+	if player == null or arena == null or arena.is_inside(player.global_position) or _is_on_screen(player):
 		_set_shown(false)
 		_last_distance = 0.0
 		_trend = 0.0
@@ -225,3 +227,10 @@ func _get_arena() -> ArenaBounds:
 func _place_bubble() -> void:
 	var holder := _root.get_node("Holder") as Control
 	holder.position = Vector2(margin_left + 20.0, (get_viewport().get_visible_rect().size.y - bubble_size) * 0.5)
+
+
+## True while the fighter is inside the camera's view: then you can see it, no bubble needed.
+func _is_on_screen(player: Node2D) -> bool:
+	var screen_pos := get_viewport().get_canvas_transform() * player.global_position
+	var view := get_viewport().get_visible_rect().grow(-SCREEN_MARGIN)
+	return view.has_point(screen_pos)

@@ -10,12 +10,15 @@ class_name FightCountdown
 @export var fight_text: String = "FIGHT!"
 
 var _label: Label
+## True while the countdown is running (fighters are frozen). Other tools check it so they do not un-freeze anyone early.
+static var active: bool = false
 var _frozen: Array[Node] = []
 var _tween: Tween
 
 
 func _ready() -> void:
 	layer = 15
+	active = true
 	_label = Label.new()
 	_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -31,6 +34,10 @@ func _ready() -> void:
 	call_deferred("_run")
 
 
+func _exit_tree() -> void:
+	active = false
+
+
 func _freeze_fighters() -> void:
 	for group_name in groups:
 		for node in get_tree().get_nodes_in_group(group_name):
@@ -43,8 +50,10 @@ func _run() -> void:
 	_freeze_fighters() # catches anything added since _ready
 	for n in range(seconds, 0, -1):
 		await _show(str(n), 1.0)
+	active = false
 	for node in _frozen:
-		if is_instance_valid(node):
+		# Fighters put to sleep during the countdown (AI Bots OFF, 1v1) must stay switched off.
+		if is_instance_valid(node) and not BotToggle.is_asleep(node):
 			node.process_mode = Node.PROCESS_MODE_INHERIT
 	_frozen.clear()
 	await _show(fight_text, 0.6)
@@ -52,6 +61,10 @@ func _run() -> void:
 
 
 func _show(text: String, duration: float) -> void:
+	if text == fight_text:
+		Sfx.play(&"fight", 0.0, 1.0, 0.0, 0.0)
+	else:
+		Sfx.play(&"countdown_tick", 0.0, 1.0 if text != "1" else 0.9, 0.0, 0.0)
 	_label.text = text
 	_label.modulate.a = 1.0
 	_label.scale = Vector2(1.5, 1.5)

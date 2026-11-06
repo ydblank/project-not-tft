@@ -12,6 +12,9 @@ class_name EnemyRespawner
 @export var groups: Array[String] = ["enemies", "allies"]
 @export var show_button: bool = true
 
+## Set by the "AI Bots" button: while false nothing is spawned, the slots wait.
+var bots_enabled: bool = true
+
 var _missing_slots: Array = [] # slots whose enemy is gone while respawning is off
 var _button: Button
 
@@ -45,7 +48,7 @@ func _track(enemy: Node, slot: Dictionary) -> void:
 func _on_enemy_gone(slot: Dictionary) -> void:
 	if not is_inside_tree():
 		return # the level itself is closing
-	if enabled:
+	if enabled and bots_enabled:
 		_respawn_after_delay(slot)
 	else:
 		_missing_slots.append(slot)
@@ -55,7 +58,7 @@ func _respawn_after_delay(slot: Dictionary) -> void:
 	await get_tree().create_timer(respawn_delay).timeout
 	if not is_inside_tree():
 		return
-	if not enabled:
+	if not enabled or not bots_enabled:
 		_missing_slots.append(slot) # switched off while waiting
 		return
 	_spawn(slot)
@@ -74,7 +77,7 @@ func _spawn(slot: Dictionary) -> void:
 func set_enabled(value: bool) -> void:
 	enabled = value
 	_update_button()
-	if enabled:
+	if enabled and bots_enabled:
 		var pending := _missing_slots.duplicate()
 		_missing_slots.clear()
 		for slot in pending:
@@ -105,3 +108,13 @@ func _update_button() -> void:
 		return
 	_button.set_pressed_no_signal(enabled)
 	_button.text = "Respawn: %s" % ("ON" if enabled else "OFF")
+
+
+## Called by the "AI Bots" button. Turning bots back on respawns the missing ones.
+func set_bots_enabled(value: bool) -> void:
+	bots_enabled = value
+	if value and enabled:
+		var pending := _missing_slots.duplicate()
+		_missing_slots.clear()
+		for slot in pending:
+			_respawn_after_delay(slot)
