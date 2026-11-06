@@ -13,7 +13,8 @@ var hit: HitData = null
 var shooter: Node2D = null
 var _done: bool = false
 
-func setup(p_hit: HitData, p_shooter: Node2D) -> void:
+## `_charge_mult` is the heavy charge multiplier; plain arrows ignore it, subclasses (fireball) size themselves by it.
+func setup(p_hit: HitData, p_shooter: Node2D, _charge_mult: float = 1.0) -> void:
 	hit = p_hit
 	shooter = p_shooter
 
@@ -27,7 +28,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var step := Vector2.RIGHT.rotated(rotation) * projectile_speed * delta
 	if _hits_wall(global_position, global_position + step):
-		_finish()
+		_on_wall_hit()
 		return
 	global_position += step
 
@@ -63,11 +64,22 @@ func _on_area_entered(area: Area2D) -> void:
 	hit.direction = Vector2.RIGHT.rotated(rotation)
 	match hurtbox.receive_hit(hit):
 		HitboxComponent.Result.HIT:
+			_on_target_hit(hurtbox)
 			_finish()
 		HitboxComponent.Result.BLOCKED:
 			_break_apart() # a blocked arrow snaps and drops instead of vanishing
 		HitboxComponent.Result.PARRIED:
 			_reflect(hurtbox.get_entity(), hurtbox.team)
+
+## Called when the projectile runs into a wall. Subclasses can do more than vanish (the fireball explodes).
+func _on_wall_hit() -> void:
+	_finish()
+
+
+## Called after a hit lands, just before the projectile ends. For subclass effects.
+func _on_target_hit(_hurtbox: HitboxComponent) -> void:
+	pass
+
 
 func _finish() -> void:
 	if _done:

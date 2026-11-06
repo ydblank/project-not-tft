@@ -24,7 +24,7 @@ Class table (the design sheet, Linear GAM-29; `power` is the sheet's "damage" co
 | Knight | Sword | 10 | 10 | 10 | 0.85x (2) | 100 |
 | Thief | Dagger | 5 | 7 | 5 | 1.25x (10) | 100 |
 | Archer | Bow (the sheet says Fist) | 7 | 5 | 5 | 1.10x (7) | 100 |
-| Mage | Staff (not in the game) | TBD | | | | |
+| Mage | Staff | 12 | 3 | 5 | 1.00x (5) | 100 |
 
 - **Attack speed rating:** the sheet rates it 1 to 10. The class bonus is `0.05 × rating - 0.25`, so the multiplier is `1.0 + bonus` (rating 5 = 1.0x).
 - **One weapon per class.** No secondary weapons.
@@ -37,13 +37,13 @@ hit damage = max(power × weapon.power_mult × move.damage_mult × charge_mult �
 ```
 
 - `power`: the attacker's stat above.
-- `weapon.power_mult`: multiplier from the weapon's `.tres` (sword, dagger and bow are 1.0; unarmed defaults to 1.0).
+- `weapon.power_mult`: multiplier from the weapon's `.tres` (sword, dagger and bow are 1.0, the staff is 0.75 because the Mage's power is high; unarmed defaults to 1.0).
 - `move.damage_mult`: per move (the sword's quick hits are 0.5, 0.5, 1.2).
 - `charge_mult`: 1.0 for quick attacks; a charged heavy scales between `heavy_min_mult` and `heavy_max_mult` of the weapon.
 - `Damage x`: the pause-menu tunable, 1.0 by default.
 - Never below 1.
 
-Examples: Knight, sword quick hit 3 = 10 × 1.0 × 1.2 = **12**. Thief, dagger quick hit with a 1.0 move = **5**. Archer, bow quick shot = **7**.
+Examples: Knight, sword quick hit 3 = 10 × 1.0 × 1.2 = **12**. Thief, dagger quick hit with a 1.0 move = **5**. Archer, bow quick shot = **7**. Mage, staff quick shot = 12 × 0.75 × 1.0 = **9**; a full-charge staff fireball = 12 × 0.75 × 1.5 × 2.5 = **33.75** (full bow draw: **21**). A full-charge fireball does 33.75 at the centre of its blast and 50% of that at the rim; each fighter is hit once.
 
 ## Damage taken
 
@@ -70,7 +70,7 @@ attack speed = max(class attack speed + weapon.attack_speed_bonus, 0.001)   × d
 move duration = base duration / max(attack speed, 0.05)
 ```
 
-The class value already includes the base 1.0. Examples: Knight + sword = 0.85 + 0.10 = **0.95**. Thief + dagger = 1.25 + 0.25 = **1.5**.
+The class value already includes the base 1.0. Examples: Knight + sword = 0.85 + 0.10 = **0.95**. Thief + dagger = 1.25 + 0.25 = **1.5**. Mage + staff = 1.0 + 0.0 = **1.0**, so the order is Knight (0.95) < Mage (1.0) < Archer (1.15) < Thief (1.5).
 
 ## Knockback
 

@@ -304,7 +304,7 @@ func _spawn_projectile(move: AttackMove, dir: Vector2, charge_mult: float) -> vo
 	if projectile == null:
 		push_error("CombatComponent: projectile_scene must be an ArrowProjectile")
 		return
-	projectile.setup(build_hit(move, dir, charge_mult), entity)
+	projectile.setup(build_hit(move, dir, charge_mult), entity, charge_mult)
 	entity.get_parent().add_child(projectile)
 	projectile.global_position = entity.global_position
 	projectile.rotation = dir.angle()
