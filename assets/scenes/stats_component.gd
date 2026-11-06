@@ -7,7 +7,8 @@ enum f {FAILED, SUCCESS}
 @export var base_max_health: float = 100.0
 @export var base_phys_mult: float = 1.0
 @export var base_mag_mult: float = 1.0
-@export var base_str: float = 1.0
+## Damage stat for physical and magic attacks. The class supplies it (see Classes).
+@export var base_power: float = 0.0
 @export var base_defense: int = 0
 @export var base_knockback_res: int = 0
 @export var base_attack_speed: float = 1.0
@@ -63,7 +64,7 @@ func get_entity_stats() -> Dictionary:
 
 	return {
 		"hp": base_max_health + float(class_stats.get("bonus_hp", 0)),
-		"str": float(base_str) + float(class_stats.get("bonus_str", 0)),
+		"power": base_power + float(class_stats.get("bonus_power", 0)),
 		"def": float(base_defense) + float(class_stats.get("bonus_def", 0)),
 		"knockback_res": float(base_knockback_res) + float(class_stats.get("bonus_knockback_res", 0)),
 		"attack_speed": base_attack_speed + float(class_stats.get("bonus_attack_speed", 0.0)),

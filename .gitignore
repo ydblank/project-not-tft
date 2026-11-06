@@ -2,5 +2,11 @@
 .godot/
 /android/
 
+# Personal Claude Code settings (may hold API keys, for example LINEAR_API_KEY)
+/.claude/settings.local.json
+
 # Raw sound packs (8 GB, licensed for use not redistribution). Only the sounds the game uses live in assets/audio/sfx/.
 /sfx/
+
+# MCP server settings
+/.mcp.json

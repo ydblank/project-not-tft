@@ -99,7 +99,7 @@ vfx_scale = 1.5
 [resource]
 script = ExtResource("1_weapon")
 display_name = "Sword"
-base_damage = 10.0
+power_mult = 1.0
 attack_speed_bonus = 0.1
 light_moves = Array[ExtResource("2_move")]([SubResource("Resource_light1"), SubResource("Resource_light2"), SubResource("Resource_light3")])
 heavy_move = SubResource("Resource_heavy")

@@ -22,5 +22,5 @@ heavy_range = 140.0
 personality = 1
 
 [node name="StatsComponent" parent="ComponentGroup" index="6"]
-entity_class = 2
+entity_class = 3
 entity_weapon = 3

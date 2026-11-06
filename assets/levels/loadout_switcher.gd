@@ -9,7 +9,7 @@ const SWITCH_KEY := KEY_F2
 const LOADOUTS := [
 	{"name": "Archer / Bow", "class": Classes.CLASSES.ARCHER, "weapon": Weapons.WEAPONS.BOW},
 	{"name": "Knight / Sword", "class": Classes.CLASSES.KNIGHT, "weapon": Weapons.WEAPONS.SWORD},
-	{"name": "Rogue / Dagger", "class": Classes.CLASSES.ROGUE, "weapon": Weapons.WEAPONS.DAGGER},
+	{"name": "Thief / Dagger", "class": Classes.CLASSES.THIEF, "weapon": Weapons.WEAPONS.DAGGER},
 ]
 
 var _index: int = 0

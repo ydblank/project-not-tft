@@ -4,6 +4,26 @@ Melee and ranged fighting: combos, blocking, parry, armor, clashes, stun and das
 
 **Code:** `assets/combat/`. The rules live in `action_state_machine.gd` (pure logic, unit-tested); `combat_component.gd` feeds it and applies the results. Weapons are data: `weapon_data.gd`, `attack_move.gd`, `hit_data.gd`, and the `.tres` files in `assets/combat/weapons/`. See [CLAUDE.md](../../CLAUDE.md#combat-pipeline) for how the pieces connect.
 
+## Classes
+
+**Code:** `assets/resources/classes.gd` (the table), `assets/scenes/stats_component.gd` (adds it to the base stats).
+
+Each class has permanent stats and one starting weapon (no secondary weapon). Values come from the design sheet:
+
+| Class | Starting weapon | Damage | Defense | Knockback res | Attack speed | HP |
+|---|---|---|---|---|---|---|
+| Knight | Sword | 10 | 10 | 10 | 2 | 100 |
+| Thief | Dagger | 5 | 7 | 5 | 10 | 100 |
+| Archer | Bow (the sheet says Fist) | 7 | 5 | 5 | 7 | 100 |
+| Mage | Staff | TBD | | | | |
+
+The sheet's "damage" column is the **power** stat. The formulas are in [Calculations](calculations.md).
+
+- **Archer weapon:** the archer fighters (`enemy_archer.tscn`, the ally, the F2 "Archer / Bow" loadout) use the bow until the slingshot is added with the ranged weapons work. They are the Archer class (power 7, so a bow shot hits for 7).
+- **Weapons multiply power:** a weapon's `power_mult` (1.0 for sword, dagger and bow) scales the class power. Knight with the sword hits for 10, Thief with the dagger for 5.
+- **Knockback resistance is stored but not used yet** by the knockback rules.
+- **Mage:** not in the game; the Staff does not exist yet.
+
 ## Melee
 
 - **Heavy:** one charge and release plays a **3-hit combo** (the finisher knocks back).

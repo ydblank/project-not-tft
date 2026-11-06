@@ -25,10 +25,10 @@ static func attack_speed(entity_attack_speed: float, weapon: WeaponData) -> floa
 	return maxf(entity_attack_speed + weapon_bonus, 0.001)
 
 
-## str × weapon base damage, at least 1.
-static func attack_damage(entity_str: float, weapon: WeaponData) -> float:
-	var weapon_dmg: float = weapon.base_damage if weapon else 0.0
-	return maxf(entity_str * weapon_dmg, 1.0)
+## power (class damage) × weapon power multiplier, at least 1.
+static func attack_damage(entity_power: float, weapon: WeaponData) -> float:
+	var weapon_mult: float = weapon.power_mult if weapon else 1.0
+	return maxf(entity_power * weapon_mult, 1.0)
 
 
 ## Damage after defense (percent), at least 1.
@@ -47,7 +47,7 @@ static func calculate_attack_speed(stats: StatsComponent) -> float:
 static func calculate_attack_damage(stats: StatsComponent) -> float:
 	if stats == null:
 		return 1.0
-	return attack_damage(float(stats.get_entity_stats().get("str", 1.0)), stats.get_weapon_data())
+	return attack_damage(float(stats.get_entity_stats().get("power", 1.0)), stats.get_weapon_data())
 
 
 static func calculate_receive_damage(stats: StatsComponent, received_damage: float) -> float:

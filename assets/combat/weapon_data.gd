@@ -10,7 +10,8 @@ enum Kind {MELEE, RANGED}
 @export var projectile_scene: PackedScene
 
 @export_group("Stats")
-@export var base_damage: float = 0.0
+## Multiplier on the fighter's power (the class damage stat). 1.0 = the fighter's power as it is.
+@export var power_mult: float = 1.0
 @export var attack_speed_bonus: float = 0.0
 
 @export_group("Moves")
