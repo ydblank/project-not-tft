@@ -83,6 +83,7 @@ func _ready() -> void:
 		combat_component.hitbox_component.hit_received.connect(_on_hit_received)
 		combat_component.hitbox_component.hit_blocked.connect(_on_hit_blocked)
 		combat_component.hitbox_component.blocked_hit.connect(_on_blocked_hit)
+		combat_component.hitbox_component.parried.connect(_on_parried)
 	_setup_block_visual.call_deferred() # the entity is still setting up its children
 
 
@@ -326,7 +327,13 @@ func _on_blocked_hit(direction: Vector2, is_heavy: bool) -> void:
 	_kick = direction * (3.0 if is_heavy else 1.8)
 
 
+func _on_parried(direction: Vector2) -> void:
+	_block_flash_left = block_flash_time * 1.5
+	_kick = direction * 3.5
+
+
 func _on_shield_broken() -> void:
+	Sfx.play(&"guard_break", combat_component.sfx_db() if combat_component else 0.0)
 	_flash_left = 0.25 # red flash, longer than a normal hit
 	_kick = Vector2.ZERO
 	if combat_component and combat_component.entity:

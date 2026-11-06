@@ -110,3 +110,67 @@ static func shatter(host: Node, pos: Vector2) -> void:
 		return
 	_burst(root, pos, Vector2.UP, Color(0.55, 0.8, 1.0), 16, 140.0, 180.0)
 	_burst(root, pos, Vector2.UP, Color(1, 1, 1), 10, 90.0, 180.0)
+
+
+const COLOR_PARRY := Color(1.0, 0.85, 0.25)
+const COLOR_CLASH := Color(1.0, 0.95, 0.8)
+const COLOR_FINISHER := Color(1.0, 0.55, 0.3)
+
+
+## Gold flash for a perfect block: sparks and a quick ring.
+static func parry(host: Node, pos: Vector2, dir: Vector2) -> void:
+	var root := _root(host)
+	if root == null:
+		return
+	_burst(root, pos, -_safe_dir(dir), COLOR_PARRY, 16, 150.0, 80.0)
+	_ring(root, pos, COLOR_PARRY, 20.0, 0.22, 2.0)
+
+
+## Two swings meeting: a white burst in every direction and an expanding ring.
+static func clash(host: Node, pos: Vector2) -> void:
+	var root := _root(host)
+	if root == null:
+		return
+	_burst(root, pos, Vector2.UP, COLOR_CLASH, 22, 170.0, 180.0)
+	_burst(root, pos, Vector2.UP, Color(1.0, 0.6, 0.25), 10, 110.0, 180.0)
+	_ring(root, pos, COLOR_CLASH, 26.0, 0.25, 2.5)
+
+
+## Hit-confirm for the last hit of a combo or a heavy: a bigger ring, a streak along the hit and a hot burst.
+static func finisher(host: Node, pos: Vector2, dir: Vector2) -> void:
+	var root := _root(host)
+	if root == null:
+		return
+	dir = _safe_dir(dir)
+	_ring(root, pos, COLOR_FINISHER, 30.0, 0.3, 3.0)
+	_burst(root, pos, dir, COLOR_FINISHER, 18, 190.0, 55.0)
+	_burst(root, pos, dir, Color(1, 1, 1), 8, 230.0, 25.0)
+	var streak := Line2D.new()
+	streak.points = PackedVector2Array([-dir * 6.0, dir * 40.0])
+	streak.width = 3.0
+	streak.default_color = Color(1, 0.9, 0.7)
+	streak.global_position = pos
+	streak.z_index = 6
+	root.add_child(streak)
+	var tween := streak.create_tween().set_parallel(true)
+	tween.tween_property(streak, "modulate:a", 0.0, 0.18)
+	tween.tween_property(streak, "width", 0.5, 0.18)
+	tween.chain().tween_callback(streak.queue_free)
+
+
+## An expanding, fading circle.
+static func _ring(root: Node, pos: Vector2, color: Color, radius: float, time: float, width: float) -> void:
+	var ring := Line2D.new()
+	var points := PackedVector2Array()
+	for i in 33:
+		points.append(Vector2.RIGHT.rotated(TAU * i / 32.0) * radius * 0.5)
+	ring.points = points
+	ring.width = width
+	ring.default_color = color
+	ring.global_position = pos
+	ring.z_index = 6
+	root.add_child(ring)
+	var tween := ring.create_tween().set_parallel(true)
+	tween.tween_property(ring, "scale", Vector2(2.2, 2.2), time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(ring, "modulate:a", 0.0, time)
+	tween.chain().tween_callback(ring.queue_free)

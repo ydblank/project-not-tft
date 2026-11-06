@@ -5,12 +5,14 @@ class_name HitboxComponent
 #   ignore (dead / same team / disabled) -> defense -> block / shield HP
 #   -> health -> knockback %-meter -> reaction on the CombatComponent -> feedback.
 
-enum Result {IGNORED, BLOCKED, HIT}
+enum Result {IGNORED, BLOCKED, HIT, PARRIED}
 
 signal hit_received(attacker: Node, damage: float, direction: Vector2)
 signal hit_blocked()
 ## direction: attacker -> us. Used for the block flash and push-back.
 signal blocked_hit(direction: Vector2, is_heavy: bool)
+## The block was raised just in time: the hit does nothing and the attacker is thrown off balance.
+signal parried(direction: Vector2)
 
 @export var team: int = 0
 @export var can_be_hit: bool = true
@@ -99,6 +101,10 @@ func receive_hit(hit: HitData) -> Result:
 		if is_instance_valid(hit.attacker):
 			from_dir = hit.attacker.global_position - global_position
 		if _combat.is_blocking_from(from_dir):
+			# Heavy attacks cannot be parried: they hit the normal block, drain the shield and can break it (stun).
+			if _combat.is_parrying() and not hit.is_heavy:
+				_parry(hit)
+				return Result.PARRIED
 			if shield:
 				final_damage = shield.absorb_damage(final_damage * shield.damage_mult_while_blocking)
 				guard_broken = shield.is_broken()
@@ -119,12 +125,12 @@ func receive_hit(hit: HitData) -> Result:
 	if hit.reaction == AttackMove.Reaction.KNOCKBACK:
 		force = base_knockback_force * knockback_scale * maxf(hit.knockback_force_mult, 0.0)
 	if _combat and not health.is_dead() and not guard_broken:
-		_combat.receive_reaction(hit, force)
+		_combat.receive_reaction(hit, force, final_damage)
 
 	if debug_hits:
 		print("[HIT] ", get_entity().name, " dmg=", snappedf(final_damage, 0.01), " reaction=", hit.reaction, " force=", snappedf(force, 0.1), " scale=", snappedf(knockback_scale, 0.01))
 
-	_show_damage_number(int(round(final_damage)))
+	_show_damage_number(int(round(final_damage)), hit)
 	if guard_broken:
 		_show_text("GUARD BREAK!", Color(1.0, 0.6, 0.2))
 	# Heavy hits freeze a touch longer and kick the camera harder.
@@ -133,7 +139,9 @@ func receive_hit(hit: HitData) -> Result:
 		strength += 3.0
 	if guard_broken:
 		strength += 2.0
-	_impact(hit, 1.0 if hit.is_heavy else 0.7, strength)
+	if hit.is_finisher:
+		strength += 3.0
+	_impact(hit, 1.0 if hit.is_heavy else (1.3 if hit.is_finisher else 0.7), strength)
 	_spawn_hit_fx(hit, false)
 	return Result.HIT
 
@@ -144,21 +152,24 @@ func _impact(hit: HitData, freeze_scale: float, strength: float) -> void:
 	var player_involved: bool = (involved != null and involved.is_in_group("players")) \
 			or (is_instance_valid(hit.attacker) and hit.attacker.is_in_group("players"))
 	if player_involved:
-		Combat.hitstop(minf(hit.hitstop * freeze_scale, 0.06))
+		Combat.hitstop(minf(hit.hitstop * freeze_scale, 0.09 if hit.is_finisher else 0.06))
 		Combat.shake(strength, 0.12 + strength * 0.03, hit.direction)
 
 
-func _show_damage_number(amount: int) -> void:
-	if amount <= 0 or damage_number_scene == null:
+func _show_damage_number(amount: int, hit: HitData = null) -> void:
+	if amount <= 0 or not Combat.show_damage_numbers or not is_inside_tree():
 		return
-	var dn = damage_number_scene.instantiate()
+	var dn = (damage_number_scene if damage_number_scene else POPUP_SCENE).instantiate()
 	get_tree().current_scene.add_child(dn)
-	var spawn_pos := global_position + Vector2(0, -20)
+	var spawn_pos := global_position + Vector2(randf_range(-6.0, 6.0), -20)
 	var marker := get_entity().get_node_or_null("DamageSpawn") if get_entity() else null
 	if marker is Node2D:
 		spawn_pos = (marker as Node2D).global_position
+	var color := _damage_number_color(hit)
+	if hit and (hit.is_heavy or hit.is_finisher):
+		(dn as Node2D).scale = Vector2(1.35, 1.35)
 	if dn.has_method("setup"):
-		dn.call("setup", amount, spawn_pos)
+		dn.call("setup", amount, spawn_pos, color)
 	else:
 		(dn as Node2D).global_position = spawn_pos
 
@@ -179,7 +190,7 @@ func apply_environment_damage(amount: float) -> void:
 		return
 	health.take_damage(amount)
 	hit_received.emit(null, amount, Vector2.ZERO)
-	_show_damage_number(int(round(amount)))
+	_show_damage_number(int(round(amount)), null)
 
 
 # ---- team colour ----
@@ -218,8 +229,14 @@ func _spawn_hit_fx(hit: HitData, blocked: bool) -> void:
 	var pos := global_position
 	if blocked:
 		HitFX.sparks(self, pos - hit.direction * 6.0, hit.direction, hit.is_heavy)
+		Sfx.play(&"block", _sfx_db(hit) + BLOCK_DB + (ARROW_HIT_DB if hit.is_ranged else 0.0), 1.0 - (0.1 if hit.is_heavy else 0.0))
 		return
 	var living := entity != null and (entity.is_in_group("players") or entity.is_in_group("enemies") or entity.is_in_group("allies"))
+	Sfx.play(&"hit", _sfx_db(hit) + (ARROW_HIT_DB if hit.is_ranged else 0.0), 0.85 if hit.is_heavy else 1.0)
+	_maybe_grunt(hit)
+	if hit.is_finisher:
+		HitFX.finisher(self, pos, hit.direction)
+		Sfx.play(&"finisher", _sfx_db(hit) + 3.0, 0.75, 0.03)
 	if living:
 		HitFX.blood(self, pos, hit.direction, hit.is_heavy or health.is_dead())
 	else:
@@ -235,3 +252,72 @@ func _show_text(text: String, color: Color) -> void:
 	var spawn_pos := global_position + Vector2(0, -24)
 	if dn.has_method("setup"):
 		dn.call("setup", 0, spawn_pos, color, text)
+
+
+## Sound level of a hit: full when a human-controlled fighter is on either side, quieter for bots only.
+func _sfx_db(hit: HitData) -> float:
+	var db := -7.0
+	var victim := CombatComponent.find_on(get_entity())
+	if victim:
+		db = maxf(db, victim.sfx_db())
+	if is_instance_valid(hit.attacker):
+		var attacker := CombatComponent.find_on(hit.attacker)
+		if attacker:
+			db = maxf(db, attacker.sfx_db())
+	return db
+
+
+## Arrow impacts are played this much quieter (dB) than melee hits.
+const ARROW_HIT_DB := -5.0
+## Block clangs are played this much quieter (dB); blocking an arrow takes the arrow reduction on top of this.
+const BLOCK_DB := -8.0
+const GRUNT_CHANCE_LIGHT := 0.3
+const GRUNT_CHANCE_HEAVY := 0.8
+## A fighter does not grunt again within this many seconds, so a combo does not turn into a chorus.
+const GRUNT_COOLDOWN := 0.7
+
+
+## The fighter who landed the hit sometimes grunts: usually on heavy hits, now and then on quick ones
+## (deeper for heavy hits).
+func _maybe_grunt(hit: HitData) -> void:
+	if not is_instance_valid(hit.attacker) or hit.is_ranged:
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - float(hit.attacker.get_meta("last_grunt", -10.0)) < GRUNT_COOLDOWN:
+		return
+	if randf() >= (GRUNT_CHANCE_HEAVY if hit.is_heavy else GRUNT_CHANCE_LIGHT):
+		return
+	hit.attacker.set_meta("last_grunt", now)
+	Sfx.play(&"grunt", _sfx_db(hit) - 3.0, 0.8 if hit.is_heavy else 1.0, 0.05)
+
+
+## Red when a human-controlled fighter takes damage, white when one deals it, grey between bots,
+## gold for heavy hits and finishers, orange for the arena\x27s damage over time.
+func _damage_number_color(hit: HitData) -> Color:
+	if hit == null:
+		return Color(1.0, 0.6, 0.2)
+	var victim := CombatComponent.find_on(get_entity())
+	var attacker := CombatComponent.find_on(hit.attacker) if is_instance_valid(hit.attacker) else null
+	if hit.is_heavy or hit.is_finisher:
+		return Color(1.0, 0.85, 0.3)
+	if victim and victim.controller is PlayerController:
+		return Color(1.0, 0.4, 0.35)
+	if attacker and attacker.controller is PlayerController:
+		return Color(1, 1, 1)
+	return Color(0.75, 0.75, 0.8)
+
+
+const PARRY_STUN := 0.7
+
+
+func _parry(hit: HitData) -> void:
+	parried.emit(hit.direction)
+	hit_blocked.emit()
+	if not hit.is_ranged and is_instance_valid(hit.attacker):
+		var attacker := CombatComponent.find_on(hit.attacker)
+		if attacker:
+			attacker.apply_parry_stun(PARRY_STUN)
+	HitFX.parry(self, global_position - hit.direction * 6.0, hit.direction)
+	Sfx.play(&"parry", _sfx_db(hit) + 2.0, 1.5, 0.03)
+	_show_text("PARRY!", Color(1.0, 0.85, 0.25))
+	_impact(hit, 1.6, 4.5)

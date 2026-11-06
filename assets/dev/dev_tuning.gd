@@ -41,6 +41,10 @@ func _apply_globals() -> void:
 	Combat.hitstop_multiplier = DevSettings.get_value("hitstop_mult")
 	Combat.damage_multiplier = DevSettings.get_value("damage_mult")
 	Combat.shake_multiplier = DevSettings.get_value("shake_mult")
+	Sfx.set_sfx_volume(DevSettings.get_value("sfx_volume"))
+	Sfx.set_music_volume(DevSettings.get_value("music_volume"))
+	Combat.show_damage_numbers = DevSettings.get_value("damage_numbers")
+	Combat.enemy_tells = DevSettings.get_value("enemy_tells")
 
 	var level := get_parent()
 	if level == null:
@@ -93,6 +97,8 @@ func _apply_entity(entity: Node) -> void:
 	# ---- combat ----
 	combat.set_attack_speed_scale(v.call("attack_speed_mult"))
 	combat.post_stun_immunity = v.call("post_stun_immunity")
+	combat.set_parry_window(v.call("parry_window"))
+	combat.armor_hp_max = v.call("armor_hp")
 	if combat.weapon:
 		combat.weapon.combo_hitstun = v.call("combo_hitstun")
 	if combat.weapon and combat.weapon.light_move_count() > 1:

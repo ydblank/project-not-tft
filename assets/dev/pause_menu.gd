@@ -39,12 +39,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func open() -> void:
+	Sfx.play(&"ui_open", 0.0, 1.0, 0.0, 0.0)
 	get_tree().paused = true
 	visible = true
 	_show_main()
 
 
 func resume() -> void:
+	Sfx.play(&"ui_close", 0.0, 1.0, 0.0, 0.0)
 	_save_if_dirty()
 	visible = false
 	get_tree().paused = false

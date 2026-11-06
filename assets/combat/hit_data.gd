@@ -22,3 +22,5 @@ var is_ranged: bool = false
 var is_heavy: bool = false
 ## Non-final hit of a combo: the victim is held in hitstun while the combo continues.
 var is_combo_chain: bool = false
+## Last hit of a combo, or a heavy: gets the bigger hit-confirm effect.
+var is_finisher: bool = false

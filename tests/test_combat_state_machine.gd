@@ -737,3 +737,46 @@ func test_hold_stagger_extends_only_stagger() -> void:
 	var idle := _sm()
 	idle.hold_stagger(0.5)
 	assert_eq(idle.state, ActionStateMachine.State.IDLE)
+
+
+# ---------------------------------------------------------------- parry / wind-up
+
+func test_fresh_block_parries_then_window_closes() -> void:
+	var sm := _sm()
+	sm.parry_window = 0.2
+	_run(sm, _intent(false, true), 0.05)
+	assert_eq(sm.state, ActionStateMachine.State.BLOCK)
+	assert_true(sm.is_parrying(), "parry in the first moments of a block")
+	_run(sm, _intent(false, true), 0.3)
+	assert_false(sm.is_parrying(), "window closed while still holding block")
+
+
+func test_block_mashing_does_not_parry() -> void:
+	var sm := _sm()
+	sm.parry_window = 0.2
+	_run(sm, _intent(false, true), 0.5) # first block: parry window passes
+	_run(sm, _intent(), 0.1) # let go for a moment
+	_run(sm, _intent(false, true), 0.05) # block again right away
+	assert_eq(sm.state, ActionStateMachine.State.BLOCK)
+	assert_false(sm.is_parrying(), "re-blocking right after letting go has no parry window")
+
+
+func test_parry_returns_after_a_pause() -> void:
+	var sm := _sm()
+	sm.parry_window = 0.2
+	_run(sm, _intent(false, true), 0.5)
+	_run(sm, _intent(), sm.parry_cooldown + 0.1)
+	_run(sm, _intent(false, true), 0.05)
+	assert_true(sm.is_parrying(), "after a short pause the parry window is back")
+
+
+func test_startup_progress_rises_during_the_wind_up() -> void:
+	var sm := _sm()
+	assert_eq(sm.startup_progress(), 0.0, "idle")
+	_tap(sm)
+	var early := sm.startup_progress()
+	_run(sm, _intent(), 0.05)
+	var later := sm.startup_progress()
+	assert_true(later > early, "wind-up progresses")
+	_run(sm, _intent(), 0.3)
+	assert_eq(sm.startup_progress(), 0.0, "0 once the swing is past its wind-up")

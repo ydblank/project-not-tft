@@ -36,6 +36,14 @@ const DEFS := [
 	{"key": "light_combo_cooldown", "group": "Combat", "label": "Quick-combo cooldown (s)", "type": "float", "min": 0.0, "max": 2.0, "step": 0.05, "default": 0.6},
 	{"key": "combo_hitstun", "group": "Combat", "label": "Combo hitstun (s)", "type": "float", "min": 0.0, "max": 1.5, "step": 0.05, "default": 0.55},
 	{"key": "post_stun_immunity", "group": "Combat", "label": "Stun immunity after a stun (s)", "type": "float", "min": 0.0, "max": 1.5, "step": 0.05, "default": 0.5},
+	{"key": "parry_window", "group": "Combat", "label": "Parry window (s)", "type": "float", "min": 0.0, "max": 0.5, "step": 0.01, "default": 0.2},
+	{"key": "armor_hp", "group": "Combat", "label": "Heavy super armor durability (0 = none)", "type": "float", "min": 0.0, "max": 40.0, "step": 1.0, "default": 10.0},
+	{"key": "damage_numbers", "group": "Combat", "label": "Damage numbers", "type": "bool", "default": true},
+	{"key": "enemy_tells", "group": "Combat", "label": "Enemy wind-up warnings", "type": "bool", "default": true},
+
+	# ---- Audio ----
+	{"key": "sfx_volume", "group": "Audio", "label": "Sound effects volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8},
+	{"key": "music_volume", "group": "Audio", "label": "Music volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8},
 
 	# ---- Camera ----
 	{"key": "camera_follow", "group": "Camera", "label": "Follow strength", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.35},

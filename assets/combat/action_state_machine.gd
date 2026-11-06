@@ -77,6 +77,14 @@ var _dash_charges: int = 1
 var _recharge_left: float = 0.0
 var _recharge_total: float = 0.0
 
+## Parry: a block raised this recently (and not mashed) turns the first hit into a parry.
+var parry_window: float = 0.2
+## After letting go of block, the parry window is unavailable for this long (stops block-mashing).
+var parry_cooldown: float = 0.45
+var _block_age: float = 0.0
+var _block_idle: float = 99.0 # seconds since block last ended
+var _parry_armed: bool = false
+
 
 func _init(p_weapon: WeaponData = null, p_attack_speed: float = 1.0) -> void:
 	weapon = p_weapon
@@ -103,6 +111,10 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 	if state == State.DEAD:
 		return events
 
+	if state == State.BLOCK:
+		_block_age += delta
+	else:
+		_block_idle += delta
 	_dash_cooldown_left = maxf(_dash_cooldown_left - delta, 0.0)
 	_light_cooldown_left = maxf(_light_cooldown_left - delta, 0.0)
 	if _recharge_left > 0.0:
@@ -353,6 +365,9 @@ func _enter_block(intent: CombatIntent) -> void:
 	_light_queued = false
 	_reset_combo()
 	_update_block_dir(_aim(intent))
+	_parry_armed = _block_idle >= parry_cooldown
+	_block_age = 0.0
+	_update_block_dir(_aim(intent))
 	_set_state(State.BLOCK)
 
 
@@ -554,6 +569,8 @@ static func index_to_direction(index: int) -> Vector2:
 # ======================================================================
 
 func _set_state(new_state: State) -> void:
+	if state == State.BLOCK and new_state != State.BLOCK:
+		_block_idle = 0.0
 	state = new_state
 	if new_state != State.ATTACK:
 		phase = Phase.NONE
@@ -618,3 +635,18 @@ func hold_stagger(seconds: float) -> void:
 ## True while staggered in a way a dash can escape (combo hitstun, not a guard break).
 func can_dash_out() -> bool:
 	return state == State.STAGGER and _stagger_dashable
+
+
+## True during the first moments of a fresh block (see parry_window): a hit landing now is parried.
+func is_parrying() -> bool:
+	return state == State.BLOCK and _parry_armed and _block_age <= parry_window
+
+
+## 0 at the start of an attack's wind-up, 1 when it is about to land (0 outside the wind-up).
+func startup_progress() -> float:
+	if state != State.ATTACK or phase != Phase.STARTUP or current_move == null:
+		return 0.0
+	var total := _scaled(current_move.startup)
+	if total <= 0.0:
+		return 1.0
+	return clampf(1.0 - _phase_time_left / total, 0.0, 1.0)

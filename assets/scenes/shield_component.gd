@@ -17,7 +17,7 @@ signal shield_changed(value: float, max_value: float)
 @export var shield_bar: ShieldBarComponent
 
 @export_group("Shield HP")
-@export var max_shield_hp: float = 10.0
+@export var max_shield_hp: float = 14.0
 @export var regen_per_sec: float = 2.0
 @export var regen_delay_after_hit: float = 0.5
 ## While broken, recovers this fraction of max HP per second.

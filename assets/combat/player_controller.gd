@@ -12,6 +12,10 @@ class_name PlayerController
 @export var input_attack: StringName = &"Attack"
 @export var input_block: StringName = &"Block"
 @export var input_dash: StringName = &"dash"
+## false = aim with the direction keys (last direction held, diagonals included) instead of the mouse.
+@export var aim_with_mouse: bool = true
+## Who the attack lunge stops in front of.
+@export var lunge_target_groups: Array[String] = ["enemies", "dummies"]
 
 var intent := CombatIntent.new()
 
@@ -34,7 +38,10 @@ func _physics_process(_delta: float) -> void:
 		intent.clear()
 		return
 	intent.move_dir = Input.get_vector(input_left, input_right, input_up, input_down)
-	if entity:
+	if not aim_with_mouse:
+		if intent.move_dir != Vector2.ZERO:
+			intent.aim_dir = intent.move_dir.normalized()
+	elif entity:
 		var to_mouse := get_global_mouse_position() - entity.global_position
 		if to_mouse != Vector2.ZERO and to_mouse.is_finite():
 			intent.aim_dir = to_mouse.normalized()
@@ -57,14 +64,14 @@ func _lunge_limit() -> float:
 	if entity == null or intent.aim_dir == Vector2.ZERO:
 		return INF
 	var best := INF
-	for group_name in ["enemies", "dummies"]:
+	for group_name in lunge_target_groups:
 		for node in get_tree().get_nodes_in_group(group_name):
 			var other := node as Node2D
 			if other == null or other == entity:
 				continue
 			var to_other := other.global_position - entity.global_position
 			var dist := to_other.length()
-			if dist > LUNGE_SCAN_RANGE or dist <= 0.0:
+			if not is_finite(dist) or dist > LUNGE_SCAN_RANGE or dist <= 0.0:
 				continue
 			if to_other.normalized().dot(intent.aim_dir) < LUNGE_CONE_DOT:
 				continue
