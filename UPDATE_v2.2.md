@@ -87,6 +87,7 @@ You now start as the **Knight with the sword** (was the Archer).
 ## UI
 
 - **On-screen controller overlay** (replaces the keyboard hint panel): shows pressed keys; symbols for LMB / RMB / Space, text for W A S D F.
+- **Out-of-arena camera bubble:** when the fighter you control is outside the arena, a round live "security camera" view of it appears at the left of the screen, with an arrow around the rim pointing back to the arena and the distance underneath. The arrow is green while you are getting closer, red while you are moving away and yellow when holding still, and it grows and pulses faster the farther out you are.
 - **Cooldown spinners** on the buttons: dash charges as dots with a recharge ring, the shield for block, and the charge ring for attack.
 - **Pause menu (Esc)** with **Dev settings** sliders. They apply live, are saved to disk (also on Resume) and have a "Reset to defaults" button.
   - Saved at `%APPDATA%\Godot\app_userdata\Project Not TFT clone\dev_settings.cfg`.

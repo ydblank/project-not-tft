@@ -18,6 +18,7 @@
 [ext_resource type="Script" uid="uid://cuvbrtumogrcx" path="res://assets/levels/control_switcher.gd" id="17_control"]
 [ext_resource type="Script" uid="uid://1glljwh0s36t" path="res://assets/levels/camera_follow.gd" id="18_camfollow"]
 [ext_resource type="Script" uid="uid://budmxrj5jvax2" path="res://assets/levels/dummy_toggle.gd" id="19_dummytoggle"]
+[ext_resource type="Script" uid="uid://m72d2jao4c2m" path="res://assets/levels/out_of_arena_indicator.gd" id="20_ooa"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -265,6 +266,9 @@ camera = NodePath("../Camera2D")
 
 [node name="DummyToggle" type="Node" parent="." unique_id=1357874354]
 script = ExtResource("19_dummytoggle")
+
+[node name="OutOfArenaIndicator" type="CanvasLayer" parent="." unique_id=1181359131]
+script = ExtResource("20_ooa")
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]

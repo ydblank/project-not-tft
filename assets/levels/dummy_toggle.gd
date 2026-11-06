@@ -52,9 +52,11 @@ func _build_button() -> void:
 	# Never take keyboard focus: Space (dash) would otherwise press the button.
 	_button.focus_mode = Control.FOCUS_NONE
 	_button.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	_button.offset_left = -385.0
+	# Zero-width box so the button is only as big as its text; it grows leftwards from just left of the Respawn button.
+	_button.offset_left = -70.0
+	_button.offset_right = -70.0
 	_button.offset_top = 8.0
-	_button.grow_horizontal = Control.GROW_DIRECTION_END
+	_button.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_button.toggled.connect(set_shown)
 	layer.add_child(_button)
 
