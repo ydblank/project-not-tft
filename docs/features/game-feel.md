@@ -22,7 +22,7 @@ Blocking is easy to read:
 
 ## Camera and background
 
-- **Gentle camera follow:** drifts toward the fighter you control, leaning toward your teammate (follow strength is adjustable). It never leaves the arena, so being launched far outside does not blank the screen.
+- **Gentle camera follow:** drifts toward the fighter you control, leaning toward your teammate (follow strength is adjustable). Whatever the strength, the fighter you control is never allowed more than 55% of the way from the screen centre to its edge (`comfort_zone` in `camera_follow.gd`), so the camera still tracks you in an arena bigger than the screen. It never leaves the arena, so being launched far outside does not blank the screen.
 - **Dark background everywhere:** the project background colour (`rendering/environment/defaults/default_clear_color`) is the same dark navy as the arena border, so no grey shows when the camera looks past the tiles.
 - **Depth sorting:** whoever is lower on screen is drawn in front, so standing above an enemy puts you partly behind him.
 

@@ -12,6 +12,11 @@ class_name CameraFollow
 ## Higher = snappier.
 @export var smoothing: float = 5.0
 
+## The controlled fighter is never allowed farther than this fraction of the way from the screen
+## centre to the screen edge, whatever `follow_strength` is. It keeps the gentle lean in a small
+## arena and still tracks you in an arena bigger than the screen.
+@export_range(0.2, 0.9) var comfort_zone: float = 0.55
+
 ## Extra pixels the camera may drift past the point where the arena edge reaches the screen edge
 ## (the camera limit: it can never leave the arena area).
 @export var edge_margin: float = 24.0
@@ -35,19 +40,36 @@ func _process(delta: float) -> void:
 	var focus: Variant = _focus_point()
 	if focus != null and (focus as Vector2).is_finite():
 		target = _home + (focus - _home) * follow_strength
+	target = _keep_player_comfortable(target)
 	target = _keep_on_arena(target)
 	if not target.is_finite():
 		target = _home
 	camera.global_position = camera.global_position.lerp(target, 1.0 - exp(-smoothing * delta))
 
 
-func _focus_point() -> Variant:
-	var player: Node2D = null
+## Moves the target just enough that the controlled fighter stays inside the comfort zone.
+func _keep_player_comfortable(target: Vector2) -> Vector2:
+	var player := _controlled_player()
+	if player == null or not player.global_position.is_finite():
+		return target
+	var half_view := get_viewport().get_visible_rect().size / (camera.zoom if camera else Vector2.ONE) * 0.5
+	var reach := half_view * comfort_zone
+	var pos := player.global_position
+	return Vector2(
+		clampf(target.x, pos.x - reach.x, pos.x + reach.x),
+		clampf(target.y, pos.y - reach.y, pos.y + reach.y))
+
+
+func _controlled_player() -> Node2D:
 	for node in get_tree().get_nodes_in_group("players"):
 		var candidate := node as Node2D
 		if candidate and candidate.is_multiplayer_authority():
-			player = candidate
-			break
+			return candidate
+	return null
+
+
+func _focus_point() -> Variant:
+	var player := _controlled_player()
 	if player == null:
 		return null
 	var point := player.global_position

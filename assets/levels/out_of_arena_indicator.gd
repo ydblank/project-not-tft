@@ -11,7 +11,7 @@ class_name OutOfArenaIndicator
 # arena edge is printed under the bubble.
 
 @export var bubble_size: float = 130.0
-## Screen margin from the left edge, in pixels.
+## Screen margin from the side edge the bubble sits on, in pixels.
 @export var margin_left: float = 18.0
 ## How far (world pixels) counts as "very far" for the arrow size and colour.
 @export var far_distance: float = 140.0
@@ -23,6 +23,11 @@ const COLOR_AWAY := Color(1.0, 0.3, 0.25)
 const COLOR_STILL := Color(1.0, 0.85, 0.3)
 ## A fighter this many screen pixels inside the screen edge counts as "on screen".
 const SCREEN_MARGIN := 10.0
+## The fighter must be this far (screen pixels) past the screen's centre line before the bubble
+## swaps sides, so a fighter straight above or below does not make it flip back and forth.
+const SIDE_SWITCH_MARGIN := 40.0
+## Keep the bubble this far (screen pixels) from the top and bottom edges.
+const VERTICAL_MARGIN := 60.0
 const MASK_SHADER := """
 shader_type canvas_item;
 void fragment() {
@@ -45,6 +50,7 @@ var _last_distance: float = 0.0
 var _trend: float = 0.0 # smoothed: negative = closing in, positive = moving away
 var _shown: bool = false
 var _arena: ArenaBounds
+var _on_right: bool = false
 
 
 func _ready() -> void:
@@ -109,7 +115,6 @@ func _build() -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	_place_bubble()
 	var player := _local_player()
 	var arena := _get_arena()
 	if player == null or arena == null or arena.is_inside(player.global_position) or _is_on_screen(player):
@@ -119,6 +124,7 @@ func _process(delta: float) -> void:
 		return
 
 	_set_shown(true)
+	_place_bubble(player)
 	_camera.global_position = player.global_position
 
 	# Direction and distance back to the arena.
@@ -223,10 +229,22 @@ func _get_arena() -> ArenaBounds:
 	return _arena
 
 
-## Left edge, vertically centred (follows the window size).
-func _place_bubble() -> void:
+## Sits on the side of the screen the fighter left through, level with it (follows the window size).
+func _place_bubble(player: Node2D) -> void:
 	var holder := _root.get_node("Holder") as Control
-	holder.position = Vector2(margin_left + 20.0, (get_viewport().get_visible_rect().size.y - bubble_size) * 0.5)
+	var screen := get_viewport().get_visible_rect().size
+	var screen_pos := get_viewport().get_canvas_transform() * player.global_position
+	var from_centre := screen_pos.x - screen.x * 0.5
+	if from_centre > SIDE_SWITCH_MARGIN:
+		_on_right = true
+	elif from_centre < -SIDE_SWITCH_MARGIN:
+		_on_right = false
+	var x := margin_left + 20.0
+	if _on_right:
+		x = screen.x - bubble_size - margin_left - 20.0
+	var top := VERTICAL_MARGIN
+	var bottom := maxf(screen.y - bubble_size - VERTICAL_MARGIN, top)
+	holder.position = Vector2(x, clampf(screen_pos.y - bubble_size * 0.5, top, bottom))
 
 
 ## True while the fighter is inside the camera's view: then you can see it, no bubble needed.

@@ -5,6 +5,9 @@ class_name PauseMenu
 # Settings is a dev panel of game-feel variables (see DevSettings). Changes
 # apply live, and are saved to disk (Save button, and automatically on Resume).
 
+## Bump this whenever a change is made, so the number in the pause menu shows which build is running.
+const CHANGE_NUMBER := 11
+
 @export var tuning: DevTuning
 
 var _dim: ColorRect
@@ -96,6 +99,12 @@ func _build() -> void:
 	_resume_button = _button("Resume", resume, main_box)
 	_button("Settings", _show_settings, main_box)
 	_button("Exit", _exit_game, main_box)
+	var change_label := Label.new()
+	change_label.text = "change #%d" % CHANGE_NUMBER
+	change_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	change_label.add_theme_font_size_override("font_size", 16)
+	change_label.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	main_box.add_child(change_label)
 
 	# ---- settings ----
 	_settings_panel = PanelContainer.new()

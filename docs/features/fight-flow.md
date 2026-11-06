@@ -14,6 +14,8 @@ How a match starts, who is in it, and what happens when fighters die. Each level
 
 ## Arena
 
+The floor is 31 x 15 tiles (496 x 240 px, about 2.7x the original 17 x 9). It is painted in the `TileMap` of `assets/levels/node_2d.tscn`: floor tiles are atlas rows 2-4 (they carry the navigation data, so bots path over them), the top and bottom edges are solid wall rows, and the left and right sides open onto void, which is "outside". The camera follows you and stays clamped to the arena, so the whole floor no longer fits on screen at once.
+
 Standing outside the arena tiles slows you (x0.5) and deals damage over time (8% max HP per second after a short grace period), with a warning tint and label. The camera never leaves the arena (see [Game feel](game-feel.md)).
 
 Tunables (pause menu): outside damage %, outside speed.

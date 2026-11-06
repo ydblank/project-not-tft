@@ -75,4 +75,5 @@ func _show(text: String, duration: float) -> void:
 	tween.set_parallel(true)
 	tween.tween_property(_label, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tween.tween_property(_label, "modulate:a", 0.0, duration * 0.3).set_delay(duration * 0.7)
-	await get_tree().create_timer(duration).timeout
+	# process_always = false: this timer must stop while the pause menu is open, like the tween above.
+	await get_tree().create_timer(duration, false).timeout

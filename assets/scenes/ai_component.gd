@@ -98,6 +98,20 @@ const PERSONALITY_VALUES := {
 const RETREAT_STUCK_CHECK_INTERVAL := 0.5
 const RETREAT_STUCK_MIN_PROGRESS := 2.0
 const RETREAT_ESCAPE_ANGLES := [0.0, 45.0, -45.0, 90.0, -90.0, 135.0, -135.0]
+## A bot in ENGAGE that has not swung yet only gives up and chases again when the target is this
+## many pixels beyond its engage range, so a target sitting on the range line doesn't flip the mode.
+const ENGAGE_RELEASE_MARGIN := 8.0
+## Full back-off speed (fraction of move speed) once the bot is far inside its min distance.
+const MIN_DISTANCE_BACKOFF_SPEED := 0.5
+## Below this move length the bot counts as standing still next to the arena edge.
+const EDGE_DRIFT_IDLE_SPEED := 0.1
+## How fast a bot that is standing still at the arena edge drifts back toward the middle.
+const EDGE_DRIFT_SPEED := 0.25
+## TEMPORARY: floats the AI's mode, move direction and active overrides above each bot.
+const DEBUG_OVERLAY := false
+## Closer than this (px, about half a body width) the direction to the target is noise, so the
+## last reliable one is used.
+const OVERLAP_DISTANCE := 6.0
 
 var intent := CombatIntent.new()
 var mode: Mode = Mode.IDLE
@@ -131,6 +145,10 @@ var _retreat_lockout: float = 0.0
 var _target_hold_left: float = 0.0
 var _watched_combat: CombatComponent = null
 var _target_attack_times: Array[float] = []
+var _overlap_dir: Vector2 = Vector2.ZERO
+var _dbg_label: Label
+var _dbg_last_signature: String = ""
+var _dbg_flags: PackedStringArray = []
 
 @onready var navigation_agent: NavigationAgent2D = get_node_or_null("NavigationAgent2D")
 
@@ -199,9 +217,10 @@ func _physics_process(delta: float) -> void:
 
 	var to_target := current_target.global_position - entity.global_position
 	var distance := to_target.length()
-	intent.aim_dir = to_target.normalized() if distance > 0.0 else intent.aim_dir
+	intent.aim_dir = _direction_to_target(to_target, distance)
 	intent.lunge_limit = maxf(distance - min_distance, 0.0)
 
+	_dbg_flags.clear()
 	_update_personality(delta)
 	_update_dodge(distance, to_target)
 	_check_threat(distance)
@@ -210,6 +229,7 @@ func _physics_process(delta: float) -> void:
 	_apply_arena_tactics(distance)
 	_apply_dodge()
 	_keep_in_arena()
+	_update_debug_label(distance)
 
 
 # ======================================================================
@@ -259,8 +279,8 @@ func _update_engage(distance: float, engage_range: float) -> void:
 		_end_attack_sequence() # combo finished (final hit or window expired)
 	elif distance <= engage_range:
 		_press_attack()
-	elif _attacks_this_engage == 0:
-		_set_mode(Mode.CHASE) # target stepped away before we swung
+	elif _attacks_this_engage == 0 and distance > engage_range + ENGAGE_RELEASE_MARGIN:
+		_set_mode(Mode.CHASE) # target stepped well away before we swung
 
 
 func _update_charge() -> void:
@@ -340,7 +360,7 @@ func _target_is_threatening(distance: float) -> bool:
 # ======================================================================
 
 func _act(distance: float, to_target: Vector2) -> void:
-	var toward := to_target.normalized() if distance > 0.0 else Vector2.ZERO
+	var toward := _direction_to_target(to_target, distance)
 	intent.block_held = mode == Mode.BLOCK
 	match mode:
 		Mode.CHASE:
@@ -368,9 +388,13 @@ func _act(distance: float, to_target: Vector2) -> void:
 				intent.move_dir = Vector2.ZERO
 			else:
 				intent.move_dir = escape
+				_dbg_flags.append("escape")
 				_try_dash(_trait("dash_backward"))
 		Mode.ENGAGE, Mode.CHARGE, Mode.BLOCK:
 			intent.move_dir = Vector2.ZERO
+			# Just out of reach before the first swing: close the gap instead of idling.
+			if mode == Mode.ENGAGE and _attacks_this_engage == 0 and distance > _engage_range():
+				intent.move_dir = toward
 			_apply_min_distance(distance, toward)
 
 
@@ -385,11 +409,47 @@ func _do_idle() -> void:
 		intent.move_dir = Vector2.ZERO
 
 
-## Hold at min_distance; back off when closer than 75% of it.
+func _update_debug_label(distance: float) -> void:
+	if not DEBUG_OVERLAY:
+		return
+	if _dbg_label == null:
+		_dbg_label = Label.new()
+		_dbg_label.position = Vector2(-40, -48)
+		_dbg_label.add_theme_font_size_override("font_size", 8)
+		_dbg_label.add_theme_color_override("font_color", Color(1, 1, 0.3))
+		_dbg_label.add_theme_color_override("font_outline_color", Color.BLACK)
+		_dbg_label.add_theme_constant_override("outline_size", 3)
+		entity.add_child(_dbg_label)
+	_dbg_label.text = "%s d=%d\nmove(%.1f,%.1f)\n%s" % [
+		Mode.keys()[mode], int(distance), intent.move_dir.x, intent.move_dir.y, " ".join(_dbg_flags)]
+	# One log line each time the mode, overrides or rounded move direction change.
+	var signature := "%s|%s|%d,%d" % [Mode.keys()[mode], " ".join(_dbg_flags), roundi(intent.move_dir.x), roundi(intent.move_dir.y)]
+	if signature != _dbg_last_signature:
+		_dbg_last_signature = signature
+		print("[AI %s t=%d] %s d=%d move=(%.2f,%.2f) pos=(%d,%d)" % [entity.name, Time.get_ticks_msec(),
+			signature, int(distance), intent.move_dir.x, intent.move_dir.y, int(entity.global_position.x), int(entity.global_position.y)])
+
+
+## Unit direction to the target. With the bodies nearly on top of each other the offset is tiny
+## and flips sign every frame (physics push-out), which made the bot's back-off move and facing
+## jitter. Below OVERLAP_DISTANCE the last reliable direction is reused instead.
+func _direction_to_target(to_target: Vector2, distance: float) -> Vector2:
+	if distance > OVERLAP_DISTANCE:
+		_overlap_dir = to_target / distance
+	elif _overlap_dir == Vector2.ZERO:
+		_overlap_dir = Vector2.from_angle(randf() * TAU) # born on top of the target
+	return _overlap_dir
+
+
+## Hold at min_distance; back off when closer than 75% of it. The back-off speed ramps up from
+## zero instead of jumping to half speed, because a jump at the threshold made the bot flip
+## between standing still and backing away every frame when it sat right on it.
 func _apply_min_distance(distance: float, toward: Vector2) -> void:
 	if distance > min_distance:
 		return
-	intent.move_dir = -toward * 0.5 if distance < min_distance * 0.75 else Vector2.ZERO
+	var inner := min_distance * 0.75
+	var ramp := clampf((inner - distance) / (min_distance * 0.25), 0.0, 1.0)
+	intent.move_dir = -toward * MIN_DISTANCE_BACKOFF_SPEED * ramp
 
 
 func _chase_direction(toward: Vector2) -> Vector2:
@@ -753,6 +813,7 @@ func _keep_in_arena() -> void:
 		var back := arena.closest_inside_point(pos) - pos
 		if back.length() > 0.5:
 			intent.move_dir = back.normalized()
+			_dbg_flags.append("outside")
 		return
 	if intent.move_dir == Vector2.ZERO:
 		return
@@ -763,7 +824,9 @@ func _keep_in_arena() -> void:
 		var alt := dir.rotated(deg_to_rad(angle))
 		if arena.is_inside(pos + alt * arena_lookahead):
 			intent.move_dir = alt * intent.move_dir.length()
+			_dbg_flags.append("wall-rot%d" % int(angle))
 			return
+	_dbg_flags.append("wall-stop")
 	intent.move_dir = Vector2.ZERO
 
 
@@ -949,9 +1012,24 @@ func _apply_arena_tactics(distance: float) -> void:
 	var pos := entity.global_position
 	var my_edge := _edge_vector(arena, pos, 22.0)
 	if my_edge != Vector2.ZERO:
-		# Don't hang around the edge: drift back toward the middle unless we are mid-fight.
+		# Don't hang around the edge, unless we are mid-fight. Never push back with a fixed shove:
+		# the spacing logic (back away from the target) would walk straight back into the band
+		# next frame and the on/off switch made the bot jitter in place. Instead drop only the
+		# part of the move that points at the wall (slide along it), and drift inward only when
+		# that leaves the bot standing still.
 		if mode == Mode.CAUTIOUS or mode == Mode.RECOVER or mode == Mode.RETREAT:
-			intent.move_dir = (intent.move_dir - my_edge.normalized() * 0.7).limit_length(1.0)
+			var outward := my_edge.normalized()
+			# Drift only when the bot wanted to stand still. If it wanted to go to the wall and the
+			# slide cancelled that, drifting inward would leave the band and the spacing logic
+			# would walk it straight back in: the jitter this replaces.
+			var wanted_idle := intent.move_dir.length() < EDGE_DRIFT_IDLE_SPEED
+			var toward_wall := intent.move_dir.dot(outward)
+			if toward_wall > 0.0:
+				intent.move_dir -= outward * toward_wall
+				_dbg_flags.append("edge-slide")
+			elif wanted_idle:
+				intent.move_dir = -outward * EDGE_DRIFT_SPEED
+				_dbg_flags.append("edge-drift")
 		return
 	if mode != Mode.CHASE or intent.move_dir == Vector2.ZERO:
 		return
