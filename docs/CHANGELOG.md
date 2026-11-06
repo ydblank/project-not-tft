@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Arena enlarged** to 31 x 15 tiles (GAM-80, part 1). Walls and obstacles that block projectiles are still to do. → [Fight flow](features/fight-flow.md)
+- **Camera:** the controlled fighter is always kept inside a comfort zone, so the camera tracks you in the bigger arena. → [Game feel](features/game-feel.md)
+- **AI:** fixed the bot freezing or jittering left-right when the player is very close (stable direction when overlapping, ramped back-off, edge sliding, engage hysteresis). → [AI](features/ai.md)
+- **Out-of-arena bubble** now appears on the side the fighter left through. → [UI and dev tools](features/ui-and-dev-tools.md)
+- **Pause:** Esc now also stops the 3-2-1 start countdown timer. The pause menu shows a "change #" number to identify the build.
+
 ## v2.2
 
 Combat, AI and game-feel overhaul, since commit `ecd4e25`.
