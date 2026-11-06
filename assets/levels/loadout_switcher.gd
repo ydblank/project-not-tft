@@ -10,6 +10,7 @@ const LOADOUTS := [
 	{"name": "Archer / Bow", "class": Classes.CLASSES.ARCHER, "weapon": Weapons.WEAPONS.BOW},
 	{"name": "Knight / Sword", "class": Classes.CLASSES.KNIGHT, "weapon": Weapons.WEAPONS.SWORD},
 	{"name": "Thief / Dagger", "class": Classes.CLASSES.THIEF, "weapon": Weapons.WEAPONS.DAGGER},
+	{"name": "Mage / Staff", "class": Classes.CLASSES.MAGE, "weapon": Weapons.WEAPONS.STAFF},
 ]
 
 var _index: int = 0

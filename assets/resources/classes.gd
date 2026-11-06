@@ -8,7 +8,7 @@ class_name Classes
 #   Knight | Sword           | 10    | 10      | 10            | 2            | 100
 #   Thief  | Dagger          | 5     | 7       | 5             | 10           | 100
 #   Archer | Fist (sheet)    | 7     | 5       | 5             | 7            | 100
-#   Mage   | Staff           | TBD (not in the game yet)
+#   Mage   | Staff           | 12    | 3       | 5             | 5            | 100
 #
 # The sheet's "damage" column is the "power" stat here (shared by physical and
 # magic attacks). The Archer keeps the bow until the slingshot exists. Every
@@ -20,7 +20,7 @@ class_name Classes
 # from 1 to 10: bonus = ATTACK_SPEED_PER_POINT * rating - ATTACK_SPEED_OFFSET
 # (rating 2 = 0.85x, 10 = 1.25x). See docs/features/calculations.md.
 
-enum CLASSES {NONE, KNIGHT, THIEF, ARCHER}
+enum CLASSES {NONE, KNIGHT, THIEF, ARCHER, MAGE}
 
 ## Attack speed multiplier gained per point of the sheet's attack speed rating.
 const ATTACK_SPEED_PER_POINT := 0.05
@@ -63,6 +63,15 @@ static var classStats = {
 		"bonus_knockback_res": 5,
 		"bonus_attack_speed": 0.10, # sheet rating 7
 		"allowed_weapons": [Weapons.WEAPONS.BOW], # the sheet says Fist; bow until the slingshot is added
-		"sprite_path": "res://assets/art/1 Characters/3/3.png"
+		"sprite_path": "res://assets/art/1 Characters/1/1.png" # green hooded sprite (shared with the Thief)
+	},
+	CLASSES.MAGE: {
+		"bonus_power": 12,
+		"bonus_hp": 0,
+		"bonus_def": 3,
+		"bonus_knockback_res": 5,
+		"bonus_attack_speed": 0.0, # sheet rating 5
+		"allowed_weapons": [Weapons.WEAPONS.STAFF],
+		"sprite_path": "res://assets/art/1 Characters/3/3.png" # pointy-hat sprite
 	}
 }
