@@ -12,6 +12,9 @@ class_name ArrowProjectile
 var hit: HitData = null
 var shooter: Node2D = null
 var _done: bool = false
+## Where the last wall hit happened, for the impact effect.
+var _wall_point: Vector2 = Vector2.ZERO
+var _wall_normal: Vector2 = Vector2.ZERO
 
 ## `_charge_mult` is the heavy charge multiplier; plain arrows ignore it, subclasses (fireball) size themselves by it.
 func setup(p_hit: HitData, p_shooter: Node2D, _charge_mult: float = 1.0) -> void:
@@ -46,6 +49,8 @@ func _hits_wall(from: Vector2, to: Vector2) -> bool:
 		if result.collider is CharacterBody2D:
 			excluded.append(result.rid)
 			continue
+		_wall_point = result.position
+		_wall_normal = result.normal
 		return true
 	return false
 
@@ -73,7 +78,16 @@ func _on_area_entered(area: Area2D) -> void:
 
 ## Called when the projectile runs into a wall. Subclasses can do more than vanish (the fireball explodes).
 func _on_wall_hit() -> void:
+	_wall_impact()
 	_finish()
+
+
+## Stone chips and a dull thud where the projectile hit the wall.
+func _wall_impact() -> void:
+	global_position = _wall_point
+	var normal := _wall_normal if _wall_normal != Vector2.ZERO else -Vector2.RIGHT.rotated(rotation)
+	var volume := -8.0 if is_instance_valid(shooter) and shooter.is_in_group("players") else -13.0
+	HitFX.wall_impact(self, _wall_point, normal, volume)
 
 
 ## Called after a hit lands, just before the projectile ends. For subclass effects.

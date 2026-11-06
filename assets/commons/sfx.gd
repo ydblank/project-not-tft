@@ -26,6 +26,8 @@ const SOUNDS := {
 	&"grunt": "dash.wav", # the same grunt recording, played lower / higher when a fighter lands a hit
 	&"hit": ["hit.wav", "hit_2.wav", "hit_3.wav"],
 	&"block": "block.wav",
+	&"wall_hit": "countdown_tick.wav", # a projectile hitting a wall: the short dry wood tick, played lower for a dull thump (the block clang rang too long, high pitch was too tiny)
+	&"wall_stone": "wall_stone.wav", # layered under wall_hit: a real stone hit (Sonniss Bluezone Stone Impact 041), trimmed to 0.4 s, mono
 	# Reused recordings, played at different pitches: parry (bright), clash (heavy clang), armor (dull thud), finisher (deep hit).
 	&"parry": "block.wav",
 	&"clash": "block.wav",

@@ -25,6 +25,10 @@ signal clashed(position: Vector2)
 
 const SLASH_VFX: PackedScene = preload("res://assets/effects/slash.tscn")
 const HURTBOX_LAYER := 2
+## Physics layers a swing can strike (walls); fighters are skipped.
+const WALL_MASK := 3
+## Wall-hit thump volume for a melee swing, relative to the fighter's own sound level.
+const WALL_HIT_DB := -8.0
 const KNOCKBACK_FRICTION := 1000.0
 const KNOCKBACK_DURATION := 0.25
 ## Swing sounds are played slightly lower than the recordings (1.0 = as recorded).
@@ -76,6 +80,8 @@ var sm: ActionStateMachine
 var weapon: WeaponData
 
 var _attack_hitbox: Area2D
+## A swing makes its wall impact once.
+var _wall_hit_done: bool = false
 var _attack_shape: CollisionShape2D
 var _hit_targets: Dictionary = {}
 var _current_hit_mult: float = 1.0
@@ -201,6 +207,7 @@ func _on_attack_started(e: Dictionary) -> void:
 	var move: AttackMove = e.move
 	var dir: Vector2 = e.dir
 	_hit_targets.clear()
+	_wall_hit_done = false
 	_current_hit_mult = e.charge_mult
 
 	if weapon and weapon.kind == WeaponData.Kind.RANGED:
@@ -241,6 +248,7 @@ func _resolve_melee_hits() -> void:
 		return
 	# Follow the attacker during the lunge so the hitbox stays attached.
 	_attack_hitbox.global_position = entity.global_position
+	_check_wall_hit()
 	for area in _attack_hitbox.get_overlapping_areas():
 		if sm.current_move == null:
 			return # the swing was cancelled mid-loop (parried, clashed, hit)
@@ -266,6 +274,44 @@ func _resolve_melee_hits() -> void:
 		hit_landed.emit(target, result)
 		if result == HitboxComponent.Result.PARRIED:
 			return # a parry stuns us and cancels the swing: nothing more to hit
+
+
+## A swing that reaches a wall throws stone chips and thumps once (the wall takes no damage and the swing carries on).
+func _check_wall_hit() -> void:
+	if _wall_hit_done:
+		return
+	# Asks the physics space directly: an Area2D's overlap list does not report the arena's tile bodies.
+	var shape_query := PhysicsShapeQueryParameters2D.new()
+	shape_query.shape = _attack_shape.shape
+	shape_query.transform = _attack_shape.global_transform
+	shape_query.collision_mask = WALL_MASK
+	var touching_wall := false
+	for result in entity.get_world_2d().direct_space_state.intersect_shape(shape_query, 8):
+		if not (result.collider is CharacterBody2D):
+			touching_wall = true
+			break
+	if not touching_wall:
+		return
+	_wall_hit_done = true
+	var dir := Vector2.RIGHT.rotated(_attack_hitbox.global_rotation)
+	var from := entity.global_position
+	var query := PhysicsRayQueryParameters2D.create(from, from + dir * sm.current_move.reach, WALL_MASK)
+	var excluded: Array[RID] = []
+	var point := from + dir * sm.current_move.reach
+	var normal := -dir
+	for i in 4:
+		query.exclude = excluded
+		var result := entity.get_world_2d().direct_space_state.intersect_ray(query)
+		if result.is_empty():
+			break
+		if result.collider is CharacterBody2D:
+			excluded.append(result.rid)
+			continue
+		point = result.position
+		if result.normal != Vector2.ZERO:
+			normal = result.normal
+		break
+	HitFX.wall_impact(entity, point, normal, sfx_db() + WALL_HIT_DB)
 
 
 ## Builds the HitData for one move. Also used by projectiles.
@@ -531,6 +577,17 @@ var _clash_until: float = 0.0
 ## A fresh block parries the first hit that lands on it (window set by parry_window).
 func is_parrying() -> bool:
 	return sm != null and sm.is_parrying()
+
+
+## True when this fighter's weapon is ranged (bow, staff). Ranged fighters cannot parry melee hits.
+func is_ranged_fighter() -> bool:
+	return weapon != null and weapon.kind == WeaponData.Kind.RANGED
+
+
+## A parry landed: the next click counter-attacks at once (see ActionStateMachine.parry_counter_window).
+func grant_parry_counter() -> void:
+	if sm != null:
+		sm.grant_counter()
 
 
 ## The attacker whose hit was parried is thrown off balance: no dashing out of this one.

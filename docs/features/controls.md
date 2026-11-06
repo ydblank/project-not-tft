@@ -21,7 +21,7 @@ You start as the **Knight with the sword**.
 
 ## Local 2-player mode
 
-A **"Mode: 1P (mouse) / 2P (local)"** button at the top of the screen switches modes. In 2P the mouse is not used: the **direction keys set the attack direction** (diagonals work, for example W+A).
+A **"Mode: 1P (mouse) / 2P (local)"** button at the top of the screen (visible while paused) switches modes. In 2P the mouse is not used: the **direction keys set the attack direction** (diagonals work, for example W+A).
 
 | | Move / aim | Attack | Block | Dash |
 |---|---|---|---|---|

@@ -102,7 +102,8 @@ func receive_hit(hit: HitData) -> Result:
 			from_dir = hit.attacker.global_position - global_position
 		if _combat.is_blocking_from(from_dir):
 			# Heavy attacks cannot be parried: they hit the normal block, drain the shield and can break it (stun).
-			if _combat.is_parrying() and not hit.is_heavy:
+			# A ranged fighter (bow, staff) cannot parry a melee hit either: it is only a normal block for them.
+			if _combat.is_parrying() and not hit.is_heavy and (hit.is_ranged or not _combat.is_ranged_fighter()):
 				_parry(hit)
 				return Result.PARRIED
 			if shield:
@@ -311,6 +312,8 @@ const PARRY_STUN := 0.7
 
 
 func _parry(hit: HitData) -> void:
+	if _combat:
+		_combat.grant_parry_counter()
 	parried.emit(hit.direction)
 	hit_blocked.emit()
 	if not hit.is_ranged and is_instance_valid(hit.attacker):

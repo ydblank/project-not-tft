@@ -251,6 +251,7 @@ func _build_ui() -> void:
 	_button.grow_horizontal = Control.GROW_DIRECTION_END
 	_button.toggled.connect(set_two_player)
 	layer.add_child(_button)
+	_button.add_to_group("game_option") # the pause menu moves it into "Game options"
 
 	_hint_layer = CanvasLayer.new()
 	_hint_layer.layer = 6

@@ -30,6 +30,7 @@ func _ready() -> void:
 	_button.grow_horizontal = Control.GROW_DIRECTION_END
 	_button.pressed.connect(cycle)
 	layer.add_child(_button)
+	_button.add_to_group("game_option") # the pause menu moves it into "Game options"
 	call_deferred("_sync_with_player")
 
 

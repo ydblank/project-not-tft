@@ -126,6 +126,9 @@ func _process(delta: float) -> void:
 	_set_shown(true)
 	_place_bubble(player)
 	_camera.global_position = player.global_position
+	# Never less zoomed than the main camera (it zooms in as the shrinking zone closes).
+	var main_camera := get_viewport().get_camera_2d()
+	_camera.zoom = Vector2.ONE * maxf(bubble_zoom, main_camera.zoom.x if main_camera else bubble_zoom)
 
 	# Direction and distance back to the arena.
 	var target := arena.closest_inside_point(player.global_position)
@@ -148,7 +151,9 @@ func _process(delta: float) -> void:
 
 	var farness := clampf(distance / far_distance, 0.0, 1.0)
 	_arrow_scale = lerpf(0.8, 1.5, farness)
-	_label.text = "ARENA  %d" % int(round(distance))
+	var zone := get_tree().get_first_node_in_group("zone") as ShrinkingZone
+	var caught_by_zone := zone != null and zone.active and not zone.contains(player.global_position)
+	_label.text = "%s  %d" % ["ZONE" if caught_by_zone else "ARENA", int(round(distance))]
 	_label.add_theme_color_override("font_color", _arrow_color)
 	_ring.queue_redraw()
 

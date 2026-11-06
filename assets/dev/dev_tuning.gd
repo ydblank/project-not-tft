@@ -56,6 +56,9 @@ func _apply_globals() -> void:
 	var cam_follow := level.get_node_or_null("CameraFollow") as CameraFollow
 	if cam_follow:
 		cam_follow.follow_strength = DevSettings.get_value("camera_follow")
+	var death_slowmo := level.get_node_or_null("DeathSlowMo") as DeathSlowMo
+	if death_slowmo:
+		death_slowmo.enabled = DevSettings.get_value("death_slowmo")
 	var respawner := level.get_node_or_null("EnemyRespawner") as EnemyRespawner
 	if respawner:
 		respawner.respawn_delay = DevSettings.get_value("respawn_delay")

@@ -81,6 +81,9 @@ var _recharge_total: float = 0.0
 var parry_window: float = 0.2
 ## After letting go of block, the parry window is unavailable for this long (stops block-mashing).
 var parry_cooldown: float = 0.45
+## After a successful parry, a click starts a quick attack at once, even while still holding block (and ignoring the quick-combo cooldown) for this long.
+var parry_counter_window: float = 0.7
+var _counter_left: float = 0.0
 var _block_age: float = 0.0
 var _block_idle: float = 99.0 # seconds since block last ended
 var _parry_armed: bool = false
@@ -111,6 +114,7 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 	if state == State.DEAD:
 		return events
 
+	_counter_left = maxf(_counter_left - delta, 0.0)
 	if state == State.BLOCK:
 		_block_age += delta
 	else:
@@ -183,7 +187,16 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 			_tick_attack(intent, delta, events)
 
 		State.BLOCK:
-			if intent.block_held:
+			if attack_pressed and _counter_left > 0.0:
+				# Parry counter: leave the block and swing right now.
+				_counter_left = 0.0
+				_light_cooldown_left = 0.0
+				_light_queued = false
+				_press_active = false
+				_set_state(State.IDLE)
+				facing = _aim(intent)
+				_start_attack(false, intent, events)
+			elif intent.block_held:
 				_update_block_dir(_aim(intent))
 			else:
 				_set_state(State.IDLE)
@@ -635,6 +648,17 @@ func hold_stagger(seconds: float) -> void:
 ## True while staggered in a way a dash can escape (combo hitstun, not a guard break).
 func can_dash_out() -> bool:
 	return state == State.STAGGER and _stagger_dashable
+
+
+## Called when a parry lands: opens the counter window (see parry_counter_window).
+func grant_counter() -> void:
+	_counter_left = parry_counter_window
+	_light_cooldown_left = 0.0
+
+
+## True while a click will start an instant counter-attack.
+func is_counter_open() -> bool:
+	return _counter_left > 0.0
 
 
 ## True during the first moments of a fresh block (see parry_window): a hit landing now is parried.

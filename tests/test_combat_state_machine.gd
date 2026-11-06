@@ -751,6 +751,31 @@ func test_fresh_block_parries_then_window_closes() -> void:
 	assert_false(sm.is_parrying(), "window closed while still holding block")
 
 
+func test_click_after_parry_counter_attacks_at_once() -> void:
+	var sm := _sm()
+	_run(sm, _intent(false, true), 0.05)
+	sm.grant_counter() # a parry just landed
+	var events := _run(sm, _intent(true, true), DT) # click while still holding block
+	assert_eq(sm.state, ActionStateMachine.State.ATTACK, "the click starts a swing immediately")
+	assert_eq(_of_type(events, "attack_started").size(), 1, "one attack_started fired on the click")
+
+
+func test_click_while_blocking_without_a_parry_does_nothing() -> void:
+	var sm := _sm()
+	_run(sm, _intent(false, true), 0.05)
+	_run(sm, _intent(true, true), DT * 3.0)
+	assert_eq(sm.state, ActionStateMachine.State.BLOCK, "no parry, no counter: still blocking")
+
+
+func test_counter_window_expires() -> void:
+	var sm := _sm()
+	_run(sm, _intent(false, true), 0.05)
+	sm.grant_counter()
+	_run(sm, _intent(false, true), sm.parry_counter_window + 0.1)
+	_run(sm, _intent(true, true), DT * 3.0)
+	assert_eq(sm.state, ActionStateMachine.State.BLOCK, "too late for a counter")
+
+
 func test_block_mashing_does_not_parry() -> void:
 	var sm := _sm()
 	sm.parry_window = 0.2

@@ -188,5 +188,6 @@ func _on_HostButton_pressed() -> void:
 
 func _on_JoinButton_pressed() -> void:
 	_set_multiplayer_ui_visible(false)
-	var ip: String = $CanvasLayer/IPInput.text
+	# Found by group: the pause menu moves this field out of CanvasLayer (it is only shown while paused).
+	var ip: String = (get_tree().get_first_node_in_group("ip_input") as LineEdit).text
 	join_game(ip)

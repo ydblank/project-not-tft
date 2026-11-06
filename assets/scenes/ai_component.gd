@@ -36,6 +36,9 @@ const PERSONALITY_VALUES := {
 @export var target_team: int = 0
 @export var detection_range: float = 200.0
 @export var chase_range: float = 400.0
+## When true the bot knows where every living enemy is and ignores detection/chase range. Without it, a
+## bot whose only enemy is far away (an archer kiting at range, after its partner dies) just stands idle.
+@export var hunt_far_targets: bool = true
 
 @export_group("Spacing")
 @export var flee_range: float = 80.0
@@ -111,6 +114,15 @@ const EDGE_DRIFT_SPEED := 0.25
 const DEBUG_OVERLAY := false
 ## Closer than this (px, about half a body width) the direction to the target is noise, so the
 ## last reliable one is used.
+## Physics layers that block a swing or an arrow (the arena's walls and pillars).
+const WALL_MASK := 3
+## The target must be in clear view this long (seconds) before the bot attacks, so a corner does not flip it between attacking and walking.
+const SIGHT_CLEAR_TIME := 0.1
+## How far ahead (px) a bot tests a sidestep for a clear shot, and how often (seconds) it re-picks one.
+const SIDESTEP_PROBES: Array[float] = [28.0, 60.0]
+const SIDESTEP_RECHECK := 0.15
+const SIDESTEP_ANGLES: Array[float] = [0.6, -0.6, 1.2, -1.2, 1.8, -1.8]
+
 const OVERLAP_DISTANCE := 6.0
 
 var intent := CombatIntent.new()
@@ -146,6 +158,12 @@ var _target_hold_left: float = 0.0
 var _watched_combat: CombatComponent = null
 var _target_attack_times: Array[float] = []
 var _overlap_dir: Vector2 = Vector2.ZERO
+## Seconds the target has been in clear view (no wall between us). Attacks wait for SIGHT_CLEAR_TIME.
+var _sight_clear_for: float = 0.0
+var _sidestep_dir: Vector2 = Vector2.ZERO
+var _sidestep_timer: float = 0.0
+## Which way round an obstacle the bot is circling (1 or -1), kept until blocked so it does not turn back.
+var _circle_side: float = 1.0
 var _dbg_label: Label
 var _dbg_last_signature: String = ""
 var _dbg_flags: PackedStringArray = []
@@ -220,6 +238,7 @@ func _physics_process(delta: float) -> void:
 	intent.aim_dir = _direction_to_target(to_target, distance)
 	intent.lunge_limit = maxf(distance - min_distance, 0.0)
 
+	_update_sight(delta)
 	_dbg_flags.clear()
 	_update_personality(delta)
 	_update_dodge(distance, to_target)
@@ -242,7 +261,7 @@ func _update_mode(distance: float) -> void:
 		Mode.IDLE:
 			_set_mode(Mode.CAUTIOUS if distance <= flee_range else Mode.CHASE)
 		Mode.CHASE, Mode.CAUTIOUS:
-			if _cooldown_left <= 0.0:
+			if _cooldown_left <= 0.0 and _can_see_target():
 				if distance <= engage_range:
 					_set_mode(Mode.ENGAGE)
 				elif distance <= heavy_range:
@@ -262,7 +281,10 @@ func _update_mode(distance: float) -> void:
 		Mode.ENGAGE:
 			_update_engage(distance, engage_range)
 		Mode.CHARGE:
-			_update_charge()
+			if not _can_see_target() and _attacks_this_engage == 0 and combat_component.get_state() == ActionStateMachine.State.IDLE:
+				_set_mode(Mode.CHASE) # a wall is in the way: go and find an angle
+			else:
+				_update_charge()
 		Mode.BLOCK:
 			if not _target_is_threatening(distance) or _mode_time >= block_hold_max:
 				intent.block_held = false
@@ -273,6 +295,9 @@ func _update_engage(distance: float, engage_range: float) -> void:
 	var state := combat_component.get_state()
 	var free := state == ActionStateMachine.State.IDLE
 	if not free:
+		return
+	if _attacks_this_engage == 0 and not _can_see_target():
+		_set_mode(Mode.CHASE) # a wall is in the way: do not swing at it, go and find an angle
 		return
 	var combo_open := combat_component.sm.is_in_combo_window()
 	if _attacks_this_engage > 0 and not combo_open:
@@ -377,6 +402,11 @@ func _act(distance: float, to_target: Vector2) -> void:
 				intent.move_dir = toward * 0.8
 			else:
 				intent.move_dir = Vector2.ZERO
+			if not _can_see_target():
+				var side := _sidestep_direction(toward) # a wall is in the way: go round it instead of waiting
+				if side != Vector2.ZERO:
+					intent.move_dir = side
+					_dbg_flags.append("sidestep")
 			_apply_min_distance(distance, toward)
 			_try_punish_dash(distance, toward)
 		Mode.RETREAT:
@@ -445,7 +475,8 @@ func _direction_to_target(to_target: Vector2, distance: float) -> Vector2:
 ## zero instead of jumping to half speed, because a jump at the threshold made the bot flip
 ## between standing still and backing away every frame when it sat right on it.
 func _apply_min_distance(distance: float, toward: Vector2) -> void:
-	if distance > min_distance:
+	# Behind a wall there is nothing to keep away from; this rule used to freeze the bot in place while it was looking for an angle.
+	if distance > min_distance or not _can_see_target():
 		return
 	var inner := min_distance * 0.75
 	var ramp := clampf((inner - distance) / (min_distance * 0.25), 0.0, 1.0)
@@ -453,7 +484,67 @@ func _apply_min_distance(distance: float, toward: Vector2) -> void:
 
 
 func _chase_direction(toward: Vector2) -> Vector2:
+	if not _can_see_target():
+		var side := _sidestep_direction(toward)
+		if side != Vector2.ZERO:
+			_dbg_flags.append("sidestep")
+			return side
 	return _flanked(_path_direction(toward), toward)
+
+
+## Tracks whether a wall is between us and the target.
+func _update_sight(delta: float) -> void:
+	if current_target != null and not _wall_between(entity.global_position, current_target.global_position):
+		_sight_clear_for += delta
+	else:
+		_sight_clear_for = 0.0
+	_sidestep_timer = maxf(_sidestep_timer - delta, 0.0)
+	_back_timer = maxf(_back_timer - delta, 0.0)
+
+
+func _can_see_target() -> bool:
+	return _sight_clear_for >= SIGHT_CLEAR_TIME
+
+
+## True when a wall or pillar is between the two points. Fighters are ignored (same idea as an arrow's wall ray).
+func _wall_between(from: Vector2, to: Vector2) -> bool:
+	var space := entity.get_world_2d().direct_space_state
+	var query := PhysicsRayQueryParameters2D.create(from, to, WALL_MASK)
+	var excluded: Array[RID] = []
+	for i in 4:
+		query.exclude = excluded
+		var result := space.intersect_ray(query)
+		if result.is_empty():
+			return false
+		if result.collider is CharacterBody2D:
+			excluded.append(result.rid)
+			continue
+		return true
+	return false
+
+
+## A short step that gets a clear line to the target: the nearest direction (to the side first) where the way is open and the target is visible from the step's end. Kept for a moment so the bot does not twitch. Zero when nothing works, so pathfinding takes over.
+func _sidestep_direction(toward: Vector2) -> Vector2:
+	if _sidestep_timer > 0.0 and _sidestep_dir != Vector2.ZERO:
+		return _sidestep_dir
+	_sidestep_timer = SIDESTEP_RECHECK
+	_sidestep_dir = Vector2.ZERO
+	var pos := entity.global_position
+	var target_pos := current_target.global_position
+	for reach in SIDESTEP_PROBES:
+		for angle in SIDESTEP_ANGLES:
+			var dir := toward.rotated(angle)
+			var probe := pos + dir * reach
+			if not _wall_between(pos, probe) and not _wall_between(probe, target_pos):
+				_sidestep_dir = dir
+				return _sidestep_dir
+	# No clear line within reach (a wide block): circle round the obstacle in one direction, turning the other way only when a wall stops us.
+	var circle := toward.rotated(_circle_side * 1.4)
+	if _wall_between(pos, pos + circle * 14.0):
+		_circle_side = -_circle_side
+		circle = toward.rotated(_circle_side * 1.4)
+	_sidestep_dir = circle
+	return _sidestep_dir
 
 
 func _path_direction(toward: Vector2) -> Vector2:
@@ -530,9 +621,26 @@ func _is_retreat_stuck() -> bool:
 
 const TARGET_SWITCH_MARGIN := 25.0
 
+## Teamwork scoring (see _target_score; lower score = better target).
+## A target at or below this HP% is a kill chance: teammates pile on it instead of spreading out.
+const FOCUS_HP_PERCENT := 45.0
+const FOCUS_BONUS := 40.0
+## Penalty for picking the target a teammate already has (healthy targets only), so the team spreads out.
+const SPREAD_PENALTY := 20.0
+## Bonus for going after whoever threatens a friend. Archers and mages are protected more than melee fighters, and a hurt friend more again.
+const PROTECT_RANGED_BONUS := 90.0
+const PROTECT_MELEE_BONUS := 45.0
+const PROTECT_HURT_BONUS := 40.0
+const PROTECT_HURT_PERCENT := 50.0
+## Someone this close to a friend counts as a (half) threat to it.
+const PROTECT_NEAR_RADIUS := 90.0
+const PROTECT_NEAR_SHARE := 0.5
+## A melee bot prefers enemy archers and mages (squishy, and they cannot parry its hits).
+const PREFER_RANGED_BONUS := 15.0
+
 
 func _update_target() -> void:
-	if current_target and (not _is_valid_target(current_target) or _distance_to(current_target) > chase_range):
+	if current_target and (not _is_valid_target(current_target) or (not hunt_far_targets and _distance_to(current_target) > chase_range)):
 		current_target = null
 	var best := _find_best_target()
 	if best and best != current_target:
@@ -560,7 +668,7 @@ func _find_best_target() -> Node2D:
 			var target := node as Node2D
 			if target == null or not _is_valid_target(target):
 				continue
-			if _distance_to(target) > detection_range:
+			if not hunt_far_targets and _distance_to(target) > detection_range:
 				continue
 			var score := _target_score(target) if smart_targeting else _distance_to(target)
 			if score < best_score:
@@ -589,15 +697,43 @@ func _target_score(target: Node2D) -> float:
 	if hurtbox and hurtbox.health:
 		score -= 50.0 * (1.0 - clampf(hurtbox.health.get_hp_percentage() / 100.0, 0.0, 1.0))
 	if teamwork:
+		# Focus fire: everyone joins in on a hurt target; healthy ones are spread out.
+		var target_hp := hurtbox.health.get_hp_percentage() if hurtbox and hurtbox.health else 100.0
+		var focus := target_hp < FOCUS_HP_PERCENT
 		for mate in _teammates():
 			if mate.current_target == target:
-				score += 20.0
+				score += -FOCUS_BONUS if focus else SPREAD_PENALTY
+		# Protect friends: go after whoever is attacking or targeting them (archers first).
 		for friend in _friends():
+			var share := _threat_share(target, friend)
+			if share <= 0.0:
+				continue
+			var friend_combat := CombatComponent.find_on(friend)
+			var bonus := PROTECT_RANGED_BONUS if friend_combat and friend_combat.is_ranged_fighter() else PROTECT_MELEE_BONUS
 			var friend_hurtbox := _find_hurtbox(friend)
-			if friend_hurtbox and friend_hurtbox.health and friend_hurtbox.health.get_hp_percentage() < 35.0 \
-					and friend.global_position.distance_to(target.global_position) < 70.0:
-				score -= 45.0 # peel: go after whoever is on top of a hurt friend
+			if friend_hurtbox and friend_hurtbox.health and friend_hurtbox.health.get_hp_percentage() < PROTECT_HURT_PERCENT:
+				bonus += PROTECT_HURT_BONUS
+			score -= bonus * share
+		# Melee bots go for the enemy's ranged fighters.
+		if combat and combat.is_ranged_fighter() and combat_component and not combat_component.is_ranged_fighter():
+			score -= PREFER_RANGED_BONUS
 	return score
+
+
+## How much 	hreat endangers riend: 1.0 when it is clearly going for it (a bot that has targeted it, or a fighter mid-attack aimed at it), 0.5 when it is just close, else 0.
+func _threat_share(threat: Node2D, friend: Node2D) -> float:
+	var to_friend := friend.global_position - threat.global_position
+	var dist := to_friend.length()
+	for node in get_tree().get_nodes_in_group("ai_fighters"):
+		var brain := node as AIComponent
+		if brain != null and brain.entity == threat and brain.current_target == friend:
+			return 1.0
+	var threat_combat := CombatComponent.find_on(threat)
+	if threat_combat and dist < 140.0 and dist > 1.0:
+		var state := threat_combat.get_state()
+		if (state == ActionStateMachine.State.ATTACK or state == ActionStateMachine.State.CHARGING) and threat_combat.sm.attack_dir.dot(to_friend / dist) > 0.8:
+			return 1.0
+	return PROTECT_NEAR_SHARE if dist <= PROTECT_NEAR_RADIUS else 0.0
 
 
 func _is_valid_target(target: Node2D) -> bool:
@@ -782,7 +918,15 @@ func _apply_dodge() -> void:
 # Staying inside the arena
 # ======================================================================
 
+## Walking back in (from outside the arena or the zone): how far ahead (px) to look for a wall, the angles to
+## try when one is in the way, and how long (s) a chosen way round is kept so the bot does not twitch.
+const BACK_PROBE := 18.0
+const BACK_ANGLES: Array[float] = [35.0, -35.0, 70.0, -70.0, 105.0, -105.0, 140.0, -140.0]
+const BACK_HOLD := 0.35
+
 var _arena: ArenaBounds
+var _back_dir: Vector2 = Vector2.ZERO
+var _back_timer: float = 0.0
 
 
 func _get_arena() -> ArenaBounds:
@@ -802,6 +946,30 @@ func _inside_after(dir: Vector2, distance: float) -> bool:
 	return arena.is_inside(entity.global_position + dir.normalized() * distance)
 
 
+## Which way to walk to get from outside the arena (or the shrinking zone) back to `goal`. A straight line
+## often runs into a wall or pillar and the bot would just push against it, so this follows the navigation
+## path (which goes round obstacles) and, without one, feels its way round whatever blocks the straight line.
+func _way_back(pos: Vector2, goal: Vector2) -> Vector2:
+	var dir := (goal - pos).normalized()
+	if use_pathfinding and navigation_agent != null and _has_navigation():
+		navigation_agent.target_position = goal
+		if not navigation_agent.is_navigation_finished():
+			var next := navigation_agent.get_next_path_position()
+			if pos.distance_to(next) > 1.0:
+				dir = (next - pos).normalized()
+	# Still blocked right in front (no navigation, or a path that clips a corner): turn until the way is open.
+	if _back_timer > 0.0 and _back_dir != Vector2.ZERO and not _wall_between(pos, pos + _back_dir * BACK_PROBE):
+		return _back_dir
+	if _wall_between(pos, pos + dir * BACK_PROBE):
+		for angle in BACK_ANGLES:
+			var alt := dir.rotated(deg_to_rad(angle))
+			if not _wall_between(pos, pos + alt * BACK_PROBE):
+				_back_dir = alt
+				_back_timer = BACK_HOLD
+				return alt
+	return dir
+
+
 ## Final pass over the intent: never walk out of the arena, slide along the edge
 ## instead, and head back in if we are already outside (knocked out).
 func _keep_in_arena() -> void:
@@ -810,9 +978,9 @@ func _keep_in_arena() -> void:
 		return # a dash was already checked when it was chosen
 	var pos := entity.global_position
 	if not arena.is_inside(pos):
-		var back := arena.closest_inside_point(pos) - pos
-		if back.length() > 0.5:
-			intent.move_dir = back.normalized()
+		var goal := arena.closest_inside_point(pos)
+		if goal.distance_to(pos) > 0.5:
+			intent.move_dir = _way_back(pos, goal)
 			_dbg_flags.append("outside")
 		return
 	if intent.move_dir == Vector2.ZERO:

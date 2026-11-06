@@ -88,10 +88,12 @@ func _on_area_entered(area: Area2D) -> void:
 
 
 func _on_wall_hit() -> void:
+	global_position = _wall_point
 	if explodes:
 		_explode()
 	else:
-		_finish()
+		_spawn_burst(IMPACT_TEXTURE, scale.x)
+		super()
 
 
 ## A quick fireball bursts on the one target it hit.

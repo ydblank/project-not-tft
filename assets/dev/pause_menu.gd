@@ -6,13 +6,15 @@ class_name PauseMenu
 # apply live, and are saved to disk (Save button, and automatically on Resume).
 
 ## Bump this whenever a change is made, so the number in the pause menu shows which build is running.
-const CHANGE_NUMBER := 11
+const CHANGE_NUMBER := 46
 
 @export var tuning: DevTuning
 
 var _dim: ColorRect
 var _main_panel: PanelContainer
 var _settings_panel: PanelContainer
+## Holds the test / mode buttons (AI Bots, Teams, ...) at their usual spots, shown only while paused.
+var _option_layer: CanvasLayer
 var _resume_button: Button
 var _status: Label
 var _rows: Dictionary = {} # key -> {"control": Control, "value": Label}
@@ -27,6 +29,7 @@ func _ready() -> void:
 		tuning = get_parent().get_node_or_null("DevTuning") as DevTuning
 	_build()
 	visible = false
+	_collect_options.call_deferred() # after every level tool has built its button
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -45,6 +48,7 @@ func open() -> void:
 	Sfx.play(&"ui_open", 0.0, 1.0, 0.0, 0.0)
 	get_tree().paused = true
 	visible = true
+	_option_layer.visible = true
 	_show_main()
 
 
@@ -52,6 +56,7 @@ func resume() -> void:
 	Sfx.play(&"ui_close", 0.0, 1.0, 0.0, 0.0)
 	_save_if_dirty()
 	visible = false
+	_option_layer.visible = false
 	get_tree().paused = false
 
 
@@ -73,6 +78,18 @@ func _show_settings() -> void:
 	_status.text = ""
 
 
+## Moves the game's test / mode buttons (AI Bots, Teams, Parry Training, Host / Join, ...) onto a layer above the pause
+## dim. They keep their anchors and offsets, so they sit exactly where they always did; the layer is only
+## shown while paused, so they are gone from the combat screen. Every such button joins the "game_option"
+## group when its script builds it.
+func _collect_options() -> void:
+	for node in get_tree().get_nodes_in_group("game_option"):
+		var control := node as Control # buttons, and the Host / Join address field
+		if control and control.get_parent() != _option_layer:
+			control.get_parent().remove_child(control)
+			_option_layer.add_child(control)
+
+
 # ======================================================================
 # Building the UI
 # ======================================================================
@@ -82,6 +99,11 @@ func _build() -> void:
 	_dim.color = Color(0, 0, 0, 0.6)
 	_dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_dim)
+
+	_option_layer = CanvasLayer.new()
+	_option_layer.layer = 21 # above the dim and the menu panels
+	_option_layer.visible = false
+	add_child(_option_layer)
 
 	# ---- main menu ----
 	_main_panel = PanelContainer.new()

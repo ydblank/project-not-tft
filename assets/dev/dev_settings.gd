@@ -47,6 +47,7 @@ const DEFS := [
 
 	# ---- Camera ----
 	{"key": "camera_follow", "group": "Camera", "label": "Follow strength", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.35},
+	{"key": "death_slowmo", "group": "Camera", "label": "Death slow-motion and zoom", "type": "bool", "default": true},
 
 	# ---- Arena ----
 	{"key": "arena_damage_percent", "group": "Arena", "label": "Outside damage (% max HP / s)", "type": "float", "min": 0.0, "max": 40.0, "step": 1.0, "default": 8.0},

@@ -13,6 +13,10 @@ var damage_multiplier: float = 1.0
 var show_damage_numbers: bool = true
 var enemy_tells: bool = true
 
+## The game's base speed (1 = normal). Slow-motion effects (the death slow-mo) set it with set_slowmo();
+## a hitstop still freezes the game and then returns to this speed instead of to 1.
+var slowmo_scale: float = 1.0
+
 var _hitstop_end_msec: int = 0
 var _hitstop_token: int = 0
 
@@ -72,7 +76,14 @@ func hitstop(duration: float) -> void:
 	await get_tree().create_timer(duration, true, false, true).timeout
 	# Only the call that set the latest end time restores the time scale.
 	if token == _hitstop_token:
-		Engine.time_scale = 1.0
+		Engine.time_scale = slowmo_scale
+
+
+## Sets the base game speed (0.2 = five times slower). Takes effect at once unless a hitstop is freezing the game; then it applies when the freeze ends.
+func set_slowmo(scale: float) -> void:
+	slowmo_scale = clampf(scale, 0.01, 1.0)
+	if Time.get_ticks_msec() >= _hitstop_end_msec:
+		Engine.time_scale = slowmo_scale
 
 
 # ---- camera shake ----

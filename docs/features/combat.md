@@ -47,7 +47,10 @@ The sheet's "damage" column is the **power** stat. The formulas are in [Calculat
   - you take no shield damage;
   - the attacker is stunned for 0.7s and cannot dash out;
   - a parried arrow flies back at its shooter, faster and 50% harder.
+  - To practise, use the [parry trainer](ui-and-dev-tools.md#parry-trainer) (F3).
+  - **Counter:** after a successful parry, a click starts a quick attack at once (for 0.7s), even while you are still holding block and ignoring the quick-combo cooldown.
   - Mashing block does not work: after letting go there is a 0.45s pause before the parry window is available again.
+  - Only melee fighters can parry. A fighter with a ranged weapon (bow, staff) cannot parry a melee hit; it is a normal block for them. Melee fighters can still parry arrows and fireballs.
   - Heavy attacks (melee, or a fully drawn arrow) cannot be parried. They hit the block as usual, drain the shield and can break it, which stuns you.
 - **Super armor on heavies:** while charging or swinging a heavy melee attack, light hits (including arrows) do not interrupt you (the damage still lands). The armor has durability like a shield (10 points by default): each light hit wears it down, and when it runs out you are stunned for 1s and the heavy is lost ("ARMOR BREAK!"). A heavy hit breaks through at once. A ring around the fighter shows the armor left.
 - **Attack clashes:** two melee swings of the same weight (light vs light, heavy vs heavy) that meet in the air cancel out. Both fighters are thrown back and nobody takes damage. A heavy against a light swing is not a clash: the heavy's armor wins.

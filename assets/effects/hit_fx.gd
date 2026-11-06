@@ -10,6 +10,7 @@ const BLOOD_TIME := 0.28
 
 const COLOR_BLOOD := Color(0.75, 0.08, 0.1)
 const COLOR_SPARK := Color(1.0, 0.92, 0.55)
+const COLOR_STONE := Color(0.7, 0.75, 0.88)
 
 
 ## Blood splat + droplets thrown along dir (attacker -> victim).
@@ -40,6 +41,23 @@ static func sparks(host: Node, pos: Vector2, dir: Vector2, heavy: bool) -> void:
 		return
 	# Sparks fly back toward the attacker, off the shield.
 	_burst(root, pos, -_safe_dir(dir), COLOR_SPARK, 12 if heavy else 7, 110.0, 70.0)
+
+
+## Stone chips thrown back off a wall a projectile just hit. `normal` points out of the wall.
+static func wall_chips(host: Node, pos: Vector2, normal: Vector2) -> void:
+	var root := _root(host)
+	if root == null:
+		return
+	var out := _safe_dir(normal)
+	_burst(root, pos, out, COLOR_STONE, 8, 70.0, 60.0)
+	_burst(root, pos, out, COLOR_SPARK, 4, 100.0, 40.0)
+
+
+## A weapon or projectile hit a wall: stone chips plus a low thump layered with a stone hit. olume_db is relative to the SFX bus.
+static func wall_impact(host: Node, pos: Vector2, normal: Vector2, volume_db: float) -> void:
+	wall_chips(host, pos, normal)
+	Sfx.play(&"wall_hit", volume_db, 0.8)
+	Sfx.play(&"wall_stone", volume_db - 4.0, 1.0)
 
 
 ## A fading copy of the sprite, left behind while dashing. Drawn under the fighter.

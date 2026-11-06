@@ -652,6 +652,7 @@ size = Vector2(10, 12)
 [node name="EnemyCharacter" type="CharacterBody2D" unique_id=536573144 groups=["enemies"]]
 collision_layer = 2
 collision_mask = 7
+safe_margin = 0.005
 script = ExtResource("1_xhcsj")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1679708260]
