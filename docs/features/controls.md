@@ -13,6 +13,7 @@ How a human drives a fighter. Input is polled every physics frame by `PlayerCont
 | RMB | Block (hold) |
 | Space | Dash |
 | **E** | **Skill**: hold to aim (shows the marker), release to cast; a tap casts at once. See [Skills](skills.md) |
+| **Q** | **Ultimate** (when its meter is full). See [Ultimate](ultimate.md) |
 | **R** | **Switch to your teammate** |
 | F1 | Show / hide the on-screen controller overlay |
 | F5 | Show / hide the tile ruler (for skill ranges) |
@@ -33,8 +34,9 @@ An Xbox 360 / XInput-style controller can drive Player 1 at the same time as the
 | Right stick | Aim (see below) |
 | RT or X | Attack: tap = quick attack, hold = charge heavy, release = heavy |
 | LB (L1) | Block (hold) |
-| LT (L2), A or RB | Dash |
+| LT (L2) or A | Dash |
 | B | Skill (hold to aim, release to cast) |
+| RB (R1) | Ultimate |
 | Y | Switch to your teammate (R) |
 | Start | Pause menu (Esc). In menus: D-pad or left stick moves, **A confirms**, **B backs out / cancels** |
 
@@ -54,7 +56,7 @@ An Xbox 360 / XInput-style controller can drive Player 1 at the same time as the
 
 ## Key bindings
 
-Pause → Settings → Controls → **Key bindings** lists every Player 1 action (Move up / down / left / right, Attack, Block, Dash, Skill) with its keyboard / mouse binding and its controller binding. **Click a binding, then press the new key, mouse button, controller button, trigger or stick direction.** Esc (or Start) cancels.
+Pause → Settings → Controls → **Key bindings** lists every Player 1 action (Move up / down / left / right, Attack, Block, Dash, Skill, Ultimate) with its keyboard / mouse binding and its controller binding. **Click a binding, then press the new key, mouse button, controller button, trigger or stick direction.** Esc (or Start) cancels.
 
 - **Conflicts swap:** a key or button that another action already uses moves over, and that action gets the old one (or just loses it, when it has another: binding Space elsewhere leaves Dash on F).
 - **Controller:** movement and aim stay on the sticks and D-pad. Start, Guide and Y (switch character) cannot be bound. A trigger or stick bound to an action counts once pushed half way.
@@ -67,10 +69,10 @@ Pause → Settings → Controls → **Key bindings** lists every Player 1 action
 
 A **"Mode: 1P (mouse) / 2P (local)"** button at the top of the screen (visible while paused) switches modes. In 2P the mouse is not used: the **direction keys set the attack direction** (diagonals work, for example W+A).
 
-| | Move / aim | Attack | Block | Dash | Skill |
-|---|---|---|---|---|---|
-| **Player 1** (blue team) | W A S D | F | G | H | J |
-| **Player 2** (takes over the enemy knight) | Arrow keys | N | M | , (comma) | / (slash) |
+| | Move / aim | Attack | Block | Dash | Skill | Ultimate |
+|---|---|---|---|---|---|---|
+| **Player 1** (blue team) | W A S D | F | G | H | J | K |
+| **Player 2** (takes over the enemy knight) | Arrow keys | N | M | , (comma) | / (slash) | Right Shift |
 
 Character switching still works in 2P:
 

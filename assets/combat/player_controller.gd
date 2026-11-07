@@ -13,6 +13,7 @@ class_name PlayerController
 @export var input_block: StringName = &"Block"
 @export var input_dash: StringName = &"dash"
 @export var input_skill: StringName = &"skill"
+@export var input_ultimate: StringName = &"ultimate"
 ## false = aim with the direction keys (last direction held, diagonals included) instead of the mouse.
 @export var aim_with_mouse: bool = true
 ## Who the attack lunge stops in front of.
@@ -95,6 +96,7 @@ func _physics_process(delta: float) -> void:
 	intent.dash_held = Input.is_action_pressed(input_dash)
 	intent.skill_held = InputMap.has_action(input_skill) and Input.is_action_pressed(input_skill)
 	intent.skill_target = _skill_target()
+	intent.ultimate_held = InputMap.has_action(input_ultimate) and Input.is_action_pressed(input_ultimate)
 
 
 ## True while a controller (not the mouse) is the device in use. Rumble only buzzes then.

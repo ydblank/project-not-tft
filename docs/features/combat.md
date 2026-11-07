@@ -36,6 +36,10 @@ The sheet's "damage" column is the **power** stat. The formulas are in [Calculat
 
 Every weapon has a special skill on E: sword spin, dagger dash strike, bow volley, staff fireball with burning ground. See [Skills](skills.md).
 
+## Ultimate
+
+Every class has an ultimate on Q. It charges from the hits you land, faster at low HP, and lasts 5 s: Knight immunity, Thief speed and projectile dodging, Archer charged rapid fire, Mage shorter cooldowns. See [Ultimate](ultimate.md).
+
 ## Ranged
 
 - **Bow rebalanced:** slower full charge (2.2s), lower damage cap (x2.0), light arrows have very light knockback (x0.2).

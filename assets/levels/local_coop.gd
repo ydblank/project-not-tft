@@ -5,17 +5,17 @@ class_name LocalCoop
 # between "1P (mouse)" and "2P (local)".
 #
 # 2P keys (aim is set by the direction keys, diagonals included, no mouse):
-#   Player 1 (blue team):  W A S D move,  F attack,  G block,  H dash,  J skill,  R swap with the ally
-#   Player 2 (the enemy knight):  arrow keys move,  N attack,  M block,  , (comma) dash,  / skill,  . (period) swap enemy
+#   Player 1 (blue team):  W A S D move,  F attack,  G block,  H dash,  J skill,  K ultimate,  R swap with the ally
+#   Player 2 (the enemy knight):  arrow keys move,  N attack,  M block,  , (comma) dash,  / skill,  Right Shift ultimate,  . (period) swap enemy
 # Player 2 takes over the enemy knight from the AI. If it dies and a new one
 # respawns, Player 2 gets the new one. Switching back to 1P hands it to the AI again.
 
 const P1_ACTIONS := {
-	&"p1_attack": KEY_F, &"p1_block": KEY_G, &"p1_dash": KEY_H, &"p1_skill": KEY_J,
+	&"p1_attack": KEY_F, &"p1_block": KEY_G, &"p1_dash": KEY_H, &"p1_skill": KEY_J, &"p1_ultimate": KEY_K,
 }
 const P2_ACTIONS := {
 	&"p2_up": KEY_UP, &"p2_down": KEY_DOWN, &"p2_left": KEY_LEFT, &"p2_right": KEY_RIGHT,
-	&"p2_attack": KEY_N, &"p2_block": KEY_M, &"p2_dash": KEY_COMMA, &"p2_skill": KEY_SLASH,
+	&"p2_attack": KEY_N, &"p2_block": KEY_M, &"p2_dash": KEY_COMMA, &"p2_skill": KEY_SLASH, &"p2_ultimate": KEY_SHIFT,
 }
 const P2_GROUP := "p2_controlled"
 const P2_MARKER := "P2Marker"
@@ -90,12 +90,14 @@ func _configure_p1(coop: bool) -> void:
 				pc.input_block = &"p1_block"
 				pc.input_dash = &"p1_dash"
 				pc.input_skill = &"p1_skill"
+				pc.input_ultimate = &"p1_ultimate"
 				pc.aim_with_mouse = false
 			else:
 				pc.input_attack = &"Attack"
 				pc.input_block = &"Block"
 				pc.input_dash = &"dash"
 				pc.input_skill = &"skill"
+				pc.input_ultimate = &"ultimate"
 				pc.aim_with_mouse = true
 
 
@@ -142,6 +144,7 @@ func _take_p2(entity: CharacterBody2D) -> void:
 	pc.input_block = &"p2_block"
 	pc.input_dash = &"p2_dash"
 	pc.input_skill = &"p2_skill"
+	pc.input_ultimate = &"p2_ultimate"
 	pc.aim_with_mouse = false
 	pc.lunge_target_groups = ["players", "allies"]
 	pc.intent.aim_dir = Vector2.LEFT
@@ -205,6 +208,8 @@ func _register_actions() -> void:
 				InputMap.add_action(action)
 				var event := InputEventKey.new()
 				event.physical_keycode = table[action]
+				if table[action] == KEY_SHIFT:
+					event.location = KEY_LOCATION_RIGHT # Player 2 ultimate: only the right Shift, the left one sits by WASD
 				InputMap.action_add_event(action, event)
 
 
@@ -260,7 +265,7 @@ func _build_ui() -> void:
 	_hint_layer.layer = 6
 	add_child(_hint_layer)
 	var hint := Label.new()
-	hint.text = "P1:  WASD move   F attack   G block   H dash   J skill   R switch      P2:  Arrows move   N attack   M block   , dash   / skill   . switch"
+	hint.text = "P1:  WASD move   F attack   G block   H dash   J skill   K ult   R switch      P2:  Arrows move   N attack   M block   , dash   / skill   RShift ult   . switch"
 	hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	hint.grow_vertical = Control.GROW_DIRECTION_BEGIN

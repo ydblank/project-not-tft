@@ -29,6 +29,8 @@ var radius: float = 56.0
 var duration: float = 3.0
 var tick: float = 0.5
 var damage_per_tick: float = 1.0
+## Ultimate meter points the caster gets per fighter per tick (the burn multiplier per tick).
+var charge_points_per_tick: float = 0.0
 ## Stagger applied by each burn tick (0 = none).
 var stagger_time: float = 0.25
 var team: int = -1
@@ -51,6 +53,7 @@ static func spawn(parent: Node, pos: Vector2, skill: SkillData, p_attacker: Node
 	ground.duration = skill.dot_duration
 	ground.tick = maxf(skill.dot_tick, 0.05)
 	ground.damage_per_tick = p_damage_per_tick
+	ground.charge_points_per_tick = skill.dot_mult_per_sec * ground.tick
 	ground.stagger_time = skill.dot_stagger_time
 	ground.team = p_team
 	ground.attacker = p_attacker
@@ -145,6 +148,7 @@ func _burn() -> void:
 		hit.is_ranged = true
 		hit.reaction = AttackMove.Reaction.STAGGER
 		hit.stagger_time = stagger_time
+		hit.charge_points = charge_points_per_tick
 		hurtbox.receive_hit(hit)
 	if not burned.is_empty():
 		Sfx.play(&"burn", SIZZLE_DB, 0.5, 0.08)

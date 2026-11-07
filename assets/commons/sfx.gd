@@ -35,6 +35,7 @@ const SOUNDS := {
 	&"armor": "block.wav",
 	&"finisher": ["hit_2.wav", "hit_3.wav"],
 	&"guard_break": "guard_break.wav",
+	&"ultimate": "guard_break.wav", # ultimate activation: PLACEHOLDER, the guard-break crash played low until a real sound is added
 	&"death": "death.wav",
 	&"countdown_tick": "countdown_tick.wav",
 	&"fight": "fight.wav",

@@ -23,6 +23,9 @@ signal armor_absorbed(direction: Vector2)
 signal armor_broken()
 ## Two same-weight swings met in the air.
 signal clashed(position: Vector2)
+## The class ultimate (Q) started / ran out. `ultimate` is its Ultimates row.
+signal ultimate_started(ultimate: Dictionary)
+signal ultimate_ended()
 
 const SLASH_VFX: PackedScene = preload("res://assets/effects/slash.tscn")
 const HURTBOX_LAYER := 2
@@ -45,6 +48,8 @@ const BOW_RELEASE_DB := -10.0
 const DASH_PITCH_JITTER := 0.05
 ## A combo can hold its victim in hitstun for at most this long in total.
 const COMBO_LOCK_MAX := 1.5
+## Freeze frame when a human-controlled fighter fires an ultimate.
+const ULTIMATE_HITSTOP := 0.1
 
 @export var entity: CharacterBody2D
 @export var controller: Node
@@ -99,6 +104,7 @@ func _ready() -> void:
 	weapon = stats_component.get_weapon_data() if stats_component else null
 	sm = ActionStateMachine.new(weapon, CombatGlobal.calculate_attack_speed(stats_component))
 	sm.parry_window = parry_window
+	sm.set_ultimate(_ultimate_row())
 	if stats_component:
 		sm.configure_dash(stats_component.dash_duration, stats_component.dash_cooldown, stats_component.dash_charges, stats_component.dash_recharge_time, stats_component.dash_reload_time)
 	_build_attack_hitbox()
@@ -174,6 +180,10 @@ func _handle_event(e: Dictionary) -> void:
 		"skill_ended":
 			if _skill_caster:
 				_skill_caster.stop()
+		"ultimate_started":
+			_on_ultimate_started(e.ultimate)
+		"ultimate_ended":
+			ultimate_ended.emit()
 
 
 func _emit_state_change() -> void:
@@ -192,7 +202,8 @@ func _emit_state_change() -> void:
 # ======================================================================
 
 func _compute_velocity(intent: CombatIntent, delta: float) -> Vector2:
-	var move_speed := movement_component.move_speed if movement_component else 100.0
+	# The Knight's and Thief's ultimates walk faster (its own multiplier: speed_multiplier belongs to ArenaBounds).
+	var move_speed := (movement_component.move_speed if movement_component else 100.0) * sm.ult_move_speed_mult()
 	# Archers strafe slowly while drawing / releasing a shot.
 	if sm.state == ActionStateMachine.State.ATTACK and weapon and weapon.kind == WeaponData.Kind.RANGED:
 		return intent.move_dir.limit_length(1.0) * move_speed * ranged_attack_speed_mult * speed_multiplier
@@ -359,6 +370,7 @@ func build_hit(move: AttackMove, toward_target: Vector2, charge_mult: float) -> 
 	hit.is_heavy = sm.current_is_heavy
 	hit.is_combo_chain = weapon != null and not hit.is_ranged and not sm.current_is_final
 	hit.is_finisher = weapon != null and not hit.is_ranged and sm.current_is_final and (sm.current_is_heavy or weapon.light_move_count() > 1)
+	hit.charge_points = move.damage_mult * charge_mult
 	return hit
 
 
@@ -523,6 +535,7 @@ func _breaks_stun_immunity(hit: HitData) -> bool:
 func refresh_loadout() -> void:
 	weapon = stats_component.get_weapon_data() if stats_component else null
 	sm.set_loadout(weapon, CombatGlobal.calculate_attack_speed(stats_component) * attack_speed_scale)
+	sm.set_ultimate(_ultimate_row())
 	if _skill_caster:
 		_skill_caster.stop()
 	_emit_state_change()
@@ -588,6 +601,7 @@ func build_skill_hit(skill: SkillData, toward_target: Vector2) -> HitData:
 	hit.hitstop = skill.hitstop
 	hit.is_ranged = skill.has_tag(SkillData.Tag.RANGED) and skill.kind != SkillData.Kind.DASH_STRIKE
 	hit.is_finisher = skill.kind != SkillData.Kind.VOLLEY # the big single hits get the hit-confirm effect
+	hit.charge_points = skill.damage_mult
 	return hit
 
 
@@ -780,3 +794,92 @@ func _break_armor() -> void:
 		sm.apply_stagger(ARMOR_BREAK_STUN, false) # the heavy is lost, and no dashing out of it
 		_emit_state_change()
 	Sfx.play(&"guard_break", sfx_db() - 2.0, 1.25)
+
+
+# ======================================================================
+# Ultimate (Q)
+# ======================================================================
+
+## This fighter's class ultimate (Ultimates row), empty when the class has none.
+func _ultimate_row() -> Dictionary:
+	return Ultimates.row_for(stats_component.entity_class) if stats_component else {}
+
+
+## A hit of ours reached an enemy's health: fill the meter by the hit's multiplier, faster at low HP.
+func on_hit_dealt(points: float) -> void:
+	if sm == null or sm.ultimate.is_empty():
+		return
+	var hp_ratio := 1.0
+	if health_component and health_component.get_max_hp() > 0.0:
+		hp_ratio = health_component.get_hp() / health_component.get_max_hp()
+	sm.add_ult_charge(Ultimates.charge_gain(points, hp_ratio, sm.ultimate))
+
+
+func _on_ultimate_started(row: Dictionary) -> void:
+	var color: Color = row.get("color", Ultimates.DEFAULTS.color)
+	HitFX.ultimate_burst(entity, entity.global_position, color)
+	Sfx.play(&"ultimate", sfx_db() + 2.0, 0.7)
+	if hitbox_component:
+		hitbox_component.show_popup(String(row.get("name", "Ultimate")).to_upper() + "!", color)
+	if controller is PlayerController:
+		Combat.hitstop(ULTIMATE_HITSTOP)
+		Combat.shake(5.0, 0.3)
+	ultimate_started.emit(row)
+
+
+## True when this fighter's class has an ultimate.
+func has_ultimate() -> bool:
+	return sm != null and not sm.ultimate.is_empty()
+
+
+## The meter, 0..1 (1 = ready).
+func get_ult_charge() -> float:
+	return sm.ult_charge if sm else 0.0
+
+
+func is_ult_ready() -> bool:
+	return sm != null and sm.ult_ready()
+
+
+func is_ult_active() -> bool:
+	return sm != null and sm.ult_active()
+
+
+func get_ult_time_left() -> float:
+	return sm.ult_time_left() if sm else 0.0
+
+
+## 1.0 when the ultimate has just started, 0.0 when it is over (HUD and aura).
+func get_ult_time_ratio() -> float:
+	return sm.ult_time_ratio() if sm else 0.0
+
+
+## The running or ready ultimate's colour.
+func get_ult_color() -> Color:
+	return sm.ultimate.get("color", Ultimates.DEFAULTS.color) if has_ultimate() else Ultimates.DEFAULTS.color
+
+
+## True while the Knight's ultimate runs: hits do no damage and cause no reaction.
+func is_ult_immune() -> bool:
+	return sm != null and sm.ult_immune()
+
+
+## True while single-target projectiles fly through this fighter (the Thief's ultimate).
+func dodges_projectiles() -> bool:
+	return sm != null and sm.ult_dodges_projectiles()
+
+
+## A projectile flew through us thanks to the Thief's ultimate: an afterimage and a "DODGE" pop.
+func on_projectile_dodged() -> void:
+	var sprite := entity.get_node_or_null("Sprite2D") as Sprite2D if entity else null
+	HitFX.afterimage(sprite, Color(get_ult_color(), 0.6), 0.3)
+	if hitbox_component:
+		hitbox_component.show_popup("DODGE", get_ult_color())
+
+
+## Dev tuning: meter gain and duration multipliers, and the always-full test switch.
+func set_ultimate_tuning(charge_scale: float, duration_scale: float, always_full: bool) -> void:
+	if sm:
+		sm.ult_charge_scale = charge_scale
+		sm.ult_duration_scale = duration_scale
+		sm.ult_always_full = always_full

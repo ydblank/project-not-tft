@@ -90,6 +90,9 @@ func _on_area_entered(area: Area2D) -> void:
 	var target_combat := CombatComponent.find_on(hurtbox.get_entity())
 	if target_combat and target_combat.is_invulnerable():
 		return
+	if target_combat and target_combat.dodges_projectiles():
+		target_combat.on_projectile_dodged() # the Thief's ultimate: it does not go off on them (its blast still hits)
+		return
 	_explode()
 
 
@@ -167,6 +170,7 @@ func _blast_hit_for(offset: Vector2, radius: float) -> HitData:
 	blast.is_heavy = hit.is_heavy
 	blast.is_combo_chain = hit.is_combo_chain
 	blast.is_finisher = hit.is_finisher
+	blast.charge_points = hit.charge_points
 	return blast
 
 

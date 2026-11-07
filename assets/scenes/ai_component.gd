@@ -100,6 +100,8 @@ const PERSONALITY_VALUES := {
 @export var skill_aim_time: float = 0.3
 ## Seconds between two looks at whether the skill is worth using now.
 @export var skill_decision_interval: float = 0.2
+## Use the class ultimate (Q) when its meter is full. When is decided per class (see _ultimate_worth_it).
+@export var use_ultimate: bool = true
 ## Walk out of (and around) enemy skill areas: an aimed or casting AoE marker, burning ground.
 @export var avoid_danger: bool = true
 
@@ -167,6 +169,8 @@ var _attack_tap_down: bool = false
 var _tap_released_this_frame: bool = false
 var _dash_tap_down: bool = false
 var _skill_tap_down: bool = false
+var _ult_tap_down: bool = false
+var _ult_timer: float = 0.0
 ## Seconds left holding an aimed skill (-1 = not aiming).
 var _skill_hold_left: float = -1.0
 var _skill_timer: float = 0.0
@@ -233,6 +237,9 @@ func _physics_process(delta: float) -> void:
 	if _skill_tap_down:
 		intent.skill_held = false
 		_skill_tap_down = false
+	if _ult_tap_down:
+		intent.ultimate_held = false
+		_ult_tap_down = false
 
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	_dash_timer = maxf(_dash_timer - delta, 0.0)
@@ -278,6 +285,7 @@ func _physics_process(delta: float) -> void:
 	_act(distance, to_target)
 	_apply_arena_tactics(distance)
 	_update_skill(distance, to_target, delta)
+	_update_ultimate(distance, delta)
 	_avoid_danger()
 	_apply_dodge()
 	_keep_in_arena()
@@ -1427,3 +1435,61 @@ func _avoid_danger() -> void:
 			intent.move_dir = (along + away * 0.4).normalized() * intent.move_dir.length()
 			_dbg_flags.append("skirt danger")
 			return
+
+
+# ======================================================================
+# Ultimate (GAM-23)
+# ======================================================================
+
+## Seconds between two looks at whether to fire the ultimate.
+const ULT_DECISION_INTERVAL := 0.25
+## Any class fires a ready ultimate in a fight once its HP drops below this share.
+const ULT_LOW_HP := 0.3
+## The Knight fires it when an enemy is this much past its weapon's reach, or below half HP.
+const ULT_KNIGHT_REACH_MARGIN := 20.0
+## The Mage fires it right after a skill cast, while the cooldown still has this long to go.
+const ULT_MAGE_MIN_COOLDOWN := 2.0
+
+
+func _update_ultimate(distance: float, delta: float) -> void:
+	var sm := combat_component.sm
+	if not use_ultimate or not sm.ult_ready() or _dodge_pending:
+		return
+	_ult_timer -= delta
+	if _ult_timer > 0.0:
+		return
+	_ult_timer = ULT_DECISION_INTERVAL
+	if not _ultimate_worth_it(sm, distance):
+		return
+	if randf() >= _trait("skill"):
+		return
+	_log("ultimate ", sm.ultimate.get("name", ""))
+	intent.ultimate_held = true
+	_ult_tap_down = true # one-frame tap, released next frame
+
+
+## Per class: the Knight when the fight is on top of it, the Thief when it can dive the target, the
+## Archer with a clear shot, the Mage right after a skill so the shorter cooldown brings it back.
+## Any class at low HP with the target in range.
+func _ultimate_worth_it(sm: ActionStateMachine, distance: float) -> bool:
+	var weapon := combat_component.weapon
+	var skill := sm.get_skill()
+	var hp_ratio := 1.0
+	if combat_component.health_component and combat_component.health_component.get_max_hp() > 0.0:
+		hp_ratio = combat_component.health_component.get_hp() / combat_component.health_component.get_max_hp()
+	var engage := weapon.ai_engage_range if weapon else min_distance
+	var reach := maxf(combat_component.get_threat_range(), engage)
+	if hp_ratio < ULT_LOW_HP and distance <= reach * 2.0:
+		return true
+	match int(sm.ultimate.get("class", Classes.CLASSES.NONE)):
+		Classes.CLASSES.KNIGHT:
+			return distance <= reach + ULT_KNIGHT_REACH_MARGIN or (hp_ratio < 0.5 and distance <= reach * 3.0)
+		Classes.CLASSES.THIEF:
+			var dive := skill.max_range if skill else reach * 3.0
+			return distance <= maxf(dive, reach) and _can_see_target()
+		Classes.CLASSES.ARCHER:
+			return distance <= engage * 1.5 and _can_see_target()
+		Classes.CLASSES.MAGE:
+			var in_range := distance <= maxf(skill.max_range if skill else 0.0, engage) and _can_see_target()
+			return in_range and sm.skill_cooldown_left() >= ULT_MAGE_MIN_COOLDOWN
+	return false

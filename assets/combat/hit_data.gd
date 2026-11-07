@@ -26,3 +26,6 @@ var is_combo_chain: bool = false
 var is_finisher: bool = false
 ## Damage over time (burning ground): ignores block, causes no reaction or hitstop.
 var is_dot: bool = false
+## Ultimate meter points the attacker gets if this hit reaches health: the move's or skill's
+## multiplier (times the charge), never the damage. See Ultimates.
+var charge_points: float = 0.0

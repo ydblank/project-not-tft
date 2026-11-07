@@ -64,6 +64,11 @@ const DEFS := [
 	{"key": "skill_fireball_radius", "group": "Skills", "label": "Fireball blast radius (tiles)", "type": "float", "min": 0.5, "max": 8.0, "step": 0.25, "skill": "staff_fireball", "field": "radius_tiles"},
 	{"key": "skill_burn_radius", "group": "Skills", "label": "Burning ground radius (tiles)", "type": "float", "min": 0.5, "max": 8.0, "step": 0.25, "skill": "staff_fireball", "field": "burn_radius_tiles"},
 
+	# ---- Ultimate (class ultimate on Q). The balance numbers live in assets/resources/ultimates.gd. ----
+	{"key": "ult_charge_scale", "group": "Ultimate", "label": "Meter fill speed x", "type": "float", "min": 0.1, "max": 5.0, "step": 0.1, "default": 1.0},
+	{"key": "ult_duration_scale", "group": "Ultimate", "label": "Duration x", "type": "float", "min": 0.2, "max": 3.0, "step": 0.1, "default": 1.0},
+	{"key": "ult_always_full", "group": "Ultimate", "label": "Always full (testing, every fighter)", "type": "bool", "default": false},
+
 	# ---- Audio ----
 	{"key": "sfx_volume", "group": "Audio", "label": "Sound effects volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8, "percent": true},
 	{"key": "music_volume", "group": "Audio", "label": "Music volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8, "percent": true},

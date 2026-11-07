@@ -9,7 +9,8 @@ class_name GamepadControls
 #
 #   Left stick / D-pad   move              Right stick   aim (the mouse takes over again when it moves)
 #   RT or X              attack            LB (L1)       block            (defaults: rebindable in
-#   LT (L2), A or RB     dash              B             skill             Settings -> Controls, see Keybinds)
+#   LT (L2) or A         dash              B             skill             Settings -> Controls, see Keybinds)
+#   RB (R1)              ultimate
 #   Y                    switch character (R)
 #   Start                pause (Esc); B also backs out of the pause menu
 #

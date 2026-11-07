@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 # On-screen controller overlay (like a phone-emulator gamepad): a WASD pad on
-# the left and the Skill / Attack / Block / Dash buttons on the right. Buttons light up
+# the left and the Ultimate / Skill / Attack / Block / Dash buttons on the right. Buttons light up
 # while the real input is held. Key names are read from the InputMap, so the
 # labels always match the project's bindings. F1 shows / hides it.
 
@@ -26,6 +26,8 @@ const COLOR_DASH_RING := Color(1.0, 0.85, 0.4, 1)
 const COLOR_PIP := Color(0.9, 0.95, 1.0, 1)
 const COLOR_PIP_EMPTY := Color(1, 1, 1, 0.35)
 const COLOR_SKILL_READY_FLASH := Color(1.0, 0.9, 0.5, 1)
+## Ultimate meter ring and the ready glow.
+const COLOR_ULT_READY := Color(1.0, 0.25, 0.2, 1)
 ## The skill button is dimmed this much when the weapon has no skill.
 const NO_SKILL_ALPHA := 0.35
 const SKILL_ICON_SIZE := 26.0
@@ -43,6 +45,8 @@ var _skill_icon: SkillIcon
 var _skill_time: Label
 var _skill_was_cooling: bool = false
 var _skill_shown: SkillData = null
+var _ult_label: Label
+var _ult_was_ready: bool = false
 
 
 ## A drawn symbol (mouse button / spacebar) used in place of text.
@@ -341,6 +345,38 @@ func _update_spinners() -> void:
 		attack.set_values(0.0, _combat.get_charge_ratio() if charging else -1.0, COLOR_COOLDOWN, COLOR_RING)
 
 	_update_skill_button()
+	_update_ult_button()
+
+
+## Ultimate (Q): a red ring fills with the meter; when full the button glows red; while it runs a
+## sweep in the ultimate's colour shows the time left. Dimmed for a class without an ultimate.
+func _update_ult_button() -> void:
+	var key: InputKey = _by_action.get("ultimate")
+	if key == null or key.spinner == null:
+		return
+	var has_ult := _combat != null and _combat.has_ultimate()
+	key.modulate.a = 1.0 if has_ult else NO_SKILL_ALPHA
+	if not has_ult:
+		key.spinner.set_values(0.0, -1.0, COLOR_COOLDOWN, COLOR_ULT_READY)
+		key.self_modulate = Color.WHITE
+		return
+	var active := _combat.is_ult_active()
+	var full := _combat.is_ult_ready()
+	if active:
+		var c := _combat.get_ult_color()
+		c.a = 0.55
+		key.spinner.set_values(_combat.get_ult_time_ratio(), -1.0, c, COLOR_ULT_READY)
+	else:
+		key.spinner.set_values(0.0, _combat.get_ult_charge(), COLOR_COOLDOWN, COLOR_ULT_READY)
+	if full:
+		# Ready: the button throbs red, in step with the aura on the fighter.
+		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * UltimateAura.READY_PULSE)
+		key.self_modulate = Color.WHITE.lerp(COLOR_ULT_READY * 1.6, 0.35 + 0.35 * pulse)
+	elif _ult_was_ready:
+		key.self_modulate = Color.WHITE
+	_ult_was_ready = full
+	if _ult_label:
+		_ult_label.add_theme_color_override("font_color", _combat.get_ult_color() if active else COLOR_ULT_READY)
 
 
 ## Skill (E): icon, dark sweep + seconds left while on cooldown, a flash when it is ready again,
@@ -437,18 +473,27 @@ func _build() -> void:
 	_add_key(_pad, "S", Vector2(step, step), KEY_SIZE, false)
 	_add_key(_pad, "D", Vector2(step * 2, step), KEY_SIZE, false)
 
-	# Action buttons: Skill top-left, Dash on top, Block left, Attack (largest) bottom-right.
+	# Action buttons: Ultimate bottom-left, Skill top-left, Dash on top, Block left, Attack (largest) bottom-right.
+	var ult_offset := BUTTON_SIZE * 0.5 + GAP
 	var skill_offset := BUTTON_SIZE * 0.5 + GAP
 	_buttons = Control.new()
 	_buttons.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_buttons.custom_minimum_size = Vector2(BUTTON_SIZE * 2 + GAP + 20 + skill_offset, BUTTON_SIZE * 2 + GAP)
+	_buttons.custom_minimum_size = Vector2(BUTTON_SIZE * 2 + GAP + 20 + skill_offset + ult_offset, BUTTON_SIZE * 2 + GAP)
 	_buttons.size = _buttons.custom_minimum_size
 	_root.add_child(_buttons)
 	var big := BUTTON_SIZE + 20.0
-	_add_key(_buttons, "skill", Vector2(0, 0), BUTTON_SIZE, true)
-	_add_key(_buttons, "dash", Vector2(skill_offset + BUTTON_SIZE * 0.5, 0), BUTTON_SIZE, true)
-	_add_key(_buttons, "Block", Vector2(skill_offset, BUTTON_SIZE + GAP), BUTTON_SIZE, true)
-	_add_key(_buttons, "Attack", Vector2(skill_offset + BUTTON_SIZE + GAP, BUTTON_SIZE - 12.0 + GAP), big, true)
+	_add_key(_buttons, "ultimate", Vector2(0, BUTTON_SIZE + GAP), BUTTON_SIZE, true)
+	_add_key(_buttons, "skill", Vector2(ult_offset, 0), BUTTON_SIZE, true)
+	_add_key(_buttons, "dash", Vector2(ult_offset + skill_offset + BUTTON_SIZE * 0.5, 0), BUTTON_SIZE, true)
+	_add_key(_buttons, "Block", Vector2(ult_offset + skill_offset, BUTTON_SIZE + GAP), BUTTON_SIZE, true)
+	_add_key(_buttons, "Attack", Vector2(ult_offset + skill_offset + BUTTON_SIZE + GAP, BUTTON_SIZE - 12.0 + GAP), big, true)
+	var ult_key: InputKey = _by_action["ultimate"]
+	_ult_label = Label.new()
+	_ult_label.text = "ULT"
+	_ult_label.add_theme_font_size_override("font_size", 11)
+	_ult_label.add_theme_color_override("font_color", COLOR_ULT_READY)
+	_ult_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ult_key.add_top(_ult_label)
 	var skill_key: InputKey = _by_action["skill"]
 	_skill_icon = SkillIcon.new()
 	skill_key.add_top(_skill_icon)

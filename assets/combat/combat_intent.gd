@@ -15,6 +15,8 @@ var dash_held: bool = false
 var skill_held: bool = false
 ## World point the skill is aimed at (used by point-aimed skills such as the fireball).
 var skill_target: Vector2 = Vector2.ZERO
+## Ultimate button (Q): a press with a full meter starts the class's ultimate.
+var ultimate_held: bool = false
 ## Maximum lunge distance for the next attack (AI uses it to keep min distance).
 var lunge_limit: float = INF
 
@@ -25,6 +27,7 @@ func clear() -> void:
 	block_held = false
 	dash_held = false
 	skill_held = false
+	ultimate_held = false
 	lunge_limit = INF
 
 
@@ -36,4 +39,5 @@ func copy_from(other: CombatIntent) -> void:
 	dash_held = other.dash_held
 	skill_held = other.skill_held
 	skill_target = other.skill_target
+	ultimate_held = other.ultimate_held
 	lunge_limit = other.lunge_limit

@@ -38,6 +38,7 @@ A fighter is a `CharacterBody2D` whose behaviour lives in child component nodes 
 4. Incoming hits arrive at `HitboxComponent`, which applies damage and then calls `CombatComponent.receive_reaction()`.
 
 Weapons are data: `WeaponData` and `AttackMove` resources (`assets/combat/weapons/*.tres`), looked up through the `Weapons` registry (`assets/resources/weapons.gd`). Balancing a weapon means editing its row in the weapons table in `assets/resources/weapons.gd` (type, skill, power, attack speed, damage per hit, charge, cooldown, AI range); the `.tres` keeps how it works (moves' timing, reach, knockback, projectile). Weapon skills are `SkillData` resources (`assets/combat/skills/*.tres`); their balance numbers (damage, cooldown, cast time, reach) live in one table, `assets/resources/skills.gd`.
+Class ultimates (Q) are rows in `assets/resources/ultimates.gd` (meter size, duration, each class's effect numbers); the meter and effects run in `ActionStateMachine`.
 
 ### Level tools
 

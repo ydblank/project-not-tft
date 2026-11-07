@@ -106,6 +106,7 @@ func _apply_entity(entity: Node) -> void:
 	combat.set_parry_window(v.call("parry_window"))
 	combat.armor_hp_max = v.call("armor_hp")
 	combat.set_skill_cooldown_scale(v.call("skill_cooldown_scale"))
+	combat.set_ultimate_tuning(v.call("ult_charge_scale"), v.call("ult_duration_scale"), v.call("ult_always_full"))
 	# These two override the weapons table (assets/resources/weapons.gd) only once their slider is moved.
 	if combat.weapon and not DevSettings.is_default("combo_hitstun"):
 		combat.weapon.combo_hitstun = v.call("combo_hitstun")

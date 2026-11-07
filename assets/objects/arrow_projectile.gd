@@ -70,6 +70,9 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	# Fighters that are already staggered or flying back: the arrow flies on through them (no machine-gunning a stunned target).
 	var target_combat := CombatComponent.find_on(hurtbox.get_entity())
+	if target_combat and target_combat.dodges_projectiles() and not hurtbox.is_same_team(hit.team):
+		target_combat.on_projectile_dodged() # the Thief's ultimate: single-target shots fly through
+		return
 	if target_combat:
 		var target_state := target_combat.get_state()
 		if target_state == ActionStateMachine.State.STAGGER or target_state == ActionStateMachine.State.KNOCKBACK:
