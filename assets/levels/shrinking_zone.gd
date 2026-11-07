@@ -23,7 +23,9 @@ enum Phase {WAIT, SHRINK, DONE}
 ## Start with the zone running (the first closing comes `interval` seconds after the 3-2-1 countdown).
 @export var start_enabled: bool = true
 
-const COLOR_HAZE := Color(0.9, 0.1, 0.1, 0.2)
+## The "Zone closes in N" warning appears once this many seconds are left before the zone closes.
+const WARN_SECONDS := 5.0
+const COLOR_HAZE :=Color(0.9, 0.1, 0.1, 0.2)
 const COLOR_EDGE := Color(1.0, 0.35, 0.3, 0.9)
 const COLOR_NEXT := Color(1.0, 1.0, 1.0, 0.55)
 ## How far past the circle the red haze reaches (px): more than any screen shows.
@@ -213,6 +215,8 @@ func _refresh() -> void:
 func _update_label() -> void:
 	if _label == null or not active:
 		return
+	# The "closes in" warning only shows for the last WARN_SECONDS of the wait; the other texts always show.
+	_label.visible = _phase != Phase.WAIT or interval - _timer <= WARN_SECONDS
 	match _phase:
 		Phase.WAIT:
 			_label.text = "Zone closes in %d" % ceili(interval - _timer)

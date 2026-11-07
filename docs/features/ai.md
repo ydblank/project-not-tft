@@ -18,6 +18,7 @@ All can be switched off per fighter in the AIComponent **"Smarts"** export group
 
 - **Combo breaker:** when held in combo hitstun, the AI reacts after about 0.2s and may dash out (60% to 85% chance depending on personality).
 - **Punish dash:** dashes in on a target that is stunned, knocked back or recovering from a swing, and can spend its last charge to do it.
+- **Guard-break punish:** when a fighter's guard breaks (their shield hits 0, so they are stunned for about 2s and cannot block), a bot goes straight for them: it makes them its target at once (ignoring the usual 1s target hold), drops its attack cooldown, stops second-guessing (no retreating or blocking), chases in (dashing if it can) and swings. It is a **chance, rolled once per guard break** (`guard_punish_chance`, set by the difficulty: **25% Easy, 60% Normal, 90% Hard**), and a fighter more than **260 px** away ("super far") is left alone. It applies to any fighter whose guard breaks, you or a bot.
 - **Steadier decisions:** commits to chasing or retreating for at least 0.7s, retreats more when hurt, and does not run straight back into a corner it just escaped.
 - **Smarter targets:** scores targets by distance, openings, low health, and whether a teammate is already on them. Targets are kept for 1s so it does not flip between two.
 - **Teamwork:** two fighters on the same target flank from opposite sides, and they cooperate through how they pick targets:
@@ -39,6 +40,7 @@ The pause menu's **Difficulty** button (Easy / Normal / Hard, saved) scales the 
 |---|---|---|---|
 | Damage dealt | x0.6 | x1 | x1.3 |
 | Wait between attacks | x1.6 (1.12s) | x1 (0.7s) | x0.6 (0.42s) |
+| Chance to rush a broken guard | 25% | 60% | 90% |
 | Dodge cooldown | x2 | x1 | x0.6 |
 | Delay before dodging an arrow | x1.6 | x1 | x0.6 |
 | Delay before dashing out of a combo | x1.6 | x1 | x0.6 |

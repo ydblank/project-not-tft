@@ -88,6 +88,10 @@ const PERSONALITY_VALUES := {
 @export var teamwork: bool = true
 ## Block / dodge more against a target that spams attacks; wait out dashes before a heavy.
 @export var adapt_to_target: bool = true
+## Chance (0..1) that, when a fighter's guard breaks (they are stunned and cannot block), this bot drops everything
+## and goes straight for them, unless they are very far away. Rolled once per guard break. The difficulty sets it:
+## rarely on Easy, most of the time on Hard.
+@export_range(0.0, 1.0) var guard_punish_chance: float = 0.6
 ## Push the target toward the arena edge, and stay away from it ourselves.
 @export var use_arena_edge: bool = true
 ## Use the weapon skill (E). When is decided by the skill's tags (defensive, gap closer, AoE...).
@@ -175,6 +179,8 @@ var _stagger_time: float = 0.0
 var _stagger_rolled: bool = false
 var _retreat_lockout: float = 0.0
 var _target_hold_left: float = 0.0
+## Guard-break decisions: fighter instance id -> whether this bot rolled "go for them" for the current break.
+var _guard_rolls: Dictionary = {}
 var _watched_combat: CombatComponent = null
 var _target_attack_times: Array[float] = []
 var _overlap_dir: Vector2 = Vector2.ZERO
@@ -212,8 +218,8 @@ func _ready() -> void:
 # ======================================================================
 
 func _physics_process(delta: float) -> void:
-	if entity == null or combat_component == null:
-		return
+	if entity == null or combat_component == null or not is_inside_tree():
+		return # (not in the tree: the level is being reloaded, for example by Retry)
 
 	# One-frame taps: release whatever was pressed last frame. The release must
 	# reach CombatComponent before another press, or two taps merge into a hold.
@@ -284,6 +290,12 @@ func _physics_process(delta: float) -> void:
 
 func _update_mode(distance: float) -> void:
 	var engage_range := _engage_range()
+	if _rushing_guard_break():
+		# Their guard is broken: skip the attack cooldown and close in, unless we are already mid-attack.
+		_cooldown_left = 0.0
+		if mode == Mode.IDLE or mode == Mode.CAUTIOUS or mode == Mode.RECOVER or mode == Mode.RETREAT or mode == Mode.BLOCK:
+			intent.block_held = false
+			_set_mode(Mode.CHASE)
 	match mode:
 		Mode.IDLE:
 			_set_mode(Mode.CAUTIOUS if distance <= flee_range else Mode.CHASE)
@@ -369,6 +381,8 @@ func _update_personality(delta: float) -> void:
 	_personality_timer = personality_interval * randf_range(0.8, 1.6)
 	if mode != Mode.CHASE and mode != Mode.CAUTIOUS and mode != Mode.RETREAT and mode != Mode.RECOVER:
 		return
+	if _rushing_guard_break():
+		return # no second thoughts while a broken guard is there to punish
 	if _mode_time < mode_min_hold:
 		return # committed to the current plan for a moment
 	var chase_chance := _trait("chase")
@@ -647,6 +661,11 @@ func _is_retreat_stuck() -> bool:
 # ======================================================================
 
 const TARGET_SWITCH_MARGIN := 25.0
+## A guard-broken fighter farther away than this (px) is left alone ("super far"; the arena is about 480 px wide).
+const GUARD_BREAK_MAX_DISTANCE := 260.0
+## Score bonus (lower = better target) for a guard-broken fighter this bot decided to punish: bigger than any
+## other consideration, so it simply becomes the target.
+const GUARD_BREAK_BONUS := 400.0
 
 ## Teamwork scoring (see _target_score; lower score = better target).
 ## A target at or below this HP% is a kill chance: teammates pile on it instead of spreading out.
@@ -671,8 +690,8 @@ func _update_target() -> void:
 		current_target = null
 	var best := _find_best_target()
 	if best and best != current_target:
-		if current_target == null:
-			_switch_target(best)
+		if current_target == null or _guard_break_wanted(best):
+			_switch_target(best) # a broken guard is punished right away, whatever the target hold says
 		elif not smart_targeting:
 			if _distance_to(best) < _distance_to(current_target):
 				_switch_target(best)
@@ -680,6 +699,29 @@ func _update_target() -> void:
 			_switch_target(best)
 	_target_combat = CombatComponent.find_on(current_target) if current_target else null
 	_watch_target(_target_combat)
+
+
+## True when `target`'s guard is broken (they are stunned and cannot block), this bot rolled to punish it, and they
+## are not super far away. The roll (guard_punish_chance) happens once per break, so the decision does not flicker;
+## it is forgotten when the guard is back.
+func _guard_break_wanted(target: Node2D) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	var combat := CombatComponent.find_on(target)
+	var shield := combat.shield_component if combat else null
+	var id := target.get_instance_id()
+	if shield == null or not shield.is_broken():
+		_guard_rolls.erase(id)
+		return false
+	if not _guard_rolls.has(id):
+		_guard_rolls[id] = randf() < guard_punish_chance
+		_log("guard broken on %s -> %s" % [target.name, "punish" if _guard_rolls[id] else "ignore"])
+	return _guard_rolls[id] and _distance_to(target) <= GUARD_BREAK_MAX_DISTANCE
+
+
+## Going for a guard-broken target now: no attack cooldown, no backing off.
+func _rushing_guard_break() -> bool:
+	return current_target != null and _guard_break_wanted(current_target)
 
 
 func _switch_target(target: Node2D) -> void:
@@ -708,6 +750,8 @@ func _find_best_target() -> Node2D:
 ## target threatening a hurt friend, plus a penalty when a teammate is already on it.
 func _target_score(target: Node2D) -> float:
 	var score := _distance_to(target)
+	if _guard_break_wanted(target):
+		score -= GUARD_BREAK_BONUS # a stunned, guardless fighter: go for them
 	if not smart_targeting:
 		return score
 	var combat := CombatComponent.find_on(target)

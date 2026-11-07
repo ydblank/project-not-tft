@@ -13,6 +13,8 @@ signal hit_blocked()
 signal blocked_hit(direction: Vector2, is_heavy: bool)
 ## The block was raised just in time: the hit does nothing and the attacker is thrown off balance.
 signal parried(direction: Vector2)
+## A blocked hit drained the shield: this fighter's guard just broke (CombatText shows the banner).
+signal guard_broke(attacker: Node)
 
 @export var team: int = 0
 @export var can_be_hit: bool = true
@@ -39,8 +41,9 @@ const POPUP_SCENE: PackedScene = preload("res://assets/effects/damage_number.tsc
 @export var knockback_scale_start: float = 1.0
 @export var knockback_scale_gain_per_hit: float = 0.15
 @export var knockback_scale_gain_per_damage: float = 0.01
-@export var knockback_scale_max: float = 4.0
-@export var knockback_scale_decay_per_sec: float = 0.25
+@export var knockback_scale_max: float = 6.0
+## Like damage percent in Smash: 0 means it never goes down, only a respawn resets it.
+@export var knockback_scale_decay_per_sec: float = 0.0
 
 @export_group("Debug")
 @export var debug_hits: bool = false
@@ -143,7 +146,7 @@ func receive_hit(hit: HitData) -> Result:
 
 	_show_damage_number(int(round(final_damage)), hit)
 	if guard_broken:
-		_show_text("GUARD BREAK!", Color(1.0, 0.6, 0.2))
+		guard_broke.emit(hit.attacker) # the "GUARD BREAK!" text is shown in the middle of the screen by CombatText
 	# Heavy hits freeze a touch longer and kick the camera harder.
 	var strength := 4.0 if hit.is_heavy else 1.8
 	if health.is_dead():

@@ -50,7 +50,9 @@ func _start_after_countdown() -> void:
 	await get_tree().process_frame # the countdown sets its flag in its own _ready, so look after the tree is ready
 	while FightCountdown.active:
 		await get_tree().process_frame
-	if stream and not playing:
+		if not is_inside_tree():
+			return # the level was reloaded (Retry) during the countdown
+	if is_inside_tree() and stream and not playing:
 		play()
 
 

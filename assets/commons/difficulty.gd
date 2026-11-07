@@ -12,14 +12,15 @@ class_name Difficulty
 #   dodge_reaction  delay before it dodges an arrow
 #   combo_break     delay before it dashes out of a combo
 #   dash_interval   how often it considers dashing
+#   guard_punish    the chance (not a multiplier: 0..1) that a bot goes straight for a fighter whose guard just broke
 
 const NAMES: Array[String] = ["Easy", "Normal", "Hard"]
 const NORMAL := 1
 
 const PRESETS: Array[Dictionary] = [
-	{"damage": 0.6, "attack_cooldown": 1.6, "dodge_cooldown": 2.0, "dodge_reaction": 1.6, "combo_break": 1.6, "dash_interval": 1.5},
-	{"damage": 1.0, "attack_cooldown": 1.0, "dodge_cooldown": 1.0, "dodge_reaction": 1.0, "combo_break": 1.0, "dash_interval": 1.0},
-	{"damage": 1.3, "attack_cooldown": 0.6, "dodge_cooldown": 0.6, "dodge_reaction": 0.6, "combo_break": 0.6, "dash_interval": 0.7},
+	{"damage": 0.6, "attack_cooldown": 1.6, "dodge_cooldown": 2.0, "dodge_reaction": 1.6, "combo_break": 1.6, "dash_interval": 1.5, "guard_punish": 0.25},
+	{"damage": 1.0, "attack_cooldown": 1.0, "dodge_cooldown": 1.0, "dodge_reaction": 1.0, "combo_break": 1.0, "dash_interval": 1.0, "guard_punish": 0.6},
+	{"damage": 1.3, "attack_cooldown": 0.6, "dodge_cooldown": 0.6, "dodge_reaction": 0.6, "combo_break": 0.6, "dash_interval": 0.7, "guard_punish": 0.9},
 ]
 
 

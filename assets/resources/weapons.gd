@@ -22,6 +22,7 @@ class_name Weapons
 #                         single heavy move for weapons without a combo (bow, staff)
 #   heavy_min_mult        heavy charge multiplier at the start of a charge
 #   heavy_max_mult        ... and at a full charge
+#   charge_threshold      seconds of holding before a press becomes a heavy charge (default 0.4; shorter = heavy starts sooner)
 #   max_charge_time       seconds of holding for a full charge
 #   light_combo_cooldown  seconds quick attacks are locked after a full quick combo (bow / staff: between shots)
 #   ai_engage_range       px: how close a bot gets before its quick attacks
@@ -65,7 +66,8 @@ const TABLE := {
 		"heavy_damage": [0.5, 0.5, 1.0],
 		"heavy_min_mult": 1.0,
 		"heavy_max_mult": 1.5,
-		"light_combo_cooldown": 0.6,
+		"charge_threshold": 0.25,
+		"light_combo_cooldown": 0.35,
 		"ai_engage_range": 25.0,
 	},
 	WEAPONS.BOW: {

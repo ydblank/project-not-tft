@@ -1,7 +1,8 @@
 extends CanvasLayer
 class_name PauseMenu
 
-# Esc opens the pause menu: Resume / Difficulty / Settings / Dev Tools / Exit.
+# Esc opens the pause menu: Resume / Retry / Difficulty / Settings / Dev Tools / Exit.
+# On a controller, LB / RB flip between the main menu, Settings and Dev Tools.
 #   Settings   player options only: sound, display (window mode, camera shake, death slow-motion,
 #              damage numbers) and controls (controller on / off, and Key bindings: rebind every
 #              action on keyboard / mouse and controller, see Keybinds). See PLAYER_SECTIONS.
@@ -16,8 +17,8 @@ class_name PauseMenu
 ## Everything else in DevSettings is a dev setting and lives in Dev Tools.
 const PLAYER_SECTIONS := [
 	{"title": "Audio", "keys": ["sfx_volume", "music_volume"]},
-	{"title": "Display", "keys": ["shake_mult", "death_slowmo", "damage_numbers"]},
-	{"title": "Controls", "keys": []},
+	{"title": "Display", "keys": ["shake_mult", "death_slowmo", "damage_numbers", "show_knockback"]},
+	{"title": "Controls", "keys": ["rumble_strength"]},
 ]
 const TOOL_COLUMNS := 3
 const DEV_SCROLL_SIZE := Vector2(640, 200)
@@ -71,6 +72,11 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if visible and event is InputEventJoypadButton and event.pressed \
+			and (event.button_index == JOY_BUTTON_LEFT_SHOULDER or event.button_index == JOY_BUTTON_RIGHT_SHOULDER):
+		get_viewport().set_input_as_handled()
+		_flip_page(1 if event.button_index == JOY_BUTTON_RIGHT_SHOULDER else -1)
+		return
 	if not (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
 		return
 	get_viewport().set_input_as_handled()
@@ -98,6 +104,37 @@ func resume() -> void:
 	visible = false
 	_set_option_focus(false)
 	get_tree().paused = false
+
+
+## Restarts the match (the level reloads, so the 3-2-1 countdown runs again). Settings are saved first.
+func _retry() -> void:
+	_save_if_dirty()
+	visible = false
+	_set_option_focus(false)
+	get_tree().paused = false
+	get_tree().reload_current_scene.call_deferred()
+
+
+## Restarts the match and shows the party screen again.
+func _change_party() -> void:
+	PartySelect.show_next_time = true
+	_retry()
+
+
+## LB / RB on a controller: step through Main -> Settings -> Dev Tools (wrapping), so the dev toggles are
+## a shoulder press away. Does nothing on the key bindings screen (mid-rebind) or the exit confirmation.
+func _flip_page(step: int) -> void:
+	if _keys_panel.visible or _confirm_panel.visible or _capture_action != &"":
+		return
+	var pages: Array[PanelContainer] = [_main_panel, _settings_panel, _dev_panel]
+	var index := pages.find(_visible_panel())
+	if index < 0:
+		return
+	Sfx.play(&"ui_open", -6.0, 1.0, 0.0, 0.0)
+	match posmod(index + step, pages.size()):
+		0: _show_main()
+		1: _show_settings()
+		2: _show_dev_tools()
 
 
 ## The test buttons can be reached with the D-pad while the menu is open; in play they must not take
@@ -190,8 +227,8 @@ func _first_focusable(node: Node) -> Control:
 
 
 ## Easy -> Normal -> Hard -> Easy. Saved with the other settings; the Dev Tools slider follows.
-func _cycle_difficulty() -> void:
-	var next := (int(DevSettings.get_value("difficulty")) + 1) % Difficulty.NAMES.size()
+func _cycle_difficulty(step: int = 1) -> void:
+	var next := posmod(int(DevSettings.get_value("difficulty")) + step, Difficulty.NAMES.size())
 	_changed("difficulty", next)
 	if _rows.has("difficulty"):
 		(_rows["difficulty"].control as HSlider).set_value_no_signal(float(next))
@@ -203,7 +240,7 @@ func _cycle_difficulty() -> void:
 
 func _update_difficulty_text() -> void:
 	if _difficulty_button:
-		_difficulty_button.text = "Difficulty: " + Difficulty.name_of(int(DevSettings.get_value("difficulty")))
+		_difficulty_button.text = "Difficulty: %s" % Difficulty.name_of(int(DevSettings.get_value("difficulty")))
 
 
 ## Moves the level tools' buttons (group "game_option") into the menu: player settings (meta
@@ -241,6 +278,8 @@ func _build() -> void:
 	var main_box := _padded_vbox(_main_panel, 12)
 	_title("Paused", main_box, 26)
 	_resume_button = _button("Resume", resume, main_box)
+	_button("Retry", _retry, main_box)
+	_button("Change party", _change_party, main_box)
 	_difficulty_button = _button("Difficulty", _cycle_difficulty, main_box)
 	_settings_button = _button("Settings", _show_settings, main_box)
 	_dev_button = _button("Dev Tools", _show_dev_tools, main_box)
@@ -250,7 +289,7 @@ func _build() -> void:
 	_confirm_panel = _make_panel()
 	var confirm_box := _padded_vbox(_confirm_panel, 14)
 	_title("Exit the game?", confirm_box, 24)
-	_button("Confirm", _exit_game, confirm_box)
+	_button("OK", _exit_game, confirm_box)
 	_cancel_button = _button("Cancel", _show_main, confirm_box)
 
 	_build_settings()
@@ -522,6 +561,13 @@ func _release_capture_flag() -> void:
 ## While a binding waits for a press, the next key / mouse button (keyboard column) or controller
 ## button / stick / trigger (controller column) becomes the binding. Esc (or Start) cancels.
 func _input(event: InputEvent) -> void:
+	# Left / Right (keyboard, D-pad, stick) change the difficulty while its button has the cursor. This runs
+	# here, before the button turns the same press into focus movement.
+	if visible and _main_panel.visible and get_viewport().gui_get_focus_owner() == _difficulty_button \
+			and (event.is_action_pressed(&"ui_left") or event.is_action_pressed(&"ui_right")):
+		get_viewport().set_input_as_handled()
+		_cycle_difficulty(1 if event.is_action_pressed(&"ui_right") else -1)
+		return
 	if _capture_action == &"" or not event.is_pressed() or event.is_echo():
 		return
 	var cancel: bool = (event is InputEventKey and event.keycode == KEY_ESCAPE) \
@@ -637,6 +683,8 @@ func _set_status(text: String) -> void:
 func _format(def: Dictionary, value: float) -> String:
 	if def.type == "int":
 		return str(int(value))
+	if def.get("percent", false):
+		return str(roundi(value * 100.0)) # 0.8 shows as 80
 	var step: float = def.step
 	if step >= 1.0:
 		return str(int(value))

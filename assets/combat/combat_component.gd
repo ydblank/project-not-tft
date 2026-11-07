@@ -200,7 +200,11 @@ func _compute_velocity(intent: CombatIntent, delta: float) -> Vector2:
 		ActionStateMachine.MoveMode.FREE:
 			return intent.move_dir.limit_length(1.0) * move_speed * speed_multiplier
 		ActionStateMachine.MoveMode.SLOWED:
-			return intent.move_dir.limit_length(1.0) * move_speed * slowed_speed_mult * speed_multiplier
+			var slowed := slowed_speed_mult
+			var skill := sm.get_skill()
+			if sm.state == ActionStateMachine.State.SKILL and skill != null and skill.move_speed_mult >= 0.0:
+				slowed = skill.move_speed_mult # the spin / volley set their own walking speed
+			return intent.move_dir.limit_length(1.0) * move_speed * slowed * speed_multiplier
 		ActionStateMachine.MoveMode.LUNGE:
 			return sm.lunge_velocity() * speed_multiplier
 		ActionStateMachine.MoveMode.DASH:

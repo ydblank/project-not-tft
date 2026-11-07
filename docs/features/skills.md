@@ -26,7 +26,7 @@ Each weapon has one special skill on **E**. On a controller it is **B**. In 2P m
 - Destroys enemy arrows and fireballs that enter the circle.
 - Blocks hits from every side, without draining the shield.
 - In the first 0.2 s, a hit is **parried**: a melee attacker is stunned, and an arrow flies back. Heavy hits are blocked, not parried.
-- You can move slowly while spinning. Hits cannot interrupt the spin.
+- You can move while spinning, at **60% of your walking speed** (it used to share the 25% of blocking and charging), so a full push carries the knight about 37 px, over 2 tiles, during the spin (it was about 16 px). The `move_speed_mult` row of `sword_spin` in the skills table sets it, and Dev Tools > Skills has a "Sword spin walking speed" slider. Hits cannot interrupt the spin.
 - **Animation:** a white crescent swoosh sweeps twice round the fighter. It is thin and faint at its tail and wide and bright at its head, with the sword and hilt riding the leading edge and specks flung off. The fighter turns with it.
 
 ### Shadow Lunge (dagger)

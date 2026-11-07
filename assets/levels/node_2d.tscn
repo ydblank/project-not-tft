@@ -27,6 +27,11 @@
 [ext_resource type="Script" path="res://assets/levels/music_player.gd" id="26_music"]
 [ext_resource type="Script" path="res://assets/levels/death_slowmo.gd" id="28_death"]
 [ext_resource type="Script" path="res://assets/levels/gamepad_controls.gd" id="29_pad"]
+[ext_resource type="Script" path="res://assets/levels/gamepad_rumble.gd" id="31_rumble"]
+[ext_resource type="Script" path="res://assets/levels/knockback_meter.gd" id="32_kb"]
+[ext_resource type="Script" path="res://assets/levels/hud_style.gd" id="33_hud"]
+[ext_resource type="Script" path="res://assets/levels/party_select.gd" id="34_party"]
+[ext_resource type="Script" path="res://assets/levels/combat_text.gd" id="35_combat_text"]
 [ext_resource type="Script" path="res://assets/levels/display_toggle.gd" id="30_display"]
 [ext_resource type="AudioStream" path="res://assets/audio/music/battle_theme_loop.wav" id="27_battle"]
 [ext_resource type="Script" path="res://assets/dev/range_ruler.gd" id="31_ruler"]
@@ -302,6 +307,21 @@ script = ExtResource("28_death")
 
 [node name="GamepadControls" type="Node" parent="."]
 script = ExtResource("29_pad")
+
+[node name="GamepadRumble" type="Node" parent="."]
+script = ExtResource("31_rumble")
+
+[node name="KnockbackMeter" type="Node" parent="."]
+script = ExtResource("32_kb")
+
+[node name="HudStyle" type="Node" parent="."]
+script = ExtResource("33_hud")
+
+[node name="CombatText" type="CanvasLayer" parent="."]
+script = ExtResource("35_combat_text")
+
+[node name="PartySelect" type="CanvasLayer" parent="."]
+script = ExtResource("34_party")
 
 [node name="DisplayToggle" type="Node" parent="."]
 script = ExtResource("30_display")

@@ -15,6 +15,10 @@ const SECTION := "dev"
 const DEFS := [
 	# ---- Difficulty (also the pause menu's Difficulty button) ----
 	{"key": "difficulty", "group": "Difficulty", "label": "0 Easy, 1 Normal, 2 Hard", "type": "int", "min": 0, "max": 2, "step": 1, "default": 1},
+	# ---- Display ----
+	{"key": "show_knockback", "group": "Display", "label": "Show knockback % next to health bars", "type": "bool", "default": true},
+	# ---- Controls ----
+	{"key": "rumble_strength", "group": "Controls", "label": "Controller rumble (0 = off)", "type": "float", "min": 0.0, "max": 1.0, "step": 0.1, "default": 0.7},
 	# ---- Match ----
 	{"key": "skip_countdown", "group": "Match", "label": "Skip the 3-2-1 countdown (next launch)", "type": "bool", "default": false},
 	# ---- Dash ----
@@ -51,6 +55,7 @@ const DEFS := [
 	# (assets/resources/skills.gd), so the table stays the one place the balance lives.
 	{"key": "skill_cooldown_scale", "group": "Skills", "label": "Cooldown x", "type": "float", "min": 0.1, "max": 3.0, "step": 0.05, "default": 1.0},
 	{"key": "skill_spin_radius", "group": "Skills", "label": "Sword spin radius (tiles)", "type": "float", "min": 0.5, "max": 6.0, "step": 0.25, "skill": "sword_spin", "field": "radius_tiles"},
+	{"key": "skill_spin_move", "group": "Skills", "label": "Sword spin walking speed (x normal)", "type": "float", "min": 0.0, "max": 1.5, "step": 0.05, "skill": "sword_spin", "field": "move_speed_mult"},
 	{"key": "skill_dagger_range", "group": "Skills", "label": "Dagger dash range (tiles)", "type": "float", "min": 1.0, "max": 15.0, "step": 0.5, "skill": "dagger_dash", "field": "range_tiles"},
 	{"key": "skill_volley_range", "group": "Skills", "label": "Bow volley range (tiles)", "type": "float", "min": 2.0, "max": 25.0, "step": 0.5, "skill": "bow_volley", "field": "range_tiles"},
 	{"key": "skill_volley_spread", "group": "Skills", "label": "Bow volley spread (degrees)", "type": "float", "min": 5.0, "max": 120.0, "step": 5.0, "skill": "bow_volley", "field": "spread_deg"},
@@ -60,8 +65,8 @@ const DEFS := [
 	{"key": "skill_burn_radius", "group": "Skills", "label": "Burning ground radius (tiles)", "type": "float", "min": 0.5, "max": 8.0, "step": 0.25, "skill": "staff_fireball", "field": "burn_radius_tiles"},
 
 	# ---- Audio ----
-	{"key": "sfx_volume", "group": "Audio", "label": "Sound effects volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8},
-	{"key": "music_volume", "group": "Audio", "label": "Music volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8},
+	{"key": "sfx_volume", "group": "Audio", "label": "Sound effects volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8, "percent": true},
+	{"key": "music_volume", "group": "Audio", "label": "Music volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8, "percent": true},
 
 	# ---- Camera ----
 	{"key": "camera_follow", "group": "Camera", "label": "Follow strength", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.35},

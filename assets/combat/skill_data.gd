@@ -53,6 +53,9 @@ const TILE := 16.0
 @export_group("Spin")
 ## The first part of a spin parries hits (like a fresh block); after it the spin only blocks.
 @export var parry_window: float = 0.2
+## Walking speed while the skill runs, as a share of normal (1 = full speed). Used by the spin and the volley,
+## which let you move. Below 0 = the shared "slowed" speed of blocking and charging (25%).
+@export var move_speed_mult: float = -1.0
 
 @export_group("Dash strike")
 ## Dash speed in pixels per second.

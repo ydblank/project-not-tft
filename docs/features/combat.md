@@ -22,6 +22,7 @@ The sheet's "damage" column is the **power** stat. The formulas are in [Calculat
 - **Archer weapon:** the archer fighters (`enemy_archer.tscn`, the ally, the F2 "Archer / Bow" loadout) use the bow until the slingshot is added with the ranged weapons work. They are the Archer class (power 7, so a bow shot hits for 7).
 - **Weapons multiply power:** a weapon's `power_mult` (1.0 for sword, dagger and bow) scales the class power. Knight with the sword hits for 10, Thief with the dagger for 5.
 - **Knockback resistance is stored but not used yet** by the knockback rules.
+- **Knockback meter:** every fighter has one (`knockback_scale` on its `HitboxComponent`). It starts at 1.0 (shown as 0%), goes up by 0.15 per hit taken plus 0.01 per damage (maximum 6.0, shown as 500%). It never falls back on its own, like damage percent in Smash: only a respawn resets it. A a hit's knockback force is the base force (220) times it times the move's own knockback multiplier. It is shown as a percentage next to each health bar (see [UI and dev tools](ui-and-dev-tools.md#on-screen-ui)).
 - **Mage:** powerful but frail (power 12, defense 3), faster than the Knight but slower than the Archer and Thief. Uses the pointy-hat sprite; the Archer uses the green hooded one. F2 cycles to "Mage / Staff". The Staff's `power_mult` is 0.75 so the high class power does not make it a stronger bow (quick fireball hits for 9).
 
 ## Melee

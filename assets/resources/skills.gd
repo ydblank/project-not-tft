@@ -19,6 +19,7 @@ class_name Skills
 #   duration           seconds busy after the cast (spin length; for the volley it follows the volley count)
 #   range_tiles        max reach: dash length, arrow flight, fireball throw
 #   radius_tiles       area radius: spin circle, fireball blast
+#   move_speed_mult    walking speed while the skill runs, share of normal (spin; below 0 = the shared slow speed)
 #   burn_radius_tiles  burning ground radius
 #   burn_duration      seconds the ground burns
 #   spread_deg         volley fan angle
@@ -31,6 +32,7 @@ const TABLE := {
 		"cooldown": 7.0,
 		"duration": 0.6,
 		"radius_tiles": 2.0,
+		"move_speed_mult": 0.6,
 	},
 	"dagger_dash": {
 		"damage_mult": 2.0,

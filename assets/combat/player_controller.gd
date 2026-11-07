@@ -28,6 +28,8 @@ var _pad_target: Vector2 = Vector2.ZERO
 ## Seconds the attack button has been held (controller aim only).
 var _attack_held_time: float = 0.0
 var _combat: CombatComponent
+## True while an aimed skill's button is held (controller aim treats it like a charge).
+var _aiming_skill: bool = false
 ## Last frame's controller state, for the fine-aim turning: was the attack button held, was the aim stick pushed at
 ## all (past the fine-aim minimum), which stick it was (1 = right stick, 2 = the walking direction), and which way it pointed.
 var _prev_charging: bool = false
@@ -41,16 +43,17 @@ const PAD_AIM_COMMIT := 0.15
 const PAD_AIM_FINE_MIN := 0.02
 ## How fast the controller aim turns toward its target when no attack button is held (higher = snappier).
 const PAD_AIM_TURN := 26.0
-## Once an attack button has been held for PAD_AIM_FAST_WINDOW seconds (charging a shot): while the stick is being
-## turned faster than PAD_AIM_CHASE_MIN_DEG_PER_SEC the aim heads for where the stick points at no more than
-## PAD_AIM_CHARGE_DEG_PER_SEC (degrees per second); turned more gently it just moves with the stick; and it stops
-## when the stick stops. Before the fast window ends the aim snaps straight to the stick, so it can swing round at the start.
-const PAD_AIM_CHARGE_DEG_PER_SEC := 150.0
-const PAD_AIM_CHASE_MIN_DEG_PER_SEC := 45.0
+## Once an attack button has been held for PAD_AIM_FAST_WINDOW seconds (charging a shot or aiming a skill) the aim works
+## like a dial: it turns by as much as the aim stick turns (spin the stick round and round to keep turning it), and
+## stops when the stick stops. Before that the aim snaps straight to the stick, so it can swing round at the start.
+## The dial never turns faster than this many degrees per second (a safety cap against a single flick).
+const PAD_AIM_MAX_DEG_PER_SEC := 1080.0
 ## From this much of the way to a full charge (0..1) the aim starts to slow down, and at a full charge it only follows
 ## this fraction of the stick's movement (and top speed), so the end of a charge is for small corrections.
 const PAD_AIM_SLOW_START := 0.4
 const PAD_AIM_FULL_CHARGE_SCALE := 0.25
+## Aiming a skill gets finer over this many seconds (after the fast window), the way a charge does as it fills.
+const PAD_SKILL_AIM_RAMP := 1.5
 const PAD_AIM_FAST_WINDOW := 1.0
 ## How far the mouse must move, with no controller input in between, before it takes aim back from a controller.
 const MOUSE_TAKEOVER_PX := 24.0
@@ -94,6 +97,11 @@ func _physics_process(delta: float) -> void:
 	intent.skill_target = _skill_target()
 
 
+## True while a controller (not the mouse) is the device in use. Rumble only buzzes then.
+func is_pad_in_use() -> bool:
+	return _pad_mode and GamepadControls.active
+
+
 ## Tracks which device is in use, so a mouse cursor left to one side cannot steal the aim from a controller.
 ## A controller stick or button switches to controller mode; a mouse click, or a real move of the mouse
 ## with no controller input in between, switches back. (Pad events from devices Godot does not recognise are ignored.)
@@ -122,16 +130,18 @@ func _input(event: InputEvent) -> void:
 ## - when you are not attacking, the aim turns quickly but smoothly toward the aim stick (a stick resting near the
 ##   centre does not move it); with neither stick pushed it stays where it is;
 ## - in the first PAD_AIM_FAST_WINDOW seconds of an attack it snaps straight to the aim stick;
-## - after that, while the attack button is still held, the aim only moves while you turn the aim stick and stops the
-##   moment the stick stops or is let go: turning it faster than PAD_AIM_CHASE_MIN_DEG_PER_SEC heads for where it
-##   points at no more than PAD_AIM_CHARGE_DEG_PER_SEC, turning it gently moves the aim with it 1:1;
+## - after that, while the attack button is still held (or an aimed skill is being aimed), the aim is a dial: it turns
+##   by as much as you turn the aim stick (spin the stick round and round to keep turning the aim, finer the fuller the
+##   charge) and stops the moment the stick stops or is let go;
 ## - on the frame an attack ends the aim is not moved, because the shot fires on it.
 ## Never the mouse cursor.
 func _aim_with_pad(delta: float) -> void:
 	var stick := Vector2.ZERO
 	if InputMap.has_action(GamepadControls.AIM_LEFT):
 		stick = Input.get_vector(GamepadControls.AIM_LEFT, GamepadControls.AIM_RIGHT, GamepadControls.AIM_UP, GamepadControls.AIM_DOWN)
-	var charging := Input.is_action_pressed(input_attack)
+	# Aiming a skill (the mage's fireball, the bow's volley) is aimed exactly like charging a shot.
+	_aiming_skill = _is_aiming_skill()
+	var charging := Input.is_action_pressed(input_attack) or _aiming_skill
 	_attack_held_time = _attack_held_time + delta if charging else 0.0
 	var slow_phase := charging and _attack_held_time >= PAD_AIM_FAST_WINDOW
 	# Which stick aims: the right one while it is pushed (even gently), else the way you walk. Both are already past
@@ -155,20 +165,15 @@ func _aim_with_pad(delta: float) -> void:
 	var current := intent.aim_dir if intent.aim_dir != Vector2.ZERO else _pad_target
 	var angle: float
 	if slow_phase:
-		# Fine aiming: the aim only moves while the aim stick is turned, and stops with it. The fuller the charge, the
-		# less it moves for the same stick movement (down to PAD_AIM_FULL_CHARGE_SCALE of it), so the last part of a
-		# charge is for small corrections.
-		angle = current.angle()
-		if source_fine and had_source:
-			var fine := _charge_aim_scale()
-			var turned := angle_difference(prev_source_angle, source.angle()) # how far the stick turned this frame
-			if absf(turned) >= deg_to_rad(PAD_AIM_CHASE_MIN_DEG_PER_SEC) * delta:
-				# Being turned: head for where it points, at the slow speed. This catches up an aim left behind by a
-				# quick flick, so turning the stick again always resumes the aim.
-				var cap := deg_to_rad(PAD_AIM_CHARGE_DEG_PER_SEC) * delta * fine
-				angle += clampf(angle_difference(angle, source.angle()), -cap, cap)
-			else:
-				angle += turned * fine # turning gently (or noise): the aim moves with the stick, 1:1 early in the charge
+			# Fine aiming works like a dial: the aim turns by as much as the stick turns, so spinning the stick round and
+			# round keeps turning the aim the same way (it never "cancels" by heading back for where the stick points). It
+			# stops the moment the stick stops. The fuller the charge, the less it turns for the same stick movement (down
+			# to PAD_AIM_FULL_CHARGE_SCALE of it), so the last part of a charge is for small corrections.
+			angle = current.angle()
+			if source_fine and had_source:
+				var turned := angle_difference(prev_source_angle, source.angle()) # how far the stick turned this frame
+				var most := deg_to_rad(PAD_AIM_MAX_DEG_PER_SEC) * delta # a safety cap: one flick cannot throw the aim right round
+				angle += clampf(turned * _charge_aim_scale(), -most, most)
 	elif charging:
 		angle = _pad_target.angle() # the first moments of an attack: snap straight to where the stick points
 	elif was_charging:
@@ -177,9 +182,28 @@ func _aim_with_pad(delta: float) -> void:
 		angle = lerp_angle(current.angle(), _pad_target.angle(), 1.0 - exp(-PAD_AIM_TURN * delta))
 	intent.aim_dir = Vector2.from_angle(angle)
 
-## 1 early in a charge, easing down to PAD_AIM_FULL_CHARGE_SCALE as the shot reaches a full charge (from
-## PAD_AIM_SLOW_START of the way): how much of the stick's movement the aim follows.
+
+## True while an aimed skill is being aimed: its button is held, or its cast is still running (the bow's volley keeps
+## reading the aim while it fires, so the aim must not swing toward the stick the moment the button is released).
+func _is_aiming_skill() -> bool:
+	if _combat == null and entity != null:
+		_combat = CombatComponent.find_on(entity)
+	var skill := _combat.get_skill() if _combat else null
+	if skill == null or not skill.is_aimed():
+		return false
+	var state := _combat.get_state()
+	if state == ActionStateMachine.State.SKILL_AIM or state == ActionStateMachine.State.SKILL:
+		return true # the whole aim and cast, including the frame the button is released (no gap that would reset the aim)
+	return InputMap.has_action(input_skill) and Input.is_action_pressed(input_skill)
+
+
+## 1 early in an aim, easing down to PAD_AIM_FULL_CHARGE_SCALE: how much of the stick's movement the aim follows.
+## A charged shot eases with its charge (from PAD_AIM_SLOW_START of the way to a full charge); an aimed skill has no
+## charge, so it eases with the time spent aiming (over PAD_SKILL_AIM_RAMP seconds after the fast window).
 func _charge_aim_scale() -> float:
+	if _aiming_skill:
+		var t := (_attack_held_time - PAD_AIM_FAST_WINDOW) / PAD_SKILL_AIM_RAMP
+		return lerpf(1.0, PAD_AIM_FULL_CHARGE_SCALE, smoothstep(0.0, 1.0, t))
 	if _combat == null and entity != null:
 		_combat = CombatComponent.find_on(entity)
 	var ratio := _combat.get_charge_ratio() if _combat else 0.0
@@ -230,5 +254,7 @@ func _skill_target() -> Vector2:
 	var reach := skill.max_range if skill else 0.0
 	if _pad_mode and GamepadControls.active and InputMap.has_action(GamepadControls.AIM_LEFT):
 		var stick := Input.get_vector(GamepadControls.AIM_LEFT, GamepadControls.AIM_RIGHT, GamepadControls.AIM_UP, GamepadControls.AIM_DOWN)
-		reach *= clampf(stick.length(), PAD_SKILL_MIN_REACH, 1.0)
+		# The right stick's push sets the distance; with only the left stick in use, how hard you push it does.
+		var push := stick.length() if stick.length() >= PAD_AIM_FINE_MIN else intent.move_dir.length()
+		reach *= clampf(push, PAD_SKILL_MIN_REACH, 1.0)
 	return entity.global_position + intent.aim_dir.normalized() * reach

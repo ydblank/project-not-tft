@@ -122,6 +122,7 @@ func _apply_entity(entity: Node) -> void:
 		ai.attack_cooldown = float(v.call("ai_attack_cooldown")) * diff.attack_cooldown
 		ai.dodge_enabled = v.call("ai_dodge_enabled")
 		ai.dodge_cooldown = float(v.call("ai_dodge_cooldown")) * diff.dodge_cooldown
+		ai.guard_punish_chance = diff.guard_punish
 		_scale_from_base(ai, "dodge_reaction_time", diff.dodge_reaction)
 		_scale_from_base(ai, "combo_break_reaction", diff.combo_break)
 		_scale_from_base(ai, "dash_decision_interval", diff.dash_interval)
