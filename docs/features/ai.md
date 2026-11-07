@@ -46,6 +46,10 @@ The pause menu's **Difficulty** button (Easy / Normal / Hard, saved) scales the 
 
 The first values were chosen by feel, not play-tested; tune them in the table.
 
+## Skills
+
+Bots use their weapon skill when its tags say it is worth it: the defensive spin against incoming hits, the dagger dash on an open target, the volley or fireball on groups. Aimed skills are held briefly so their red marker warns you. They also walk out of, and round, enemy skill areas and burning ground. See [Skills](skills.md#ai).
+
 ## Known limitations
 
 - The AI only stands at the arena edge if you are outside; it does not follow you out.

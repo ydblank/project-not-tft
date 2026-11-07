@@ -21,8 +21,8 @@ enum Mode {IDLE, CHASE, CAUTIOUS, RETREAT, ENGAGE, CHARGE, BLOCK, RECOVER}
 enum Personality {COURAGEOUS, COWARDLY}
 
 const PERSONALITY_VALUES := {
-	Personality.COURAGEOUS: {"chase": 0.9, "dash_forward": 1.0, "dash_backward": 0.5, "block": 0.3, "heavy": 0.3, "dodge": 0.5, "combo_break": 0.6, "punish": 0.8},
-	Personality.COWARDLY: {"chase": 0.6, "dash_forward": 0.5, "dash_backward": 1.0, "block": 0.6, "heavy": 0.15, "dodge": 0.8, "combo_break": 0.85, "punish": 0.5},
+	Personality.COURAGEOUS: {"chase": 0.9, "dash_forward": 1.0, "dash_backward": 0.5, "block": 0.3, "heavy": 0.3, "dodge": 0.5, "combo_break": 0.6, "punish": 0.8, "skill": 0.8},
+	Personality.COWARDLY: {"chase": 0.6, "dash_forward": 0.5, "dash_backward": 1.0, "block": 0.6, "heavy": 0.15, "dodge": 0.8, "combo_break": 0.85, "punish": 0.5, "skill": 0.6},
 }
 
 @export var entity: CharacterBody2D
@@ -90,6 +90,14 @@ const PERSONALITY_VALUES := {
 @export var adapt_to_target: bool = true
 ## Push the target toward the arena edge, and stay away from it ourselves.
 @export var use_arena_edge: bool = true
+## Use the weapon skill (E). When is decided by the skill's tags (defensive, gap closer, AoE...).
+@export var use_skills: bool = true
+## Seconds an aimed skill is held before release: its marker shows meanwhile, as a warning to the target.
+@export var skill_aim_time: float = 0.3
+## Seconds between two looks at whether the skill is worth using now.
+@export var skill_decision_interval: float = 0.2
+## Walk out of (and around) enemy skill areas: an aimed or casting AoE marker, burning ground.
+@export var avoid_danger: bool = true
 
 @export_group("Behaviour")
 @export var personality: Personality = Personality.COURAGEOUS
@@ -124,6 +132,14 @@ const SIDESTEP_RECHECK := 0.15
 const SIDESTEP_ANGLES: Array[float] = [0.6, -0.6, 1.2, -1.2, 1.8, -1.8]
 
 const OVERLAP_DISTANCE := 6.0
+## Seconds of flight an enemy projectile may be away for the spin to be worth starting.
+const SKILL_PROJECTILE_WARNING := 0.35
+## Extra pixels around a skill's radius that still count as "inside" when counting enemies.
+const SKILL_RADIUS_SLACK := 6.0
+## How far ahead (px) a step is checked for walking into a danger zone.
+const DANGER_LOOKAHEAD := 14.0
+## Chance (times the dodge trait) to dash out of an incoming skill area rather than walk.
+const DANGER_DASH_SHARE := 0.6
 
 var intent := CombatIntent.new()
 var mode: Mode = Mode.IDLE
@@ -146,6 +162,10 @@ var _wander_target: Vector2 = Vector2.ZERO
 var _attack_tap_down: bool = false
 var _tap_released_this_frame: bool = false
 var _dash_tap_down: bool = false
+var _skill_tap_down: bool = false
+## Seconds left holding an aimed skill (-1 = not aiming).
+var _skill_hold_left: float = -1.0
+var _skill_timer: float = 0.0
 var _dodge_timer: float = 0.0
 var _dodge_pending: bool = false
 var _dodge_dir: Vector2 = Vector2.ZERO
@@ -204,6 +224,9 @@ func _physics_process(delta: float) -> void:
 	if _dash_tap_down:
 		intent.dash_held = false
 		_dash_tap_down = false
+	if _skill_tap_down:
+		intent.skill_held = false
+		_skill_tap_down = false
 
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	_dash_timer = maxf(_dash_timer - delta, 0.0)
@@ -216,10 +239,12 @@ func _physics_process(delta: float) -> void:
 	var own_state := combat_component.get_state()
 	if own_state == ActionStateMachine.State.DEAD:
 		intent.clear()
+		_skill_hold_left = -1.0
 		return
 	if own_state == ActionStateMachine.State.STAGGER or own_state == ActionStateMachine.State.KNOCKBACK:
 		# Being hit cancels whatever we were doing.
 		intent.clear()
+		_skill_hold_left = -1.0
 		if mode == Mode.ENGAGE or mode == Mode.CHARGE or mode == Mode.BLOCK:
 			_end_attack_sequence()
 		_update_combo_break(own_state, delta)
@@ -246,6 +271,8 @@ func _physics_process(delta: float) -> void:
 	_update_mode(distance)
 	_act(distance, to_target)
 	_apply_arena_tactics(distance)
+	_update_skill(distance, to_target, delta)
+	_avoid_danger()
 	_apply_dodge()
 	_keep_in_arena()
 	_update_debug_label(distance)
@@ -1209,3 +1236,150 @@ func _apply_arena_tactics(distance: float) -> void:
 	var to_spot := spot - pos
 	if to_spot.length() > 1.0:
 		intent.move_dir = intent.move_dir.lerp(to_spot.normalized(), 0.5).limit_length(1.0)
+
+
+# ---- 8. Weapon skill (E) ------------------------------------------------------
+# The skill's tags decide when it is worth it:
+#   DEFENSIVE   (sword spin)    an enemy projectile about to hit, a wind-up in reach, or 2+ enemies around
+#   GAP_CLOSER  (dagger dash)   target inside the dash range with a clear lane, best when it is open
+#   AOE         (volley, fire)  target in range and in view; preferred on groups and stunned targets
+# Aimed skills are held for skill_aim_time (the marker shows as a warning), then released.
+
+
+func _update_skill(distance: float, to_target: Vector2, delta: float) -> void:
+	var sm := combat_component.sm
+	var skill := sm.get_skill()
+	if not use_skills or skill == null:
+		_skill_hold_left = -1.0
+		return
+	if _skill_hold_left >= 0.0:
+		# Aiming: keep the button down (and nothing else) until the hold time is up, then let go.
+		intent.attack_held = false
+		intent.block_held = false
+		intent.skill_target = current_target.global_position
+		_skill_hold_left -= delta
+		intent.skill_held = _skill_hold_left > 0.0 and sm.state == ActionStateMachine.State.SKILL_AIM
+		if not intent.skill_held:
+			_skill_hold_left = -1.0
+		return
+	if not sm.skill_ready() or mode == Mode.CHARGE or _dodge_pending:
+		return
+	var own := sm.state
+	if own != ActionStateMachine.State.IDLE and not (own == ActionStateMachine.State.BLOCK and skill.has_tag(SkillData.Tag.DEFENSIVE)):
+		return
+	_skill_timer -= delta
+	if _skill_timer > 0.0:
+		return
+	_skill_timer = skill_decision_interval
+	if not _skill_worth_it(skill, distance, to_target):
+		return
+	if randf() >= _trait("skill"):
+		return
+	_log("skill ", skill.display_name)
+	intent.attack_held = false
+	intent.block_held = false
+	intent.skill_target = current_target.global_position
+	intent.skill_held = true
+	if skill.is_aimed():
+		_skill_hold_left = skill_aim_time
+	else:
+		_skill_tap_down = true # one-frame tap, released next frame
+
+
+func _skill_worth_it(skill: SkillData, distance: float, to_target: Vector2) -> bool:
+	if skill.has_tag(SkillData.Tag.DEFENSIVE):
+		if _incoming_projectile_soon():
+			return true
+		if _target_is_threatening(distance) and distance <= skill.radius + SKILL_RADIUS_SLACK:
+			return true
+		var around := _enemies_near(entity.global_position, skill.radius + SKILL_RADIUS_SLACK)
+		return around >= 2 or (around >= 1 and _target_is_open())
+	if not _can_see_target():
+		return false
+	if distance < skill.ai_min_range or distance > skill.ai_reach():
+		return false
+	if skill.has_tag(SkillData.Tag.GAP_CLOSER):
+		if _target_combat and _target_combat.get_state() == ActionStateMachine.State.BLOCK:
+			return false # it would just be blocked
+		if _wall_between(entity.global_position, current_target.global_position):
+			return false
+		if not _inside_after(to_target.normalized(), distance):
+			return false
+		return _target_is_open() or distance > _engage_range() + 16.0
+	if skill.has_tag(SkillData.Tag.AOE):
+		var area := maxf(skill.radius, skill.max_range * tan(deg_to_rad(skill.spread_deg) * 0.5) * 0.5)
+		if _enemies_near(current_target.global_position, area) >= 2 or _target_is_open():
+			return true
+		return randf() < 0.5 # a lone, healthy target: sometimes
+	return true
+
+
+## True when an enemy arrow or fireball is heading at us and lands within SKILL_PROJECTILE_WARNING seconds.
+func _incoming_projectile_soon() -> bool:
+	for node in get_tree().get_nodes_in_group("projectiles"):
+		var p := node as ArrowProjectile
+		if p == null or p.shooter == entity or p.hit == null:
+			continue
+		if hitbox_component and p.get_team() == hitbox_component.team:
+			continue
+		var path := Vector2.RIGHT.rotated(p.rotation)
+		var rel := entity.global_position - p.global_position
+		var along := rel.dot(path)
+		if along <= 0.0 or along / maxf(p.projectile_speed, 1.0) > SKILL_PROJECTILE_WARNING:
+			continue
+		if absf(rel.dot(path.orthogonal())) <= projectile_hit_radius + 4.0:
+			return true
+	return false
+
+
+## Living enemies within `radius` of `point`.
+func _enemies_near(point: Vector2, radius: float) -> int:
+	var count := 0
+	for group_name in target_groups:
+		for node in get_tree().get_nodes_in_group(group_name):
+			var other := node as Node2D
+			if other == null or not _is_valid_target(other):
+				continue
+			if other.global_position.distance_to(point) <= radius:
+				count += 1
+	return count
+
+
+# ---- 9. Stay out of enemy skill areas ----------------------------------------
+# Every node in group "danger_zones" (enemy SkillCasters while a skill is aimed / running,
+# BurningGround) answers danger_at(point, team) and danger_escape(point). Inside one, the bot
+# walks straight out (and may dash, for a skill about to land); about to step into one, it
+# slides round its edge instead.
+
+
+func _avoid_danger() -> void:
+	if not avoid_danger or hitbox_component == null:
+		return
+	var team := hitbox_component.team
+	var pos := entity.global_position
+	var zones := get_tree().get_nodes_in_group("danger_zones")
+	for zone in zones:
+		if zone.danger_at(pos, team):
+			var out: Vector2 = zone.danger_escape(pos)
+			if out == Vector2.ZERO:
+				continue
+			intent.move_dir = out
+			_dbg_flags.append("leave danger")
+			if zone.danger_is_incoming() and not _dodge_pending and _dodge_timer <= 0.0 and dodge_enabled \
+					and combat_component.sm.dash_ready() and _inside_after(out, _dash_length()):
+				_dodge_timer = dodge_cooldown
+				if randf() < _adapted("dodge") * DANGER_DASH_SHARE:
+					_queue_dodge(out, "skill area")
+			return
+	if intent.move_dir == Vector2.ZERO:
+		return
+	var step := pos + intent.move_dir.normalized() * DANGER_LOOKAHEAD
+	for zone in zones:
+		if zone.danger_at(step, team):
+			var away: Vector2 = zone.danger_escape(step)
+			var along := away.orthogonal()
+			if along.dot(intent.move_dir) < 0.0:
+				along = -along
+			intent.move_dir = (along + away * 0.4).normalized() * intent.move_dir.length()
+			_dbg_flags.append("skirt danger")
+			return

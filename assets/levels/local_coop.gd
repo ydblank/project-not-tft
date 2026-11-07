@@ -5,17 +5,17 @@ class_name LocalCoop
 # between "1P (mouse)" and "2P (local)".
 #
 # 2P keys (aim is set by the direction keys, diagonals included, no mouse):
-#   Player 1 (blue team):  W A S D move,  F attack,  G block,  H dash,  R swap with the ally
-#   Player 2 (the enemy knight):  arrow keys move,  N attack,  M block,  , (comma) dash,  . (period) swap enemy
+#   Player 1 (blue team):  W A S D move,  F attack,  G block,  H dash,  J skill,  R swap with the ally
+#   Player 2 (the enemy knight):  arrow keys move,  N attack,  M block,  , (comma) dash,  / skill,  . (period) swap enemy
 # Player 2 takes over the enemy knight from the AI. If it dies and a new one
 # respawns, Player 2 gets the new one. Switching back to 1P hands it to the AI again.
 
 const P1_ACTIONS := {
-	&"p1_attack": KEY_F, &"p1_block": KEY_G, &"p1_dash": KEY_H,
+	&"p1_attack": KEY_F, &"p1_block": KEY_G, &"p1_dash": KEY_H, &"p1_skill": KEY_J,
 }
 const P2_ACTIONS := {
 	&"p2_up": KEY_UP, &"p2_down": KEY_DOWN, &"p2_left": KEY_LEFT, &"p2_right": KEY_RIGHT,
-	&"p2_attack": KEY_N, &"p2_block": KEY_M, &"p2_dash": KEY_COMMA,
+	&"p2_attack": KEY_N, &"p2_block": KEY_M, &"p2_dash": KEY_COMMA, &"p2_skill": KEY_SLASH,
 }
 const P2_GROUP := "p2_controlled"
 const P2_MARKER := "P2Marker"
@@ -89,11 +89,13 @@ func _configure_p1(coop: bool) -> void:
 				pc.input_attack = &"p1_attack"
 				pc.input_block = &"p1_block"
 				pc.input_dash = &"p1_dash"
+				pc.input_skill = &"p1_skill"
 				pc.aim_with_mouse = false
 			else:
 				pc.input_attack = &"Attack"
 				pc.input_block = &"Block"
 				pc.input_dash = &"dash"
+				pc.input_skill = &"skill"
 				pc.aim_with_mouse = true
 
 
@@ -139,6 +141,7 @@ func _take_p2(entity: CharacterBody2D) -> void:
 	pc.input_attack = &"p2_attack"
 	pc.input_block = &"p2_block"
 	pc.input_dash = &"p2_dash"
+	pc.input_skill = &"p2_skill"
 	pc.aim_with_mouse = false
 	pc.lunge_target_groups = ["players", "allies"]
 	pc.intent.aim_dir = Vector2.LEFT
@@ -251,13 +254,13 @@ func _build_ui() -> void:
 	_button.grow_horizontal = Control.GROW_DIRECTION_END
 	_button.toggled.connect(set_two_player)
 	layer.add_child(_button)
-	_button.add_to_group("game_option") # the pause menu moves it into "Game options"
+	_button.add_to_group("game_option") # the pause menu shows it in Dev Tools
 
 	_hint_layer = CanvasLayer.new()
 	_hint_layer.layer = 6
 	add_child(_hint_layer)
 	var hint := Label.new()
-	hint.text = "P1:  WASD move   F attack   G block   H dash   R switch      P2:  Arrows move   N attack   M block   , dash   . switch"
+	hint.text = "P1:  WASD move   F attack   G block   H dash   J skill   R switch      P2:  Arrows move   N attack   M block   , dash   / skill   . switch"
 	hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	hint.grow_vertical = Control.GROW_DIRECTION_BEGIN

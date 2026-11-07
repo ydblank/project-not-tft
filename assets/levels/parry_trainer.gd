@@ -344,7 +344,7 @@ func _build_ui() -> void:
 	_button.tooltip_text = "Practise parrying a knight with a fixed attack pattern (F3)"
 	_button.toggled.connect(func(pressed: bool): set_active(pressed))
 	layer.add_child(_button)
-	_button.add_to_group("game_option") # the pause menu moves it into "Game options"
+	_button.add_to_group("game_option") # the pause menu shows it in Dev Tools
 
 	_panel = PanelContainer.new()
 	_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)

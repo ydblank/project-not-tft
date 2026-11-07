@@ -9,6 +9,7 @@ class_name CombatComponent
 #   3. apply its events: VFX / projectiles, hitbox window
 #   4. compute velocity for the current movement mode -> MovementComponent.drive()
 #   5. while the attack is ACTIVE, resolve melee overlaps into HitData
+#   6. tick the SkillCaster (weapon skill on E: runs it and draws its AoE marker)
 #
 # Incoming hits arrive through the entity's HitboxComponent, which calls
 # receive_reaction() after damage has been applied.
@@ -79,6 +80,7 @@ var _combo_lock_left: float = 0.0
 var sm: ActionStateMachine
 var weapon: WeaponData
 
+var _skill_caster: SkillCaster
 var _attack_hitbox: Area2D
 ## A swing makes its wall impact once.
 var _wall_hit_done: bool = false
@@ -100,6 +102,9 @@ func _ready() -> void:
 	if stats_component:
 		sm.configure_dash(stats_component.dash_duration, stats_component.dash_cooldown, stats_component.dash_charges, stats_component.dash_recharge_time, stats_component.dash_reload_time)
 	_build_attack_hitbox()
+	_skill_caster = SkillCaster.new()
+	_skill_caster.setup(self)
+	add_child(_skill_caster)
 	if health_component:
 		health_component.died.connect(_on_died)
 	if shield_component == null and get_parent():
@@ -133,6 +138,8 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 	if movement_component:
 		movement_component.drive(velocity)
+	if _skill_caster:
+		_skill_caster.tick(intent, delta)
 
 	if sm.state == ActionStateMachine.State.ATTACK and sm.phase == ActionStateMachine.Phase.ACTIVE:
 		_resolve_melee_hits()
@@ -161,6 +168,12 @@ func _handle_event(e: Dictionary) -> void:
 			pass
 		"dash_started":
 			Sfx.play(&"dash", sfx_db(), 1.0, DASH_PITCH_JITTER)
+		"skill_started":
+			if _skill_caster:
+				_skill_caster.start(e)
+		"skill_ended":
+			if _skill_caster:
+				_skill_caster.stop()
 
 
 func _emit_state_change() -> void:
@@ -193,6 +206,9 @@ func _compute_velocity(intent: CombatIntent, delta: float) -> Vector2:
 		ActionStateMachine.MoveMode.DASH:
 			var dash_speed := movement_component.dash_speed if movement_component else 300.0
 			return sm.dash_dir * dash_speed
+		ActionStateMachine.MoveMode.SKILL_DASH:
+			var skill := sm.get_skill()
+			return sm.skill_dir * (skill.dash_speed if skill else 300.0)
 		ActionStateMachine.MoveMode.KNOCKBACK:
 			_knockback_velocity = _knockback_velocity.move_toward(Vector2.ZERO, KNOCKBACK_FRICTION * delta)
 			return _knockback_velocity
@@ -395,7 +411,7 @@ func receive_reaction(hit: HitData, knockback_force: float, final_damage: float 
 
 
 func is_blocking_from(from_dir: Vector2) -> bool:
-	return sm != null and sm.is_blocking_from(from_dir)
+	return sm != null and (sm.is_blocking_from(from_dir) or is_skill_guarding())
 
 
 ## Guard break: the shield ran out while blocking.
@@ -494,16 +510,87 @@ static func _is_stun(s: ActionStateMachine.State) -> bool:
 	return s == ActionStateMachine.State.STAGGER or s == ActionStateMachine.State.KNOCKBACK
 
 
-## Heavy hits / combo finishers cut through the post-stun immunity.
+## Heavy hits / combo finishers cut through the post-stun immunity, and so does every burning-ground tick.
 func _breaks_stun_immunity(hit: HitData) -> bool:
-	return hit.reaction == AttackMove.Reaction.KNOCKBACK and hit.knockback_force_mult >= 1.0
+	return hit.is_dot or hit.reaction == AttackMove.Reaction.KNOCKBACK and hit.knockback_force_mult >= 1.0
 
 
 ## Re-reads weapon and attack speed from the stats (after a class / weapon change).
 func refresh_loadout() -> void:
 	weapon = stats_component.get_weapon_data() if stats_component else null
 	sm.set_loadout(weapon, CombatGlobal.calculate_attack_speed(stats_component) * attack_speed_scale)
+	if _skill_caster:
+		_skill_caster.stop()
 	_emit_state_change()
+
+
+# ======================================================================
+# Weapon skill (E)
+# ======================================================================
+
+## The weapon's skill, or null.
+func get_skill() -> SkillData:
+	return sm.get_skill() if sm else null
+
+
+func is_skill_ready() -> bool:
+	return sm != null and sm.skill_ready()
+
+
+## 1.0 right after casting, 0.0 when ready (HUD sweep).
+func get_skill_cooldown_ratio() -> float:
+	return sm.skill_cooldown_ratio() if sm else 0.0
+
+
+func get_skill_cooldown_left() -> float:
+	return sm.skill_cooldown_left() if sm else 0.0
+
+
+func is_skill_aiming() -> bool:
+	return sm != null and sm.is_skill_aiming()
+
+
+## 0..1 through a skill's cast time, -1 when not casting (shown like a heavy charge).
+func get_skill_cast_ratio() -> float:
+	return _skill_caster.cast_ratio() if _skill_caster else -1.0
+
+
+## True during a sword spin: blocks from every side (no shield drain), parrying at its start.
+func is_skill_guarding() -> bool:
+	return sm != null and sm.state == ActionStateMachine.State.SKILL and sm.current_skill != null \
+			and sm.current_skill.kind == SkillData.Kind.SPIN
+
+
+## This fighter's team (from its hurtbox), -1 without one.
+func get_team() -> int:
+	return hitbox_component.team if hitbox_component else -1
+
+
+## Damage a skill multiplier of 1.0 deals: the fighter's attack damage with the global and difficulty scales.
+func skill_power() -> float:
+	return CombatGlobal.calculate_attack_damage(stats_component) * Combat.damage_multiplier * _difficulty_damage_scale()
+
+
+## HitData for one skill hit (each arrow of a volley, the spin, the dash strike, the fireball blast).
+func build_skill_hit(skill: SkillData, toward_target: Vector2) -> HitData:
+	var hit := HitData.new()
+	hit.attacker = entity
+	hit.team = get_team()
+	hit.damage = maxf(skill_power() * skill.damage_mult, 1.0)
+	hit.direction = toward_target.normalized() if toward_target != Vector2.ZERO else sm.skill_dir
+	hit.reaction = skill.reaction
+	hit.stagger_time = skill.stagger_time
+	hit.knockback_force_mult = skill.knockback_mult
+	hit.hitstop = skill.hitstop
+	hit.is_ranged = skill.has_tag(SkillData.Tag.RANGED) and skill.kind != SkillData.Kind.DASH_STRIKE
+	hit.is_finisher = skill.kind != SkillData.Kind.VOLLEY # the big single hits get the hit-confirm effect
+	return hit
+
+
+## Dev tuning: multiplier on every skill cooldown.
+func set_skill_cooldown_scale(scale: float) -> void:
+	if sm:
+		sm.skill_cooldown_scale = scale
 
 
 ## Charging a heavy melee attack, or in the middle of the heavy swing itself.
@@ -583,6 +670,8 @@ var _clash_until: float = 0.0
 
 ## A fresh block parries the first hit that lands on it (window set by parry_window).
 func is_parrying() -> bool:
+	if is_skill_guarding():
+		return sm.skill_elapsed() <= sm.current_skill.parry_window # a spin parries at its start
 	return sm != null and sm.is_parrying()
 
 
@@ -601,7 +690,7 @@ func grant_parry_counter() -> void:
 func apply_parry_stun(duration: float) -> void:
 	if sm == null or sm.state == ActionStateMachine.State.DEAD:
 		return
-	sm.apply_stagger(duration, false)
+	sm.apply_stagger(duration, false, true) # a parry stops even an unstoppable skill
 	_emit_state_change()
 
 

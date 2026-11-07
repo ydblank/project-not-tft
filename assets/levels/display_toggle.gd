@@ -47,7 +47,8 @@ func _build_button() -> void:
 	_button.tooltip_text = "Switch between a window and fullscreen (F11)"
 	_button.pressed.connect(toggle)
 	layer.add_child(_button)
-	_button.add_to_group("game_option") # the pause menu keeps it hidden except while paused
+	_button.add_to_group("game_option")
+	_button.set_meta(&"settings_section", "Display") # a player setting: the pause menu shows it under Settings, not Dev Tools
 
 
 func _update_button() -> void:

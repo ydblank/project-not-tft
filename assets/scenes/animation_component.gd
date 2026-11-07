@@ -116,6 +116,8 @@ func _pick_state(state: ActionStateMachine.State) -> String:
 			var phase := combat_component.get_phase()
 			if phase == ActionStateMachine.Phase.STARTUP or phase == ActionStateMachine.Phase.ACTIVE:
 				return attack_state_name
+		ActionStateMachine.State.SKILL:
+			return attack_state_name # casting a skill uses the attack pose
 		ActionStateMachine.State.BLOCK:
 			if _has_block_state:
 				return block_state_name
@@ -270,7 +272,8 @@ func get_sprite() -> Sprite2D:
 func _update_dash_trail(state: ActionStateMachine.State, delta: float) -> void:
 	if not dash_trail_enabled or sprite == null:
 		return
-	if state != ActionStateMachine.State.DASH:
+	var skill_dashing := state == ActionStateMachine.State.SKILL and combat_component.sm.movement_mode() == ActionStateMachine.MoveMode.SKILL_DASH
+	if state != ActionStateMachine.State.DASH and not skill_dashing:
 		_trail_timer = 0.0
 		return
 	_trail_timer -= delta

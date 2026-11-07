@@ -34,6 +34,7 @@ const TELL_MELEE_WINDUP := 1 # a bot is about to swing
 const TELL_MELEE_CHARGE := 2 # a bot is charging a heavy
 const TELL_BOW_CHARGE := 3 # anyone drawing a heavy shot (a guide for you, a warning for bots)
 const TELL_AIM_WINDUP := 4 # a ranged bot is about to shoot
+const TELL_SKILL_CAST := 5 # casting a skill with a cast time (the Mage's fireball): drawn like a heavy charge
 const COLOR_TELL := Color(1.0, 0.2, 0.15)
 const COLOR_GOLD := Color(1.0, 0.85, 0.25)
 
@@ -143,6 +144,10 @@ func _is_ranged() -> bool:
 func _compute_tell(state: ActionStateMachine.State) -> int:
 	if state == ActionStateMachine.State.DEAD or combat.weapon == null:
 		return TELL_NONE
+	if combat.get_skill_cast_ratio() >= 0.0:
+		if _is_bot() and not Combat.enemy_tells:
+			return TELL_NONE
+		return TELL_SKILL_CAST
 	var windup := state == ActionStateMachine.State.ATTACK and combat.sm.phase == ActionStateMachine.Phase.STARTUP
 	if _is_ranged():
 		if state == ActionStateMachine.State.CHARGING:
@@ -179,6 +184,8 @@ func _draw_extras() -> void:
 			_draw_melee_charge()
 		TELL_BOW_CHARGE, TELL_AIM_WINDUP:
 			_draw_bow_guide()
+		TELL_SKILL_CAST:
+			_draw_skill_cast()
 
 
 ## The area the swing is about to hit, filling in as the wind-up ends.
@@ -201,9 +208,24 @@ func _draw_melee_windup() -> void:
 	draw_polyline(PackedVector2Array([points[0], points[1], points[2], points[3], points[0]]), edge, 1.0 + (1.0 if heavy else 0.0))
 
 
+## A skill cast, shown like a heavy charge: for a bot the closing red ring and blinking "!" of a heavy;
+## for you the ring that fills from white to gold, as when drawing a heavy shot, pulsing as the cast ends.
+func _draw_skill_cast() -> void:
+	var ratio := combat.get_skill_cast_ratio()
+	if _is_bot():
+		_draw_melee_charge(ratio)
+		return
+	var color := Color(1, 1, 1).lerp(COLOR_GOLD, ratio)
+	color.a = 0.45 + 0.5 * ratio
+	if ratio >= 0.85:
+		color.a = 0.8 + 0.2 * sin(_time * 16.0)
+	draw_arc(CENTER, 13.0, -PI * 0.5, -PI * 0.5 + TAU * ratio, 40, color, 2.0, true)
+
+
 ## A heavy being charged: a ring that closes in as it nears full power, and a blinking "!".
-func _draw_melee_charge() -> void:
-	var ratio := combat.get_charge_ratio()
+func _draw_melee_charge(ratio: float = -1.0) -> void:
+	if ratio < 0.0:
+		ratio = combat.get_charge_ratio()
 	var color := COLOR_TELL
 	color.a = 0.55 + 0.3 * sin(_time * (10.0 + 14.0 * ratio))
 	draw_arc(CENTER, 11.0 + 9.0 * ratio, 0.0, TAU, 36, color, 1.5 + ratio * 1.5, true)

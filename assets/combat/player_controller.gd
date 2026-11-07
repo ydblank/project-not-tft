@@ -12,6 +12,7 @@ class_name PlayerController
 @export var input_attack: StringName = &"Attack"
 @export var input_block: StringName = &"Block"
 @export var input_dash: StringName = &"dash"
+@export var input_skill: StringName = &"skill"
 ## false = aim with the direction keys (last direction held, diagonals included) instead of the mouse.
 @export var aim_with_mouse: bool = true
 ## Who the attack lunge stops in front of.
@@ -53,6 +54,9 @@ const PAD_AIM_FULL_CHARGE_SCALE := 0.25
 const PAD_AIM_FAST_WINDOW := 1.0
 ## How far the mouse must move, with no controller input in between, before it takes aim back from a controller.
 const MOUSE_TAKEOVER_PX := 24.0
+## With a controller, a point-aimed skill (fireball) lands at least this share of its range away; pushing the
+## right stick further moves the spot out to the full range.
+const PAD_SKILL_MIN_REACH := 0.35
 const LUNGE_SCAN_RANGE := 60.0
 ## cos of the half-angle of the cone in front of you that counts as "your target".
 const LUNGE_CONE_DOT := 0.8
@@ -86,6 +90,8 @@ func _physics_process(delta: float) -> void:
 	intent.attack_held = Input.is_action_pressed(input_attack)
 	intent.block_held = Input.is_action_pressed(input_block)
 	intent.dash_held = Input.is_action_pressed(input_dash)
+	intent.skill_held = InputMap.has_action(input_skill) and Input.is_action_pressed(input_skill)
+	intent.skill_target = _skill_target()
 
 
 ## Tracks which device is in use, so a mouse cursor left to one side cannot steal the aim from a controller.
@@ -208,3 +214,21 @@ func _lunge_limit() -> float:
 	if best == INF:
 		return INF
 	return maxf(best - LUNGE_STOP_GAP, 0.0)
+
+
+## Where a point-aimed skill lands: the mouse cursor, or with a controller (or the 2P keyboard) a spot along
+## the aim. With the right stick, pushing it further puts the spot further out (at least PAD_SKILL_MIN_REACH
+## of the skill's range).
+func _skill_target() -> Vector2:
+	if entity == null:
+		return Vector2.ZERO
+	if aim_with_mouse and not (_pad_mode and GamepadControls.active):
+		return get_global_mouse_position()
+	if _combat == null:
+		_combat = CombatComponent.find_on(entity)
+	var skill := _combat.get_skill() if _combat else null
+	var reach := skill.max_range if skill else 0.0
+	if _pad_mode and GamepadControls.active and InputMap.has_action(GamepadControls.AIM_LEFT):
+		var stick := Input.get_vector(GamepadControls.AIM_LEFT, GamepadControls.AIM_RIGHT, GamepadControls.AIM_UP, GamepadControls.AIM_DOWN)
+		reach *= clampf(stick.length(), PAD_SKILL_MIN_REACH, 1.0)
+	return entity.global_position + intent.aim_dir.normalized() * reach

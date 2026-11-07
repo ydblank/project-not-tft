@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://assets/combat/skill_data.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+display_name = "Inferno"
+kind = 3
+tags = Array[int]([1, 5, 3])
+aim_mode = 2
+duration = 0.3
+reaction = 1
+knockback_mult = 1.0
+hitstop = 0.08
+dot_tick = 0.5
+dot_stagger_time = 0.25
+ai_min_range = 32.0

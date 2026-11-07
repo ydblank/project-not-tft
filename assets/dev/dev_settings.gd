@@ -17,8 +17,6 @@ const DEFS := [
 	{"key": "difficulty", "group": "Difficulty", "label": "0 Easy, 1 Normal, 2 Hard", "type": "int", "min": 0, "max": 2, "step": 1, "default": 1},
 	# ---- Match ----
 	{"key": "skip_countdown", "group": "Match", "label": "Skip the 3-2-1 countdown (next launch)", "type": "bool", "default": false},
-	# ---- Match ----
-	{"key": "skip_countdown", "group": "Match", "label": "Skip the 3-2-1 countdown (next launch)", "type": "bool", "default": false},
 	# ---- Dash ----
 	{"key": "dash_charges", "group": "Dash", "label": "Charges", "type": "int", "min": 1, "max": 5, "step": 1, "default": 3},
 	{"key": "dash_recharge_time", "group": "Dash", "label": "Recharge per charge (s)", "type": "float", "min": 0.2, "max": 5.0, "step": 0.1, "default": 1.5},
@@ -47,6 +45,19 @@ const DEFS := [
 	{"key": "armor_hp", "group": "Combat", "label": "Heavy super armor durability (0 = none)", "type": "float", "min": 0.0, "max": 40.0, "step": 1.0, "default": 10.0},
 	{"key": "damage_numbers", "group": "Combat", "label": "Damage numbers", "type": "bool", "default": true},
 	{"key": "enemy_tells", "group": "Combat", "label": "Enemy wind-up warnings", "type": "bool", "default": true},
+
+	# ---- Skills (weapon skill on E). Distances are in arena tiles (16 px); F5 shows a tile ruler. ----
+	# Rows with "skill" + "field" have no default of their own: it is that field of the skills table
+	# (assets/resources/skills.gd), so the table stays the one place the balance lives.
+	{"key": "skill_cooldown_scale", "group": "Skills", "label": "Cooldown x", "type": "float", "min": 0.1, "max": 3.0, "step": 0.05, "default": 1.0},
+	{"key": "skill_spin_radius", "group": "Skills", "label": "Sword spin radius (tiles)", "type": "float", "min": 0.5, "max": 6.0, "step": 0.25, "skill": "sword_spin", "field": "radius_tiles"},
+	{"key": "skill_dagger_range", "group": "Skills", "label": "Dagger dash range (tiles)", "type": "float", "min": 1.0, "max": 15.0, "step": 0.5, "skill": "dagger_dash", "field": "range_tiles"},
+	{"key": "skill_volley_range", "group": "Skills", "label": "Bow volley range (tiles)", "type": "float", "min": 2.0, "max": 25.0, "step": 0.5, "skill": "bow_volley", "field": "range_tiles"},
+	{"key": "skill_volley_spread", "group": "Skills", "label": "Bow volley spread (degrees)", "type": "float", "min": 5.0, "max": 120.0, "step": 5.0, "skill": "bow_volley", "field": "spread_deg"},
+	{"key": "skill_fireball_range", "group": "Skills", "label": "Fireball range (tiles)", "type": "float", "min": 2.0, "max": 20.0, "step": 0.5, "skill": "staff_fireball", "field": "range_tiles"},
+	{"key": "skill_fireball_cast", "group": "Skills", "label": "Fireball cast time (s)", "type": "float", "min": 0.0, "max": 2.0, "step": 0.1, "skill": "staff_fireball", "field": "cast_time"},
+	{"key": "skill_fireball_radius", "group": "Skills", "label": "Fireball blast radius (tiles)", "type": "float", "min": 0.5, "max": 8.0, "step": 0.25, "skill": "staff_fireball", "field": "radius_tiles"},
+	{"key": "skill_burn_radius", "group": "Skills", "label": "Burning ground radius (tiles)", "type": "float", "min": 0.5, "max": 8.0, "step": 0.25, "skill": "staff_fireball", "field": "burn_radius_tiles"},
 
 	# ---- Audio ----
 	{"key": "sfx_volume", "group": "Audio", "label": "Sound effects volume", "type": "float", "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.8},
@@ -94,7 +105,13 @@ static func set_value(key: String, value: Variant) -> void:
 
 
 static func default_of(key: String) -> Variant:
-	var def := def_for(key)
+	return _default_for(def_for(key))
+
+
+## A row's default: its own "default", or for skill rows the skills table's value.
+static func _default_for(def: Dictionary) -> Variant:
+	if def.has("skill"):
+		return Skills.value(def.skill, def.field, def.get("default"))
 	return def.get("default")
 
 
@@ -108,7 +125,7 @@ static func def_for(key: String) -> Dictionary:
 static func reset_all() -> void:
 	values.clear()
 	for def in DEFS:
-		values[def.key] = def.default
+		values[def.key] = _default_for(def)
 
 
 static func is_default(key: String) -> bool:
@@ -119,7 +136,10 @@ static func save() -> Error:
 	ensure_loaded()
 	var cfg := ConfigFile.new()
 	for def in DEFS:
-		cfg.set_value(SECTION, def.key, values[def.key])
+		# Only settings that were changed are written, so an untouched one follows its default
+		# (and a new value in the skills table) instead of being pinned to an old one.
+		if values[def.key] != _default_for(def):
+			cfg.set_value(SECTION, def.key, values[def.key])
 	return cfg.save(SAVE_PATH)
 
 

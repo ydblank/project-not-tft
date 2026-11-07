@@ -14,10 +14,14 @@ class_name ActionStateMachine
 # - Block (held) from IDLE or CHARGING; no attack/dash while blocking.
 # - Dash (pressed) from IDLE or CHARGING; cooldown starts when the dash ends.
 # - Stagger/knockback interrupt everything and reset the combo.
+# - Skill (weapon's SkillData, the E button): from IDLE, CHARGING, BLOCK or an attack's
+#   recovery, when off cooldown. An aimed skill holds in SKILL_AIM until the button is
+#   released (block cancels, no cooldown spent); an unaimed one casts on press. SKILL
+#   lasts skill.cast_time + skill.duration. An unstoppable skill ignores stagger / knockback while it runs.
 
-enum State {IDLE, CHARGING, ATTACK, BLOCK, DASH, STAGGER, KNOCKBACK, DEAD}
+enum State {IDLE, CHARGING, ATTACK, BLOCK, DASH, STAGGER, KNOCKBACK, DEAD, SKILL_AIM, SKILL}
 enum Phase {NONE, STARTUP, ACTIVE, RECOVERY}
-enum MoveMode {FREE, SLOWED, LOCKED, LUNGE, DASH, KNOCKBACK}
+enum MoveMode {FREE, SLOWED, LOCKED, LUNGE, DASH, KNOCKBACK, SKILL_DASH}
 
 const DIRECTION_COUNT := 8
 const MIN_ATTACK_SPEED := 0.05
@@ -25,6 +29,8 @@ const MIN_ATTACK_SPEED := 0.05
 const DASH_INPUT_BUFFER := 0.2
 ## A dash can chain into the next once this fraction of it has elapsed.
 const DASH_CHAIN_PROGRESS := 0.5
+## A skill press made while busy (stunned, mid-swing) still fires if the skill becomes possible this soon.
+const SKILL_INPUT_BUFFER := 0.25
 
 # ---- configuration ----
 var weapon: WeaponData
@@ -40,6 +46,8 @@ var dash_recharge_time: float = 0.0
 var dash_reload_time: float = 0.0
 ## That first charge comes back this many times faster (1 = as written above; the game's dev setting makes it 2).
 var dash_first_charge_speedup: float = 1.0
+## Multiplier on every skill cooldown (dev tuning).
+var skill_cooldown_scale: float = 1.0
 
 # ---- public state (read-only for other code) ----
 var state: State = State.IDLE
@@ -59,10 +67,18 @@ var attack_lunge_distance: float = 0.0
 var combo_index: int = 0
 var charge_time: float = 0.0
 var dash_dir: Vector2 = Vector2.DOWN
+## The skill being cast (SKILL state), with its direction and aimed point.
+var current_skill: SkillData = null
+var skill_dir: Vector2 = Vector2.DOWN
+var skill_target: Vector2 = Vector2.ZERO
 
 # ---- internals ----
 var _prev_attack_held: bool = false
 var _prev_dash_held: bool = false
+var _prev_skill_held: bool = false
+var _skill_cooldown_left: float = 0.0
+var _skill_cooldown_total: float = 0.0
+var _skill_buffer_left: float = 0.0
 var _press_active: bool = false
 var _press_time: float = 0.0
 var _heavy_pending: bool = false
@@ -104,18 +120,22 @@ func _init(p_weapon: WeaponData = null, p_attack_speed: float = 1.0) -> void:
 ## {type="attack_started", move, is_heavy, charge_mult, combo_index, is_final, dir}
 ## {type="active_started"} / {type="active_ended"}
 ## {type="dash_started", dir}
+## {type="skill_started", skill, dir, target} / {type="skill_ended", skill}
 func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 	var events: Array[Dictionary] = []
 
 	var attack_pressed := intent.attack_held and not _prev_attack_held
 	var attack_released := (not intent.attack_held) and _prev_attack_held
 	var dash_pressed := intent.dash_held and not _prev_dash_held
+	var skill_pressed := intent.skill_held and not _prev_skill_held
 	_prev_attack_held = intent.attack_held
 	_prev_dash_held = intent.dash_held
+	_prev_skill_held = intent.skill_held
 
 	if state == State.DEAD:
 		return events
 
+	_skill_cooldown_left = maxf(_skill_cooldown_left - delta, 0.0)
 	_counter_left = maxf(_counter_left - delta, 0.0)
 	if state == State.BLOCK:
 		_block_age += delta
@@ -166,6 +186,23 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 		# A held heavy charge survives the dash (keeps charging, release after).
 		_start_dash(intent, events)
 
+	# ---- skill: aimed skills wait for the release, the others cast now ----
+	# A press made while busy (stunned, mid-swing) is remembered for SKILL_INPUT_BUFFER.
+	if skill_pressed:
+		_skill_buffer_left = SKILL_INPUT_BUFFER
+	else:
+		_skill_buffer_left = maxf(_skill_buffer_left - delta, 0.0)
+	if _skill_buffer_left > 0.0 and _can_start_skill():
+		_skill_buffer_left = 0.0
+		if state == State.ATTACK or state == State.CHARGING or state == State.BLOCK:
+			_interrupt() # the skill cancels a charge, a block or an attack's recovery
+			_set_state(State.IDLE)
+		if weapon.skill.is_aimed() and intent.skill_held:
+			facing = _aim(intent)
+			_set_state(State.SKILL_AIM)
+		else:
+			_start_skill(intent, events)
+
 	# ---- state logic ----
 	match state:
 		State.IDLE:
@@ -214,6 +251,21 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 		State.STAGGER, State.KNOCKBACK:
 			_state_time_left -= delta
 			if _state_time_left <= 0.0:
+				_set_state(State.IDLE)
+				_try_leave_idle(intent, false, events)
+
+		State.SKILL_AIM:
+			facing = _aim(intent)
+			if intent.block_held:
+				_set_state(State.IDLE) # cancelled: no cooldown spent
+				_try_leave_idle(intent, false, events)
+			elif not intent.skill_held:
+				_start_skill(intent, events)
+
+		State.SKILL:
+			_state_time_left -= delta
+			if _state_time_left <= 0.0:
+				events.append({"type": "skill_ended", "skill": current_skill})
 				_set_state(State.IDLE)
 				_try_leave_idle(intent, false, events)
 
@@ -374,6 +426,32 @@ func _refill_dash() -> void:
 	_dash_buffer_left = 0.0
 
 
+func _start_skill(intent: CombatIntent, events: Array[Dictionary]) -> void:
+	var sk := weapon.skill if weapon else null
+	if sk == null:
+		_set_state(State.IDLE)
+		return
+	_press_active = false
+	_heavy_pending = false
+	_light_queued = false
+	_reset_combo()
+	current_skill = sk
+	skill_dir = _aim(intent)
+	skill_target = intent.skill_target
+	facing = skill_dir
+	_skill_cooldown_total = maxf(sk.cooldown * skill_cooldown_scale, 0.0)
+	_skill_cooldown_left = _skill_cooldown_total
+	_state_time_left = maxf(sk.cast_time, 0.0) + maxf(sk.duration, 0.0)
+	_set_state(State.SKILL)
+	events.append({"type": "skill_started", "skill": sk, "dir": skill_dir, "target": skill_target})
+
+
+## Ends the running skill on the next tick (the dagger dash stops at its first hit or a wall).
+func finish_skill() -> void:
+	if state == State.SKILL:
+		_state_time_left = 0.0
+
+
 func _enter_block(intent: CombatIntent) -> void:
 	_press_active = false
 	_heavy_pending = false
@@ -396,8 +474,11 @@ func _cancel_charge() -> void:
 # ======================================================================
 
 ## dashable: the victim may dash out of this stun (combo breaker). Guard breaks cannot.
-func apply_stagger(duration: float, dashable: bool = true) -> void:
+## force: also stops an unstoppable skill (a parry stun).
+func apply_stagger(duration: float, dashable: bool = true, force: bool = false) -> void:
 	if state == State.DEAD or state == State.KNOCKBACK:
+		return
+	if is_unstoppable() and not force:
 		return
 	_interrupt()
 	_state_time_left = maxf(duration, 0.0)
@@ -406,7 +487,7 @@ func apply_stagger(duration: float, dashable: bool = true) -> void:
 
 
 func apply_knockback(duration: float) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or is_unstoppable():
 		return
 	_interrupt()
 	_state_time_left = maxf(duration, 0.0)
@@ -423,10 +504,11 @@ func kill() -> void:
 func set_loadout(p_weapon: WeaponData, p_attack_speed: float) -> void:
 	weapon = p_weapon
 	attack_speed = p_attack_speed
+	_reset_skill_cooldown()
 	if state == State.DEAD:
 		return
 	_interrupt()
-	if state == State.ATTACK or state == State.CHARGING or state == State.BLOCK:
+	if state in [State.ATTACK, State.CHARGING, State.BLOCK, State.SKILL_AIM, State.SKILL]:
 		_set_state(State.IDLE)
 
 
@@ -437,8 +519,16 @@ func revive() -> void:
 	_interrupt()
 	_prev_attack_held = false
 	_prev_dash_held = false
+	_prev_skill_held = false
 	_refill_dash()
+	_reset_skill_cooldown()
 	_set_state(State.IDLE)
+
+
+func _reset_skill_cooldown() -> void:
+	_skill_cooldown_left = 0.0
+	_skill_cooldown_total = 0.0
+	_skill_buffer_left = 0.0
 
 
 func _interrupt() -> void:
@@ -490,10 +580,19 @@ func movement_mode() -> MoveMode:
 	match state:
 		State.IDLE:
 			return MoveMode.FREE
-		State.CHARGING, State.BLOCK:
+		State.CHARGING, State.BLOCK, State.SKILL_AIM:
 			return MoveMode.SLOWED
 		State.ATTACK:
 			return MoveMode.LUNGE if phase == Phase.STARTUP else MoveMode.LOCKED
+		State.SKILL:
+			if current_skill == null:
+				return MoveMode.LOCKED
+			match current_skill.kind:
+				SkillData.Kind.SPIN, SkillData.Kind.VOLLEY:
+					return MoveMode.SLOWED
+				SkillData.Kind.DASH_STRIKE:
+					return MoveMode.SKILL_DASH
+			return MoveMode.LOCKED
 		State.DASH:
 			return MoveMode.DASH
 		State.KNOCKBACK:
@@ -526,7 +625,7 @@ func _can_start_dash() -> bool:
 	if not dash_ready():
 		return false
 	match state:
-		State.IDLE, State.CHARGING, State.ATTACK, State.BLOCK:
+		State.IDLE, State.CHARGING, State.ATTACK, State.BLOCK, State.SKILL_AIM:
 			return true
 		State.STAGGER:
 			return _stagger_dashable # dash is the way out of a combo
@@ -571,6 +670,55 @@ func dash_is_reloading() -> bool:
 	return _dash_charges <= 0 and _recharge_left > 0.0
 
 
+## The weapon's skill (null when the weapon has none).
+func get_skill() -> SkillData:
+	return weapon.skill if weapon else null
+
+
+## True when the skill exists and is off cooldown.
+func skill_ready() -> bool:
+	return get_skill() != null and _skill_cooldown_left <= 0.0
+
+
+func skill_cooldown_left() -> float:
+	return _skill_cooldown_left
+
+
+## 1.0 right after casting, 0.0 when ready.
+func skill_cooldown_ratio() -> float:
+	if _skill_cooldown_left <= 0.0 or _skill_cooldown_total <= 0.0:
+		return 0.0
+	return clampf(_skill_cooldown_left / _skill_cooldown_total, 0.0, 1.0)
+
+
+func is_skill_aiming() -> bool:
+	return state == State.SKILL_AIM
+
+
+## Seconds since the running skill was cast (0 outside SKILL).
+func skill_elapsed() -> float:
+	if state != State.SKILL or current_skill == null:
+		return 0.0
+	return maxf(current_skill.cast_time + current_skill.duration - _state_time_left, 0.0)
+
+
+## True while casting a skill that hits cannot interrupt.
+func is_unstoppable() -> bool:
+	return state == State.SKILL and current_skill != null and current_skill.unstoppable
+
+
+## A skill can start out of idle, a charge, a block or an attack's recovery, when off cooldown.
+func _can_start_skill() -> bool:
+	if not skill_ready():
+		return false
+	match state:
+		State.IDLE, State.CHARGING, State.BLOCK:
+			return true
+		State.ATTACK:
+			return phase == Phase.RECOVERY
+	return false
+
+
 static func direction_to_index(dir: Vector2) -> int:
 	return posmod(roundi(dir.angle() / (TAU / DIRECTION_COUNT)), DIRECTION_COUNT)
 
@@ -586,6 +734,8 @@ static func index_to_direction(index: int) -> Vector2:
 func _set_state(new_state: State) -> void:
 	if state == State.BLOCK and new_state != State.BLOCK:
 		_block_idle = 0.0
+	if new_state != State.SKILL:
+		current_skill = null
 	state = new_state
 	if new_state != State.ATTACK:
 		phase = Phase.NONE
