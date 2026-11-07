@@ -85,6 +85,7 @@ func _ready() -> void:
 		combat_component.hitbox_component.blocked_hit.connect(_on_blocked_hit)
 		combat_component.hitbox_component.parried.connect(_on_parried)
 	_setup_block_visual.call_deferred() # the entity is still setting up its children
+	_setup_ultimate_aura.call_deferred()
 
 
 func _physics_process(delta: float) -> void:
@@ -341,3 +342,17 @@ func _on_shield_broken() -> void:
 	_kick = Vector2.ZERO
 	if combat_component and combat_component.entity:
 		HitFX.shatter(combat_component.entity, combat_component.entity.global_position + Vector2(0, -2))
+
+
+# ---- ultimate aura ----
+
+## Red glow while the ultimate is ready, the class colour while it runs (see UltimateAura).
+## Drawn first under the entity, so it sits behind the sprite.
+func _setup_ultimate_aura() -> void:
+	if combat_component == null or combat_component.entity == null or sprite == null:
+		return
+	var aura := UltimateAura.new()
+	aura.name = "UltimateAura"
+	combat_component.entity.add_child(aura)
+	combat_component.entity.move_child(aura, 0)
+	aura.setup(combat_component, sprite)

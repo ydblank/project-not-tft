@@ -52,6 +52,10 @@ The first values were chosen by feel, not play-tested; tune them in the table.
 
 Bots use their weapon skill when its tags say it is worth it: the defensive spin against incoming hits, the dagger dash on an open target, the volley or fireball on groups. Aimed skills are held briefly so their red marker warns you. They also walk out of, and round, enemy skill areas and burning ground. See [Skills](skills.md#ai).
 
+## Ultimate
+
+Bots fire their class ultimate when the meter is full and it fits the class: the Knight when the fight is on top of it, the Thief when it can dive the target, the Archer with a clear shot, the Mage right after a skill, and any class at low HP. Export `use_ultimate`. See [Ultimate](ultimate.md#ai).
+
 ## Known limitations
 
 - The AI only stands at the arena edge if you are outside; it does not follow you out.

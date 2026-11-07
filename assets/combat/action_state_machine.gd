@@ -18,6 +18,11 @@ class_name ActionStateMachine
 #   recovery, when off cooldown. An aimed skill holds in SKILL_AIM until the button is
 #   released (block cancels, no cooldown spent); an unaimed one casts on press. SKILL
 #   lasts skill.cast_time + skill.duration. An unstoppable skill ignores stagger / knockback while it runs.
+# - Ultimate (the class's row in Ultimates, the Q button): the meter (ult_charge, 0..1) is filled
+#   from outside by add_ult_charge(). A press with a full meter starts it from any state but
+#   DEAD / STAGGER / KNOCKBACK, with no state change of its own; it lasts the row's duration.
+#   While it runs, the row's numbers change attack speed, skill cooldown and cast time, the heavy
+#   charge time, auto heavies (Archer) and stun immunity (Knight).
 
 enum State {IDLE, CHARGING, ATTACK, BLOCK, DASH, STAGGER, KNOCKBACK, DEAD, SKILL_AIM, SKILL}
 enum Phase {NONE, STARTUP, ACTIVE, RECOVERY}
@@ -48,6 +53,13 @@ var dash_reload_time: float = 0.0
 var dash_first_charge_speedup: float = 1.0
 ## Multiplier on every skill cooldown (dev tuning).
 var skill_cooldown_scale: float = 1.0
+## This class's ultimate (Ultimates.row_for), empty = none.
+var ultimate: Dictionary = {}
+## Dev tuning: multiplier on meter gain and on the ultimate's duration.
+var ult_charge_scale: float = 1.0
+var ult_duration_scale: float = 1.0
+## Dev tuning: the meter refills itself whenever the ultimate is not running.
+var ult_always_full: bool = false
 
 # ---- public state (read-only for other code) ----
 var state: State = State.IDLE
@@ -71,11 +83,18 @@ var dash_dir: Vector2 = Vector2.DOWN
 var current_skill: SkillData = null
 var skill_dir: Vector2 = Vector2.DOWN
 var skill_target: Vector2 = Vector2.ZERO
+## Ultimate meter, 0..1 (1 = ready).
+var ult_charge: float = 0.0
 
 # ---- internals ----
 var _prev_attack_held: bool = false
 var _prev_dash_held: bool = false
 var _prev_skill_held: bool = false
+var _prev_ult_held: bool = false
+var _ult_time_left: float = 0.0
+var _ult_time_total: float = 0.0
+## Cast time of the running skill (the ultimate can shorten it).
+var _current_cast_time: float = 0.0
 var _skill_cooldown_left: float = 0.0
 var _skill_cooldown_total: float = 0.0
 var _skill_buffer_left: float = 0.0
@@ -128,14 +147,18 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 	var attack_released := (not intent.attack_held) and _prev_attack_held
 	var dash_pressed := intent.dash_held and not _prev_dash_held
 	var skill_pressed := intent.skill_held and not _prev_skill_held
+	var ult_pressed := intent.ultimate_held and not _prev_ult_held
 	_prev_attack_held = intent.attack_held
 	_prev_dash_held = intent.dash_held
 	_prev_skill_held = intent.skill_held
+	_prev_ult_held = intent.ultimate_held
 
 	if state == State.DEAD:
 		return events
 
-	_skill_cooldown_left = maxf(_skill_cooldown_left - delta, 0.0)
+	_tick_ultimate(ult_pressed, delta, events)
+	# The Mage's ultimate runs the skill cooldown faster (a cooldown already running shrinks too).
+	_skill_cooldown_left = maxf(_skill_cooldown_left - delta / maxf(float(_ult_value("cooldown_mult", 1.0)), 0.01), 0.0)
 	_counter_left = maxf(_counter_left - delta, 0.0)
 	if state == State.BLOCK:
 		_block_age += delta
@@ -215,6 +238,9 @@ func tick(intent: CombatIntent, delta: float) -> Array[Dictionary]:
 		State.CHARGING:
 			facing = _aim(intent)
 			if heavy_release:
+				_start_attack(true, intent, events)
+			elif _ult_auto_heavy() and not intent.block_held:
+				_press_active = false # the Archer's ultimate fires a charge at once
 				_start_attack(true, intent, events)
 			elif intent.block_held:
 				_cancel_charge()
@@ -305,6 +331,12 @@ func _try_leave_idle(intent: CombatIntent, dash_pressed: bool, events: Array[Dic
 		_heavy_pending = false
 		facing = _aim(intent)
 		_start_attack(true, intent, events)
+	elif _ult_auto_heavy() and (intent.attack_held or _light_queued) and _light_cooldown_left <= 0.0:
+		# Archer ultimate: every shot is a heavy, with no charge-up; holding keeps firing.
+		_light_queued = false
+		_press_active = false
+		facing = _aim(intent)
+		_start_attack(true, intent, events)
 	elif _press_active and _press_time >= _charge_threshold():
 		_light_queued = false
 		charge_time = _press_time
@@ -333,7 +365,10 @@ func _start_attack(is_heavy: bool, intent: CombatIntent, events: Array[Dictionar
 		heavy_index = heavy_idx
 		index = heavy_idx
 		if not continuing:
-			current_charge_mult = lerpf(weapon.heavy_min_mult, weapon.heavy_max_mult, charge_ratio())
+			var ratio := charge_ratio()
+			if _ult_auto_heavy():
+				ratio = clampf(float(_ult_value("auto_heavy_charge", 1.0)), 0.0, 1.0)
+			current_charge_mult = lerpf(weapon.heavy_min_mult, weapon.heavy_max_mult, ratio)
 	else:
 		heavy_index = 0
 		index = _next_combo_index if _combo_timer > 0.0 else 0
@@ -379,8 +414,9 @@ func _finish_attack() -> void:
 		_next_combo_index = 0
 		_combo_timer = 0.0
 		# Finished the whole quick combo: lock quick attacks for a moment.
-		if not current_is_heavy and weapon and weapon.light_combo_cooldown > 0.0:
-			_light_cooldown_left = weapon.light_combo_cooldown
+		# The Archer's ultimate heavies keep the quick-shot pace, so they wait the same gap.
+		if (not current_is_heavy or _ult_auto_heavy()) and weapon and weapon.light_combo_cooldown > 0.0:
+			_light_cooldown_left = weapon.light_combo_cooldown / maxf(float(_ult_value("attack_speed_mult", 1.0)), MIN_ATTACK_SPEED)
 			_light_queued = false
 	else:
 		_next_combo_index = combo_index + 1
@@ -441,7 +477,8 @@ func _start_skill(intent: CombatIntent, events: Array[Dictionary]) -> void:
 	facing = skill_dir
 	_skill_cooldown_total = maxf(sk.cooldown * skill_cooldown_scale, 0.0)
 	_skill_cooldown_left = _skill_cooldown_total
-	_state_time_left = maxf(sk.cast_time, 0.0) + maxf(sk.duration, 0.0)
+	_current_cast_time = maxf(sk.cast_time * float(_ult_value("cast_time_mult", 1.0)), 0.0)
+	_state_time_left = _current_cast_time + maxf(sk.duration, 0.0)
 	_set_state(State.SKILL)
 	events.append({"type": "skill_started", "skill": sk, "dir": skill_dir, "target": skill_target})
 
@@ -478,6 +515,8 @@ func _cancel_charge() -> void:
 func apply_stagger(duration: float, dashable: bool = true, force: bool = false) -> void:
 	if state == State.DEAD or state == State.KNOCKBACK:
 		return
+	if ult_immune():
+		return # the Knight's ultimate shrugs off every stun, a parry included
 	if is_unstoppable() and not force:
 		return
 	_interrupt()
@@ -487,7 +526,7 @@ func apply_stagger(duration: float, dashable: bool = true, force: bool = false) 
 
 
 func apply_knockback(duration: float) -> void:
-	if state == State.DEAD or is_unstoppable():
+	if state == State.DEAD or is_unstoppable() or ult_immune():
 		return
 	_interrupt()
 	_state_time_left = maxf(duration, 0.0)
@@ -496,6 +535,7 @@ func apply_knockback(duration: float) -> void:
 
 func kill() -> void:
 	_interrupt()
+	_reset_ultimate()
 	_set_state(State.DEAD)
 
 
@@ -505,6 +545,7 @@ func set_loadout(p_weapon: WeaponData, p_attack_speed: float) -> void:
 	weapon = p_weapon
 	attack_speed = p_attack_speed
 	_reset_skill_cooldown()
+	_reset_ultimate()
 	if state == State.DEAD:
 		return
 	_interrupt()
@@ -520,8 +561,10 @@ func revive() -> void:
 	_prev_attack_held = false
 	_prev_dash_held = false
 	_prev_skill_held = false
+	_prev_ult_held = false
 	_refill_dash()
 	_reset_skill_cooldown()
+	_reset_ultimate()
 	_set_state(State.IDLE)
 
 
@@ -529,6 +572,94 @@ func _reset_skill_cooldown() -> void:
 	_skill_cooldown_left = 0.0
 	_skill_cooldown_total = 0.0
 	_skill_buffer_left = 0.0
+
+
+# ======================================================================
+# Ultimate
+# ======================================================================
+
+func _tick_ultimate(pressed: bool, delta: float, events: Array[Dictionary]) -> void:
+	if _ult_time_left > 0.0:
+		_ult_time_left = maxf(_ult_time_left - delta, 0.0)
+		if _ult_time_left <= 0.0:
+			events.append({"type": "ultimate_ended", "ultimate": ultimate})
+		return
+	if ult_always_full and not ultimate.is_empty():
+		ult_charge = 1.0
+	if pressed and _can_start_ultimate():
+		ult_charge = 0.0
+		_ult_time_total = maxf(float(ultimate.get("duration", 0.0)) * ult_duration_scale, 0.01)
+		_ult_time_left = _ult_time_total
+		events.append({"type": "ultimate_started", "ultimate": ultimate})
+
+
+func _can_start_ultimate() -> bool:
+	return ult_ready() and state != State.DEAD and state != State.STAGGER and state != State.KNOCKBACK
+
+
+## Adds `amount` (share of a full meter, already scaled for HP) to the meter. Nothing while it runs.
+func add_ult_charge(amount: float) -> void:
+	if ultimate.is_empty() or ult_active() or state == State.DEAD or amount <= 0.0:
+		return
+	ult_charge = clampf(ult_charge + amount * ult_charge_scale, 0.0, 1.0)
+
+
+## Empties the meter and ends a running ultimate (death, respawn, loadout change).
+func _reset_ultimate() -> void:
+	ult_charge = 0.0
+	_ult_time_left = 0.0
+	_ult_time_total = 0.0
+
+
+## A field of the running ultimate's row, or `fallback` when no ultimate is running.
+func _ult_value(field: String, fallback: Variant) -> Variant:
+	if _ult_time_left <= 0.0:
+		return fallback
+	return ultimate.get(field, fallback)
+
+
+func _ult_auto_heavy() -> bool:
+	return bool(_ult_value("auto_heavy", false)) and weapon != null
+
+
+## Sets this class's ultimate (Ultimates.row_for). An empty row = none.
+func set_ultimate(row: Dictionary) -> void:
+	ultimate = row
+	_reset_ultimate()
+
+
+func ult_ready() -> bool:
+	return not ultimate.is_empty() and ult_charge >= 1.0 and not ult_active()
+
+
+func ult_active() -> bool:
+	return _ult_time_left > 0.0
+
+
+func ult_time_left() -> float:
+	return _ult_time_left
+
+
+## 1.0 when it has just started, 0.0 when it is over.
+func ult_time_ratio() -> float:
+	if _ult_time_total <= 0.0:
+		return 0.0
+	return clampf(_ult_time_left / _ult_time_total, 0.0, 1.0)
+
+
+## True while the Knight's ultimate runs: no damage, no stagger, no knockback.
+func ult_immune() -> bool:
+	return bool(_ult_value("immune", false))
+
+
+## Walking speed multiplier of the running ultimate (1.0 without one).
+func ult_move_speed_mult() -> float:
+	return float(_ult_value("move_speed_mult", 1.0))
+
+
+## True while single-target projectiles fly through this fighter (the Thief's ultimate).
+func ult_dodges_projectiles() -> bool:
+	return bool(_ult_value("dodge_projectiles", false))
 
 
 func _interrupt() -> void:
@@ -554,10 +685,16 @@ func _reset_combo() -> void:
 func charge_ratio() -> float:
 	if weapon == null:
 		return 0.0
-	var span := weapon.max_charge_time - weapon.charge_threshold
+	var scale := _charge_time_scale()
+	var span := (weapon.max_charge_time - weapon.charge_threshold) * scale
 	if span <= 0.0:
 		return 1.0
-	return clampf((charge_time - weapon.charge_threshold) / span, 0.0, 1.0)
+	return clampf((charge_time - weapon.charge_threshold * scale) / span, 0.0, 1.0)
+
+
+## The Mage's ultimate shortens the heavy charge (both the hold before charging and the full charge).
+func _charge_time_scale() -> float:
+	return maxf(float(_ult_value("charge_time_mult", 1.0)), 0.0)
 
 
 func is_blocking() -> bool:
@@ -699,7 +836,12 @@ func is_skill_aiming() -> bool:
 func skill_elapsed() -> float:
 	if state != State.SKILL or current_skill == null:
 		return 0.0
-	return maxf(current_skill.cast_time + current_skill.duration - _state_time_left, 0.0)
+	return maxf(_current_cast_time + current_skill.duration - _state_time_left, 0.0)
+
+
+## Cast time of the running skill, after the ultimate's shortening (0 outside SKILL).
+func skill_cast_time() -> float:
+	return _current_cast_time if state == State.SKILL else 0.0
 
 
 ## True while casting a skill that hits cannot interrupt.
@@ -742,11 +884,11 @@ func _set_state(new_state: State) -> void:
 
 
 func _scaled(duration: float) -> float:
-	return duration / maxf(attack_speed, MIN_ATTACK_SPEED)
+	return duration / maxf(attack_speed * float(_ult_value("attack_speed_mult", 1.0)), MIN_ATTACK_SPEED)
 
 
 func _charge_threshold() -> float:
-	return weapon.charge_threshold if weapon else INF
+	return weapon.charge_threshold * _charge_time_scale() if weapon else INF
 
 
 func _aim(intent: CombatIntent) -> Vector2:

@@ -90,6 +90,8 @@ func receive_hit(hit: HitData) -> Result:
 		return Result.IGNORED # dash i-frames: melee, arrows and everything else pass through
 	if is_same_team(hit.team) or hit.attacker == get_entity():
 		return Result.IGNORED
+	if _combat and _combat.is_ult_immune():
+		return _immune(hit) # the Knight's ultimate: no damage, no stagger, no knockback
 
 	var final_damage := hit.damage
 	if use_combat_calculations and stats:
@@ -134,6 +136,7 @@ func receive_hit(hit: HitData) -> Result:
 
 	health.take_damage(final_damage)
 	hit_received.emit(hit.attacker, final_damage, hit.direction)
+	_credit_ultimate(hit)
 
 	var force := 0.0
 	if hit.reaction == AttackMove.Reaction.KNOCKBACK:
@@ -201,6 +204,7 @@ func _find_sibling(type: Variant) -> Node:
 func _receive_dot(hit: HitData, final_damage: float) -> Result:
 	health.take_damage(final_damage)
 	hit_received.emit(hit.attacker, final_damage, hit.direction)
+	_credit_ultimate(hit)
 	if _combat and not health.is_dead() and hit.stagger_time > 0.0:
 		_combat.receive_reaction(hit, 0.0, final_damage)
 	_show_damage_number(maxi(int(round(final_damage)), 1), hit)
@@ -265,6 +269,32 @@ func _spawn_hit_fx(hit: HitData, blocked: bool) -> void:
 		HitFX.blood(self, pos, hit.direction, hit.is_heavy or health.is_dead())
 	else:
 		HitFX.sparks(self, pos, hit.direction, hit.is_heavy)
+
+
+## Floating word above the fighter, for other components ("DODGE", the ultimate's name).
+func show_popup(text: String, color: Color) -> void:
+	_show_text(text, color)
+
+
+## A hit reached our health: the attacker's ultimate meter fills by the hit's points.
+## Only fighters of another team count (the training dummy and hazards have no CombatComponent).
+func _credit_ultimate(hit: HitData) -> void:
+	if hit.charge_points <= 0.0 or not is_instance_valid(hit.attacker):
+		return
+	var attacker := CombatComponent.find_on(hit.attacker)
+	if attacker:
+		attacker.on_hit_dealt(hit.charge_points)
+
+
+## Knight ultimate: the hit does nothing. A clang, sparks and a gold "IMMUNE" instead.
+## Not a block, so the attacker is not parried or slowed, and the meter gains nothing.
+func _immune(hit: HitData) -> Result:
+	if not hit.is_dot:
+		_impact(hit, 0.4, 1.0)
+		HitFX.sparks(self, global_position - hit.direction * 6.0, hit.direction, hit.is_heavy)
+		Sfx.play(&"armor", _sfx_db(hit) + BLOCK_DB, 1.3)
+		_show_text("IMMUNE", Color(1.0, 0.85, 0.3))
+	return Result.BLOCKED
 
 
 ## Floating word above the fighter ("BLOCKED", "GUARD BREAK!").

@@ -39,6 +39,8 @@ var marker: SkillMarker
 var _skill: SkillData = null
 var _dir: Vector2 = Vector2.RIGHT
 var _elapsed: float = 0.0
+## Cast time of the running skill (shortened by the Mage's ultimate), read from the state machine at the cast.
+var _cast_time: float = 0.0
 var _hit_targets: Dictionary = {}
 var _sound_left: float = 0.0
 var _volleys_fired: int = 0
@@ -70,15 +72,16 @@ func is_running() -> bool:
 
 ## 0..1 through a skill's cast time (the fireball growing in the caster's hands), -1 when not casting.
 func cast_ratio() -> float:
-	if _skill == null or _skill.cast_time <= 0.0 or _thrown or _skill.kind != SkillData.Kind.FIREBALL:
+	if _skill == null or _cast_time <= 0.0 or _thrown or _skill.kind != SkillData.Kind.FIREBALL:
 		return -1.0
-	return clampf(_elapsed / _skill.cast_time, 0.0, 1.0)
+	return clampf(_elapsed / _cast_time, 0.0, 1.0)
 
 
 func start(e: Dictionary) -> void:
 	_skill = e.skill
 	_dir = (e.dir as Vector2).normalized() if e.dir != Vector2.ZERO else Vector2.RIGHT
 	_elapsed = 0.0
+	_cast_time = combat.sm.skill_cast_time() if combat.sm.state == ActionStateMachine.State.SKILL else _skill.cast_time
 	_hit_targets.clear()
 	_sound_left = 0.0
 	_volleys_fired = 0
@@ -96,7 +99,7 @@ func start(e: Dictionary) -> void:
 		SkillData.Kind.FIREBALL:
 			_cast_target = e.target
 			_thrown = false
-			if _skill.cast_time <= 0.0:
+			if _cast_time <= 0.0:
 				_throw_now()
 			else:
 				_start_orb()
@@ -229,13 +232,13 @@ func _tick_fireball_cast() -> void:
 	if _thrown:
 		return
 	combat.sm.facing = _dir
-	var progress := clampf(_elapsed / maxf(_skill.cast_time, 0.01), 0.0, 1.0)
+	var progress := clampf(_elapsed / maxf(_cast_time, 0.01), 0.0, 1.0)
 	if is_instance_valid(_orb):
 		_orb.global_position = combat.entity.global_position + _dir * ORB_OFFSET
 		_orb.rotation = _dir.angle()
 		_orb.scale = Vector2.ONE * lerpf(ORB_START_SCALE, FIREBALL_SCALE, progress)
 		_orb.frame = int(_elapsed * 14.0) % _orb.hframes
-	if _elapsed >= _skill.cast_time:
+	if _elapsed >= _cast_time:
 		_throw_now()
 
 

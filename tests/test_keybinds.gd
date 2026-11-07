@@ -44,11 +44,14 @@ func test_defaults_come_from_the_project() -> void:
 	assert_true(Keybinds.describe_keyboard(&"dash").contains("Space"), "dash keeps Space")
 	assert_eq(Keybinds.describe_pad(&"skill"), "B", "controller skill is B")
 	assert_eq(Keybinds.describe_pad(&"Attack"), "RT / X")
+	assert_eq(Keybinds.describe_keyboard(&"ultimate"), "Q", "ultimate is Q")
+	assert_eq(Keybinds.describe_pad(&"ultimate"), "RB", "controller ultimate is RB")
+	assert_false(Keybinds.describe_pad(&"dash").contains("RB"), "dash gave RB to the ultimate")
 
 
 func test_rebinding_a_key_updates_the_input_map() -> void:
-	Keybinds.set_keyboard(&"skill", _key(KEY_Q))
-	assert_true(_has_key_event(&"skill", KEY_Q), "Q now casts the skill")
+	Keybinds.set_keyboard(&"skill", _key(KEY_T))
+	assert_true(_has_key_event(&"skill", KEY_T), "T now casts the skill")
 	assert_false(_has_key_event(&"skill", KEY_E), "E no longer does")
 	Keybinds.reset_all()
 	assert_true(_has_key_event(&"skill", KEY_E), "reset puts E back")

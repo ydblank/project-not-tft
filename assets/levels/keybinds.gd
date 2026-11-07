@@ -26,14 +26,16 @@ const ACTIONS: Array[Dictionary] = [
 	{"action": &"Block", "label": "Block", "pad": true},
 	{"action": &"dash", "label": "Dash", "pad": true},
 	{"action": &"skill", "label": "Skill", "pad": true},
+	{"action": &"ultimate", "label": "Ultimate", "pad": true},
 ]
 
 ## Controller defaults per action (any of them works). Triggers are axes pulled past half way.
 const PAD_DEFAULTS := {
 	&"Attack": [{"type": "joy_axis", "axis": JOY_AXIS_TRIGGER_RIGHT, "sign": 1}, {"type": "joy_button", "index": JOY_BUTTON_X}],
 	&"Block": [{"type": "joy_button", "index": JOY_BUTTON_LEFT_SHOULDER}],
-	&"dash": [{"type": "joy_axis", "axis": JOY_AXIS_TRIGGER_LEFT, "sign": 1}, {"type": "joy_button", "index": JOY_BUTTON_A}, {"type": "joy_button", "index": JOY_BUTTON_RIGHT_SHOULDER}],
+	&"dash": [{"type": "joy_axis", "axis": JOY_AXIS_TRIGGER_LEFT, "sign": 1}, {"type": "joy_button", "index": JOY_BUTTON_A}],
 	&"skill": [{"type": "joy_button", "index": JOY_BUTTON_B}],
+	&"ultimate": [{"type": "joy_button", "index": JOY_BUTTON_RIGHT_SHOULDER}],
 }
 
 const PAD_BUTTON_NAMES := {

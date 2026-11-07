@@ -11,7 +11,8 @@ On-screen overlays, the pause menu and the live-tunable dev settings.
 - **Centre-screen call-outs** (`assets/levels/combat_text.gd`, the `CombatText` node), for the fighter you control: **GUARD BREAK!** (orange) when you break someone's guard and **GUARD BROKEN!** (red) when yours breaks; the old small word over the fighter is gone. A **hit combo counter** ("3 HITS") below it counts the hits you land in a row. It appears from 2 hits, pops with each hit, and ends after 1.6s without a hit or when you get hit (it then fades out). Blocked and parried hits do not count.
 - **Controller overlay** (F1 toggles it): shows pressed keys, with symbols for LMB / RMB / Space and text for W A S D F.
 - **Out-of-arena camera bubble:** when the fighter you control is outside the arena and off screen (it stays hidden while you can still see them), a round live "security camera" view of it appears on the side of the screen the fighter went out toward (left or right), level with it. An arrow around the rim points back to the arena, with the distance underneath. The arrow is green while you are getting closer, red while you are moving away and yellow when holding still, and it grows and pulses faster the farther out you are.
-- **Cooldown spinners** on the buttons: dash charges as dots with a recharge ring, the shield for block, and the charge ring for attack. The skill button (E) shows its icon, the cooldown sweep with the seconds left, and glows when ready (see [Skills](skills.md#hud)).
+- **Cooldown spinners** on the buttons: dash charges as dots with a recharge ring, the shield for block, and the charge ring for attack. The skill button (E) shows its icon, the cooldown sweep with the seconds left, and glows when ready (see [Skills](skills.md#hud)). The ULT button (Q) fills a red ring with the ultimate meter, throbs red when ready and sweeps out the time left while it runs (see [Ultimate](ultimate.md#look)).
+- **Ultimate meter:** a thin bar under every fighter's HUD health bar, enemies included (see [Ultimate](ultimate.md#look)).
 - **Tile ruler** (F5): rings at 2 to 12 tiles around your fighter, for judging skill ranges.
 
 ## Parry trainer
@@ -77,6 +78,7 @@ The list of settings is the `DEFS` table in `assets/dev/dev_settings.gd`. Groups
 - **Combat:** attack speed, damage, knockback, hitstop, camera shake, quick-combo cooldown, combo hitstun, stun immunity, parry window, heavy super armor durability, damage numbers on/off, enemy wind-up warnings on/off
 - **Skills:** cooldown scale and every skill reach, in tiles; each starts at the skills table (`assets/resources/skills.gd`) and overrides it only once moved (see [Skills](skills.md#balancing-ranges))
 - **Audio:** sound effects volume, music volume (shown as 0 to 100, default 80)
+- **Ultimate:** meter fill speed, duration, and "Always full" for testing (every fighter, bots included; see [Ultimate](ultimate.md#balancing))
 - **Camera:** follow strength, death slow-motion and zoom (on / off)
 - **Arena:** outside damage %, outside speed
 - **AI:** attack cooldown, dodging on/off, dodge cooldown, respawn delay

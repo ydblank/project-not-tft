@@ -192,3 +192,14 @@ static func _ring(root: Node, pos: Vector2, color: Color, radius: float, time: f
 	tween.tween_property(ring, "scale", Vector2(2.2, 2.2), time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(ring, "modulate:a", 0.0, time)
 	tween.chain().tween_callback(ring.queue_free)
+
+
+## Ultimate activation: two big rings in the ultimate's colour and a burst of embers in every direction.
+static func ultimate_burst(host: Node, pos: Vector2, color: Color) -> void:
+	var root := _root(host)
+	if root == null:
+		return
+	_ring(root, pos, color, 40.0, 0.45, 4.0)
+	_ring(root, pos, Color(1, 1, 1, 0.8), 24.0, 0.3, 2.0)
+	_burst(root, pos, Vector2.UP, color, 28, 200.0, 180.0)
+	_burst(root, pos, Vector2.UP, Color(1.0, 0.3, 0.2), 14, 120.0, 180.0)
