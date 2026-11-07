@@ -8,7 +8,8 @@ On-screen overlays, the pause menu and the live-tunable dev settings.
 
 - **Controller overlay** (F1 toggles it): shows pressed keys, with symbols for LMB / RMB / Space and text for W A S D F.
 - **Out-of-arena camera bubble:** when the fighter you control is outside the arena and off screen (it stays hidden while you can still see them), a round live "security camera" view of it appears on the side of the screen the fighter went out toward (left or right), level with it. An arrow around the rim points back to the arena, with the distance underneath. The arrow is green while you are getting closer, red while you are moving away and yellow when holding still, and it grows and pulses faster the farther out you are.
-- **Cooldown spinners** on the buttons: dash charges as dots with a recharge ring, the shield for block, and the charge ring for attack.
+- **Cooldown spinners** on the buttons: dash charges as dots with a recharge ring, the shield for block, and the charge ring for attack. The skill button (E) shows its icon, the cooldown sweep with the seconds left, and glows when ready (see [Skills](skills.md#hud)).
+- **Tile ruler** (F5): rings at 2 to 12 tiles around your fighter, for judging skill ranges.
 
 ## Parry trainer
 
@@ -31,15 +32,20 @@ The game is laid out at a fixed **1152 x 648** and **stretched to fit the window
 
 ## Pause menu
 
-**Esc** (or **Start** on a controller) opens the pause menu: Resume / **Difficulty** / Settings / Exit.
+**Esc** (or **Start** on a controller) opens the pause menu: Resume / **Difficulty** / **Settings** / **Dev Tools** / Exit. Esc or B goes back from any sub-menu.
 
-- **Difficulty:** the button cycles **Easy / Normal / Hard** (also a 0 to 2 slider at the top of Settings; the choice is saved). It only changes the **enemy bots**, never your teammate, you, or a fighter a human controls: how hard they hit and how fast they react (details in [AI](ai.md#difficulty)).
+- **Difficulty:** the button cycles **Easy / Normal / Hard** (also a 0 to 2 slider at the top of Dev Tools; the choice is saved). It only changes the **enemy bots**, never your teammate, you, or a fighter a human controls: how hard they hit and how fast they react (details in [AI](ai.md#difficulty)).
 - **Exit asks first:** Exit opens "Exit the game?" with **Confirm** and **Cancel**. Cancel is pre-selected, so a stray press does not quit. Esc or B also cancels.
-- **Controller:** while a controller is on, a hint line under the menu reads "A Confirm   B Resume / Back / Cancel". The D-pad or left stick moves between buttons (including the paused buttons at the top of the screen, which only take focus while the menu is open), A confirms, and B backs out. Godot has no controller A binding for menus by default, so `GamepadControls` adds one for `ui_accept`.
+- **Controller:** the D-pad or left stick moves between buttons (including the test buttons in Dev Tools, which only take focus while the menu is open), A confirms, and B backs out. Godot has no controller A binding for menus by default, so `GamepadControls` adds one for `ui_accept`.
 
-**Test and mode buttons:** the buttons along the top of the screen (Display, Controller, AI Bots, Respawn, Teams, Dummy, Player (loadout), Mode (1P / 2P), Parry Training and Shrinking Zone) are only visible while the game is paused, so the combat screen stays clean. They sit in their usual spots and work while paused. Each level tool still builds its own button and adds it to the `game_option` group; the pause menu moves those onto a layer above its dim (`pause_menu.gd`, `_collect_options`) and shows that layer only while paused. A new button of this kind only needs `add_to_group("game_option")`. The Host / Join buttons and the address field are in the same group, so they are paused-only too (`MultiplayerManager` finds the address field through the `ip_input` group).
+**Settings** (for players): Audio (sound effects and music volume), Display (window mode, camera shake, death slow-motion, damage numbers) and Controls (controller on / off, and **Key bindings**, see [Controls](controls.md#key-bindings)). The list is `PLAYER_SECTIONS` in `pause_menu.gd`.
 
-**Dev settings:** the **Settings** screen has the sliders. They apply live, are saved to disk (also on Resume) and have a "Reset to defaults" button.
+**Dev Tools:** the test and mode buttons (Host / Join and the address field, Respawn, Player (loadout), Dummy, Mode (1P / 2P), AI Bots, Teams, Parry Training, Shrinking Zone) in a grid at the top, then every other dev setting as a scrolling list (see [Dev settings](#dev-settings)).
+
+- **Where the buttons come from:** each level tool still builds its own button and adds it to the `game_option` group. The pause menu moves those into the Dev Tools grid (`_collect_options`), so they are only seen while paused. A new test button only needs `add_to_group("game_option")`.
+- **Player settings:** a button that is a player setting also gets the meta `settings_section` with a section title (`"Display"`, `"Controls"`), and the menu puts it in that Settings section instead. The window mode and controller toggles do this.
+- **Host / Join:** the buttons and the address field are in the same group (`MultiplayerManager` finds the address field through the `ip_input` group).
+- Both screens apply changes live and save to disk (also on Resume). Each has its own **Reset to defaults**, which only resets that screen's values.
 
 Saved at `user://dev_settings.cfg`, which on Windows is `%APPDATA%\Godot\app_userdata\Project Not TFT clone\dev_settings.cfg`.
 
@@ -47,13 +53,14 @@ Saved at `user://dev_settings.cfg`, which on Windows is `%APPDATA%\Godot\app_use
 
 The list of settings is the `DEFS` table in `assets/dev/dev_settings.gd`. Groups:
 
-- **Match:** skip the 3-2-1 countdown (takes effect on the next launch; for testing, so the game starts with everyone free at once)
+- **Match:** skip the 3-2-1 countdown (the row was listed twice; the duplicate is gone) (takes effect on the next launch; for testing, so the game starts with everyone free at once)
 - **Dash:** charges, recharge per charge, slow reload, first-charge speed, gap, speed, duration, invulnerable toggle
 - **Movement:** walk speed, strafe speed while shooting, speed while charging / blocking
 - **Combat:** attack speed, damage, knockback, hitstop, camera shake, quick-combo cooldown, combo hitstun, stun immunity, parry window, heavy super armor durability, damage numbers on/off, enemy wind-up warnings on/off
+- **Skills:** cooldown scale and every skill reach, in tiles; each starts at the skills table (`assets/resources/skills.gd`) and overrides it only once moved (see [Skills](skills.md#balancing-ranges))
 - **Audio:** sound effects volume, music volume
 - **Camera:** follow strength, death slow-motion and zoom (on / off)
 - **Arena:** outside damage %, outside speed
 - **AI:** attack cooldown, dodging on/off, dodge cooldown, respawn delay
 
-To add a setting: add a row to `DEFS`, then apply it in `dev_tuning.gd`.
+To add a setting: add a row to `DEFS`, then apply it in `dev_tuning.gd`. Only settings that differ from their default are written to the save file, so a changed default reaches everyone who never touched that setting.

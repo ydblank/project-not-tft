@@ -15,6 +15,11 @@ var _done: bool = false
 ## Where the last wall hit happened, for the impact effect.
 var _wall_point: Vector2 = Vector2.ZERO
 var _wall_normal: Vector2 = Vector2.ZERO
+## Flight distance after which the projectile ends (0 = only the lifetime limits it). Used by skills.
+var max_distance: float = 0.0
+## Shared by every arrow of one skill volley: a fighter already in it is not hit again by this volley.
+var shared_hits: Variant = null
+var _travelled: float = 0.0
 
 ## `_charge_mult` is the heavy charge multiplier; plain arrows ignore it, subclasses (fireball) size themselves by it.
 func setup(p_hit: HitData, p_shooter: Node2D, _charge_mult: float = 1.0) -> void:
@@ -34,6 +39,9 @@ func _physics_process(delta: float) -> void:
 		_on_wall_hit()
 		return
 	global_position += step
+	_travelled += step.length()
+	if max_distance > 0.0 and _travelled >= max_distance:
+		_on_range_end()
 
 # Ray along this frame's movement; characters are skipped (their hurtbox
 # handles hits), anything else stops the arrow. Also prevents tunnelling.
@@ -66,8 +74,14 @@ func _on_area_entered(area: Area2D) -> void:
 		var target_state := target_combat.get_state()
 		if target_state == ActionStateMachine.State.STAGGER or target_state == ActionStateMachine.State.KNOCKBACK:
 			return
+	var target_id := hurtbox.get_entity().get_instance_id()
+	if shared_hits is Dictionary and (shared_hits as Dictionary).has(target_id):
+		return # this volley already reached that fighter
 	hit.direction = Vector2.RIGHT.rotated(rotation)
-	match hurtbox.receive_hit(hit):
+	var result := hurtbox.receive_hit(hit)
+	if shared_hits is Dictionary and result != HitboxComponent.Result.IGNORED:
+		(shared_hits as Dictionary)[target_id] = true
+	match result:
 		HitboxComponent.Result.HIT:
 			_on_target_hit(hurtbox)
 			_finish()
@@ -137,3 +151,20 @@ func _break_apart() -> void:
 			tween.tween_property(half, "modulate:a", 0.0, 0.4)
 			tween.chain().tween_callback(half.queue_free)
 	_finish()
+
+
+## Reached max_distance. A plain arrow just drops; subclasses can do more (the skill fireball explodes).
+func _on_range_end() -> void:
+	_finish()
+
+
+## Destroys the projectile in mid-air (a sword spin cuts it down).
+func shatter() -> void:
+	if _done:
+		return
+	_break_apart()
+
+
+## Team of whoever fired it (changes when it is parried back).
+func get_team() -> int:
+	return hit.team if hit else -1

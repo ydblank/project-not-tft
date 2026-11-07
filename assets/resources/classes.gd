@@ -43,12 +43,12 @@ static var classStats = {
 		"bonus_hp": 0,
 		"bonus_def": 10,
 		"bonus_knockback_res": 10,
-		"bonus_attack_speed": -0.15, # sheet rating 2
+		"bonus_attack_speed": - 0.15, # sheet rating 2
 		"allowed_weapons": [Weapons.WEAPONS.SWORD],
 		"sprite_path": "res://assets/art/1 Characters/2/2.png"
 	},
 	CLASSES.THIEF: {
-		"bonus_power": 5,
+		"bonus_power": 8,
 		"bonus_hp": 0,
 		"bonus_def": 7,
 		"bonus_knockback_res": 5,
@@ -57,7 +57,7 @@ static var classStats = {
 		"sprite_path": "res://assets/art/1 Characters/1/1.png"
 	},
 	CLASSES.ARCHER: {
-		"bonus_power": 7,
+		"bonus_power": 8,
 		"bonus_hp": 0,
 		"bonus_def": 5,
 		"bonus_knockback_res": 5,

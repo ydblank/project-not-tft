@@ -188,7 +188,7 @@ func _build_ui() -> void:
 	_button.tooltip_text = "A circle closes in on the arena every few seconds (F4)"
 	_button.toggled.connect(func(pressed: bool): set_active(pressed))
 	layer.add_child(_button)
-	_button.add_to_group("game_option") # the pause menu moves it into "Game options"
+	_button.add_to_group("game_option") # the pause menu shows it in Dev Tools
 
 	_label = Label.new()
 	_label.set_anchors_preset(Control.PRESET_CENTER_TOP)

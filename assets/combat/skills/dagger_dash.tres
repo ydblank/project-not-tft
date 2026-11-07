@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://assets/combat/skill_data.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+display_name = "Shadow Lunge"
+kind = 1
+tags = Array[int]([4, 1, 3])
+aim_mode = 1
+duration = 0.35
+unstoppable = true
+width = 14.0
+reaction = 0
+stagger_time = 0.5
+knockback_mult = 0.5
+hitstop = 0.07
+dash_speed = 420.0
+ai_min_range = 40.0

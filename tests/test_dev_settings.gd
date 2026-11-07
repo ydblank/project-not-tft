@@ -16,7 +16,8 @@ func test_defs_are_well_formed() -> void:
 		assert_true(def.has("label") and def.has("group") and def.has("type"), def.key + " has label/group/type")
 		if def.type != "bool":
 			assert_true(def.min < def.max, def.key + " min < max")
-			assert_true(def.default >= def.min and def.default <= def.max, def.key + " default in range")
+			var default: Variant = DevSettings.default_of(def.key)
+			assert_true(default != null and default >= def.min and default <= def.max, def.key + " default in range")
 			assert_true(def.step > 0.0, def.key + " has a step")
 
 

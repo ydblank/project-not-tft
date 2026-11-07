@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 # On-screen controller overlay (like a phone-emulator gamepad): a WASD pad on
-# the left and the Attack / Block / Dash buttons on the right. Buttons light up
+# the left and the Skill / Attack / Block / Dash buttons on the right. Buttons light up
 # while the real input is held. Key names are read from the InputMap, so the
 # labels always match the project's bindings. F1 shows / hides it.
 
@@ -25,6 +25,10 @@ const COLOR_SHIELD_RING := Color(0.55, 0.8, 1.0, 1)
 const COLOR_DASH_RING := Color(1.0, 0.85, 0.4, 1)
 const COLOR_PIP := Color(0.9, 0.95, 1.0, 1)
 const COLOR_PIP_EMPTY := Color(1, 1, 1, 0.35)
+const COLOR_SKILL_READY_FLASH := Color(1.0, 0.9, 0.5, 1)
+## The skill button is dimmed this much when the weapon has no skill.
+const NO_SKILL_ALPHA := 0.35
+const SKILL_ICON_SIZE := 26.0
 
 var _root: Control
 var _player: Node2D
@@ -35,6 +39,10 @@ var _pad: Control
 var _buttons: Control
 var _hint: Label
 var _keys: Array[InputKey] = []
+var _skill_icon: SkillIcon
+var _skill_time: Label
+var _skill_was_cooling: bool = false
+var _skill_shown: SkillData = null
 
 
 ## A drawn symbol (mouse button / spacebar) used in place of text.
@@ -78,6 +86,28 @@ class Glyph extends Control:
 		draw_style_box(fill, half)
 		draw_line(Vector2(0, split_y), Vector2(w, split_y), color, 2.0)
 		draw_line(Vector2(w * 0.5, 0), Vector2(w * 0.5, split_y), color, 2.0)
+
+
+## The skill's icon: the SkillData texture, or a generic drawn four-point sparkle when it has none.
+class SkillIcon extends Control:
+	var texture: Texture2D = null
+	var color: Color = COLOR_IDLE_TEXT
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(SKILL_ICON_SIZE, SKILL_ICON_SIZE)
+
+	func _draw() -> void:
+		if texture != null:
+			draw_texture_rect(texture, Rect2(Vector2.ZERO, size), false)
+			return
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.5
+		var star := PackedVector2Array()
+		for i in 8:
+			var a := -PI * 0.5 + TAU * i / 8.0
+			star.append(c + Vector2.from_angle(a) * (r if i % 2 == 0 else r * 0.32))
+		draw_colored_polygon(star, color)
 
 
 ## Cooldown overlay for a round button: a dark "clock" sweep for the time
@@ -230,9 +260,26 @@ class InputKey extends PanelContainer:
 			glyph.queue_redraw()
 		scale = Vector2.ONE * (0.92 if down else 1.0)
 
+	## A short glow (the skill coming off cooldown).
+	func flash(color: Color) -> void:
+		var tween := create_tween()
+		self_modulate = color * 1.6
+		tween.tween_property(self, "self_modulate", Color.WHITE, 0.45)
+
+	## Puts a control above the key's text (the skill icon).
+	func add_top(item: Control) -> void:
+		var box := get_child(0) as VBoxContainer
+		var center := CenterContainer.new()
+		center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		center.add_child(item)
+		box.add_child(center)
+		box.move_child(center, 0)
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	Keybinds.ensure_loaded() # the labels show the rebound keys, so load them first
+	add_to_group(&"keybind_listeners")
 	_build()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -293,10 +340,53 @@ func _update_spinners() -> void:
 		var charging := _combat.get_state() == ActionStateMachine.State.CHARGING
 		attack.set_values(0.0, _combat.get_charge_ratio() if charging else -1.0, COLOR_COOLDOWN, COLOR_RING)
 
+	_update_skill_button()
+
+
+## Skill (E): icon, dark sweep + seconds left while on cooldown, a flash when it is ready again,
+## dimmed when the weapon has no skill.
+func _update_skill_button() -> void:
+	var key: InputKey = _by_action.get("skill")
+	if key == null:
+		return
+	var skill := _combat.get_skill() if _combat else null
+	key.modulate.a = 1.0 if skill != null else NO_SKILL_ALPHA
+	if skill != _skill_shown:
+		_skill_shown = skill
+		if _skill_icon:
+			_skill_icon.texture = skill.icon if skill else null
+			_skill_icon.queue_redraw()
+		key.tooltip_text = skill.display_name if skill else "No skill"
+	var ratio := _combat.get_skill_cooldown_ratio() if _combat else 0.0
+	var left := _combat.get_skill_cooldown_left() if _combat else 0.0
+	if key.spinner:
+		# While casting (the fireball), a gold ring fills like the Attack button's heavy charge.
+		var cast := _combat.get_skill_cast_ratio() if _combat else -1.0
+		key.spinner.set_values(ratio, cast, COLOR_COOLDOWN, COLOR_DASH_RING)
+	if _skill_time:
+		_skill_time.visible = left > 0.0
+		_skill_time.text = str(ceili(left))
+	var cooling := left > 0.0
+	if _skill_was_cooling and not cooling and skill != null:
+		key.flash(COLOR_SKILL_READY_FLASH)
+	_skill_was_cooling = cooling
+
 
 func _spinner_for(action: String) -> Spinner:
 	var key: InputKey = _by_action.get(action)
 	return key.spinner if key else null
+
+
+## Rebuilds the buttons so their labels show the new keys (Settings -> Controls calls this group).
+func on_keybinds_changed() -> void:
+	var was_visible := _root.visible
+	_root.queue_free()
+	_keys.clear()
+	_by_action.clear()
+	_skill_shown = null
+	_build()
+	_root.visible = was_visible
+	_layout()
 
 
 ## The local player's components (re-resolved if the player node goes away).
@@ -347,16 +437,32 @@ func _build() -> void:
 	_add_key(_pad, "S", Vector2(step, step), KEY_SIZE, false)
 	_add_key(_pad, "D", Vector2(step * 2, step), KEY_SIZE, false)
 
-	# Action buttons: Dash on top, Block left, Attack (largest) bottom-right.
+	# Action buttons: Skill top-left, Dash on top, Block left, Attack (largest) bottom-right.
+	var skill_offset := BUTTON_SIZE * 0.5 + GAP
 	_buttons = Control.new()
 	_buttons.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_buttons.custom_minimum_size = Vector2(BUTTON_SIZE * 2 + GAP + 20, BUTTON_SIZE * 2 + GAP)
+	_buttons.custom_minimum_size = Vector2(BUTTON_SIZE * 2 + GAP + 20 + skill_offset, BUTTON_SIZE * 2 + GAP)
 	_buttons.size = _buttons.custom_minimum_size
 	_root.add_child(_buttons)
 	var big := BUTTON_SIZE + 20.0
-	_add_key(_buttons, "dash", Vector2(BUTTON_SIZE * 0.5, 0), BUTTON_SIZE, true)
-	_add_key(_buttons, "Block", Vector2(0, BUTTON_SIZE + GAP), BUTTON_SIZE, true)
-	_add_key(_buttons, "Attack", Vector2(BUTTON_SIZE + GAP, BUTTON_SIZE - 12.0 + GAP), big, true)
+	_add_key(_buttons, "skill", Vector2(0, 0), BUTTON_SIZE, true)
+	_add_key(_buttons, "dash", Vector2(skill_offset + BUTTON_SIZE * 0.5, 0), BUTTON_SIZE, true)
+	_add_key(_buttons, "Block", Vector2(skill_offset, BUTTON_SIZE + GAP), BUTTON_SIZE, true)
+	_add_key(_buttons, "Attack", Vector2(skill_offset + BUTTON_SIZE + GAP, BUTTON_SIZE - 12.0 + GAP), big, true)
+	var skill_key: InputKey = _by_action["skill"]
+	_skill_icon = SkillIcon.new()
+	skill_key.add_top(_skill_icon)
+	_skill_time = Label.new()
+	_skill_time.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_skill_time.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_skill_time.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_skill_time.add_theme_font_size_override("font_size", 22)
+	_skill_time.add_theme_color_override("font_color", Color(1, 1, 1, 0.95))
+	_skill_time.add_theme_color_override("font_outline_color", Color(0, 0, 0, 1))
+	_skill_time.add_theme_constant_override("outline_size", 5)
+	_skill_time.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_skill_time.visible = false
+	skill_key.add_child(_skill_time) # after the spinner: the number sits on top of the sweep
 
 	_hint = Label.new()
 	_hint.text = "%s hide" % OS.get_keycode_string(TOGGLE_KEY)
@@ -402,6 +508,8 @@ func _key_tokens(action: String) -> PackedStringArray:
 
 
 func _event_name(event: InputEvent) -> String:
+	if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+		return "" # the overlay shows the keyboard and mouse; controller bindings are listed in Settings -> Controls
 	if event is InputEventMouseButton:
 		match event.button_index:
 			MOUSE_BUTTON_LEFT:

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="SkillData" format=3]
+
+[ext_resource type="Script" path="res://assets/combat/skill_data.gd" id="1_skill"]
+
+[resource]
+script = ExtResource("1_skill")
+display_name = "Arrow Volley"
+kind = 2
+tags = Array[int]([1, 5, 3])
+aim_mode = 1
+reaction = 0
+stagger_time = 0.15
+knockback_mult = 0.2
+hitstop = 0.03
+volley_interval = 0.18
+ai_min_range = 24.0

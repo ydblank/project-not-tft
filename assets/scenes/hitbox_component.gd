@@ -91,6 +91,8 @@ func receive_hit(hit: HitData) -> Result:
 	var final_damage := hit.damage
 	if use_combat_calculations and stats:
 		final_damage = CombatGlobal.calculate_receive_damage(stats, hit.damage)
+	if hit.is_dot:
+		return _receive_dot(hit, final_damage)
 
 	# Block: direction the hit comes FROM, relative to us. With a shield meter
 	# the damage drains it; a hit that breaks it gets the rest through, and the
@@ -106,6 +108,14 @@ func receive_hit(hit: HitData) -> Result:
 			if _combat.is_parrying() and not hit.is_heavy and (hit.is_ranged or not _combat.is_ranged_fighter()):
 				_parry(hit)
 				return Result.PARRIED
+			if _combat.is_skill_guarding():
+				# A sword spin blocks from every side without draining the shield.
+				hit_blocked.emit()
+				_impact(hit, 0.5, 1.2)
+				_spawn_hit_fx(hit, true)
+				blocked_hit.emit(hit.direction, hit.is_heavy)
+				_show_text("BLOCKED", Color(0.6, 0.85, 1.0))
+				return Result.BLOCKED
 			if shield:
 				final_damage = shield.absorb_damage(final_damage * shield.damage_mult_while_blocking)
 				guard_broken = shield.is_broken()
@@ -182,6 +192,16 @@ func _find_sibling(type: Variant) -> Node:
 			if is_instance_of(child, type):
 				return child
 	return null
+
+
+## Burning ground tick: unblockable, no freeze frame, an orange number; a short stagger (dashable) every tick.
+func _receive_dot(hit: HitData, final_damage: float) -> Result:
+	health.take_damage(final_damage)
+	hit_received.emit(hit.attacker, final_damage, hit.direction)
+	if _combat and not health.is_dead() and hit.stagger_time > 0.0:
+		_combat.receive_reaction(hit, 0.0, final_damage)
+	_show_damage_number(maxi(int(round(final_damage)), 1), hit)
+	return Result.HIT
 
 
 ## Damage that is not an attack (standing outside the arena, hazards...).
@@ -295,7 +315,7 @@ func _maybe_grunt(hit: HitData) -> void:
 ## Red when a human-controlled fighter takes damage, white when one deals it, grey between bots,
 ## gold for heavy hits and finishers, orange for the arena\x27s damage over time.
 func _damage_number_color(hit: HitData) -> Color:
-	if hit == null:
+	if hit == null or hit.is_dot:
 		return Color(1.0, 0.6, 0.2)
 	var victim := CombatComponent.find_on(get_entity())
 	var attacker := CombatComponent.find_on(hit.attacker) if is_instance_valid(hit.attacker) else null

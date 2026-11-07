@@ -20,6 +20,7 @@ const MIN_REPEAT := 0.04
 const SOUNDS := {
 	# One file, or several: a random one is picked each time (never the same twice in a row).
 	&"swing_light": "swing_light.wav",
+	&"burn": "swing_light.wav", # burning-ground tick: PLACEHOLDER, the quick whoosh played low until a real sizzle is added
 	&"swing_heavy": ["swing_heavy.wav", "swing_heavy_2.wav"],
 	&"bow_release": ["bow_release.wav", "bow_release_2.wav"],
 	&"dash": "dash.wav", # the grunt only (no whoosh)

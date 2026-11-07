@@ -194,3 +194,53 @@ func test_defense_reduces_damage_with_floor() -> void:
 	assert_eq(snappedf(CombatGlobal.receive_damage(20.0, 10.0), 0.001), 8.0, "knight def 20")
 	assert_eq(CombatGlobal.receive_damage(20.0, 0.5), 1.0, "minimum 1")
 	assert_eq(CombatGlobal.receive_damage(0.0, 7.0), 7.0)
+
+
+# ---------------------------------------------------------------- weapons table
+
+func test_every_weapon_has_a_table_row_that_fits_its_moves() -> void:
+	var props := {}
+	for p in WeaponData.new().get_property_list():
+		props[p.name] = true
+	var special := ["type", "skill", "light_damage", "heavy_damage"]
+	for weapon_id in Weapons.WEAPONS.values():
+		var label := str(Weapons.WEAPONS.keys()[weapon_id])
+		assert_true(Weapons.TABLE.has(weapon_id), label + " has a weapons-table row")
+		var row: Dictionary = Weapons.TABLE.get(weapon_id, {})
+		var w := Weapons.get_weapon_data(weapon_id)
+		for field in row:
+			assert_true(special.has(field) or props.has(field), "%s.%s is a real WeaponData property" % [label, field])
+		if row.has("light_damage"):
+			assert_eq(row.light_damage.size(), w.light_move_count(), label + ": one light_damage per quick hit")
+		if row.has("heavy_damage"):
+			assert_eq(row.heavy_damage.size(), Weapons.heavy_moves(w).size(), label + ": one heavy_damage per heavy hit")
+		if String(row.get("skill", "")) != "":
+			assert_true(ResourceLoader.exists(Weapons.SKILL_PATH % row.skill), label + " skill file exists")
+
+
+func test_table_values_reach_the_loaded_weapons() -> void:
+	for weapon_id in Weapons.WEAPONS.values():
+		var row: Dictionary = Weapons.TABLE[weapon_id]
+		var w := Weapons.get_weapon_data(weapon_id)
+		var label := str(Weapons.WEAPONS.keys()[weapon_id])
+		assert_eq(w.weapon_type, row.type, label + " type from the table")
+		if row.has("power_mult"):
+			assert_eq(w.power_mult, row.power_mult, label + " power from the table")
+		for i in row.get("light_damage", []).size():
+			assert_eq(w.light_moves[i].damage_mult, row.light_damage[i], label + " light hit %d damage" % i)
+		var heavies := Weapons.heavy_moves(w)
+		for i in row.get("heavy_damage", []).size():
+			assert_eq(heavies[i].damage_mult, row.heavy_damage[i], label + " heavy hit %d damage" % i)
+		var skill_id: String = row.get("skill", "")
+		assert_eq(Skills.id_of(w.skill), skill_id, label + " skill from the table")
+
+
+func test_weapon_types() -> void:
+	var expected := {
+		Weapons.WEAPONS.SWORD: WeaponData.Type.SWORD,
+		Weapons.WEAPONS.DAGGER: WeaponData.Type.DAGGER,
+		Weapons.WEAPONS.BOW: WeaponData.Type.BOW,
+		Weapons.WEAPONS.STAFF: WeaponData.Type.STAFF,
+	}
+	for weapon_id in expected:
+		assert_eq(Weapons.get_weapon_data(weapon_id).weapon_type, expected[weapon_id])

@@ -9,6 +9,7 @@ Documentation is organised **by feature**, not by release. To learn how somethin
 | [Controls](features/controls.md) | Keyboard / mouse bindings, local 2-player mode |
 | [Fight flow](features/fight-flow.md) | Countdown, lives and respawn, arena, 2v2 teams, bot / team toggles |
 | [Combat](features/combat.md) | Combos, ranged, block, parry, armor, clashes, stun rules, dash |
+| [Skills](features/skills.md) | Weapon skills on E: spin, dash strike, volley, fireball; AoE markers, AI use, range tools |
 | [Calculations](features/calculations.md) | Stats, damage dealt and taken, attack speed, knockback, class table |
 | [AI](features/ai.md) | Bot behaviour: dodging, targeting, teamwork, smart behaviours |
 | [Game feel](features/game-feel.md) | Freeze frame, camera, hit and block effects |

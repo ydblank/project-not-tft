@@ -29,6 +29,7 @@
 [ext_resource type="Script" path="res://assets/levels/gamepad_controls.gd" id="29_pad"]
 [ext_resource type="Script" path="res://assets/levels/display_toggle.gd" id="30_display"]
 [ext_resource type="AudioStream" path="res://assets/audio/music/battle_theme_loop.wav" id="27_battle"]
+[ext_resource type="Script" path="res://assets/dev/range_ruler.gd" id="31_ruler"]
 
 [sub_resource type="CanvasItemMaterial" id="CanvasItemMaterial_0e48y"]
 
@@ -309,6 +310,9 @@ script = ExtResource("30_display")
 stream = ExtResource("27_battle")
 volume_db = -9.0
 script = ExtResource("26_music")
+
+[node name="RangeRuler" type="Node2D" parent="."]
+script = ExtResource("31_ruler")
 
 [connection signal="pressed" from="CanvasLayer/HostButton" to="." method="_on_HostButton_pressed"]
 [connection signal="pressed" from="CanvasLayer/JoinButton" to="." method="_on_JoinButton_pressed"]

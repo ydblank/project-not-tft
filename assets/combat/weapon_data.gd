@@ -2,9 +2,18 @@
 extends Resource
 class_name WeaponData
 
+## A weapon: its moves (AttackMove sub-resources), how it fights (melee or ranged, projectile) and its
+## skill. Its balance numbers (power, attack speed, damage per move, charge, cooldowns, AI range, type and
+## skill) come from the table in assets/resources/weapons.gd when it loads (Weapons.get_weapon_data).
+
+## How a weapon fights: melee hitbox or projectile.
 enum Kind {MELEE, RANGED}
+## What kind of weapon it is (a family: several swords can share SWORD). Set from the weapons table.
+enum Type {NONE, SWORD, DAGGER, BOW, STAFF}
 
 @export var display_name: String = ""
+## Weapon family (sword, dagger, bow, staff). Set from the table in assets/resources/weapons.gd.
+@export var weapon_type: Type = Type.NONE
 @export var kind: Kind = Kind.MELEE
 ## Ranged weapons spawn this instead of a melee hitbox (must be an ArrowProjectile scene).
 @export var projectile_scene: PackedScene
@@ -40,6 +49,10 @@ enum Kind {MELEE, RANGED}
 @export var combo_hitstun: float = 0.55
 ## A tap made while busy is remembered this long.
 @export var input_buffer: float = 0.3
+
+@export_group("Skill")
+## The weapon's special skill (E). Specific to this weapon resource, not its type. Empty = no skill.
+@export var skill: SkillData
 
 @export_group("AI")
 ## Distance at which an AI starts its light combo with this weapon.

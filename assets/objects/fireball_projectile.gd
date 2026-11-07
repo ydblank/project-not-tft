@@ -35,6 +35,12 @@ const BURST_TIME := 0.3
 
 ## Held shots explode on contact; set from the hit in setup().
 var explodes: bool = false
+## Skill fireball: fixed blast radius in pixels (0 = sized by the fireball's scale, as for the heavy shot).
+var radius_override: float = 0.0
+## Skill fireball: leaves burning ground of this skill after exploding (null = none).
+var burn_skill: SkillData = null
+## Power the burn damage is based on (the caster's attack damage at cast time).
+var burn_damage_per_tick: float = 0.0
 
 @onready var _sprite: Sprite2D = $Sprite2D
 
@@ -115,7 +121,7 @@ func _explode() -> void:
 		return
 	_done = true
 	var center := global_position
-	var radius := blast_radius(scale.x)
+	var radius := radius_override if radius_override > 0.0 else blast_radius(scale.x)
 
 	var circle := CircleShape2D.new()
 	circle.radius = radius
@@ -141,6 +147,8 @@ func _explode() -> void:
 	Sfx.play(&"finisher", 0.0, EXPLOSION_SOUND_PITCH)
 	if is_instance_valid(shooter) and shooter.is_in_group("players"):
 		Combat.shake(EXPLOSION_SHAKE, 0.2, Vector2.RIGHT.rotated(rotation))
+	if burn_skill != null and burn_skill.dot_mult_per_sec > 0.0 and hit != null:
+		BurningGround.spawn(get_parent(), center, burn_skill, hit.attacker, hit.team, burn_damage_per_tick)
 	queue_free()
 
 
@@ -177,3 +185,12 @@ func _spawn_burst(texture: Texture2D, burst_scale: float) -> void:
 	var tween := burst.create_tween()
 	tween.tween_property(burst, "frame", BURST_FRAMES - 1, BURST_TIME).from(0)
 	tween.tween_callback(burst.queue_free)
+
+
+## A skill fireball that reaches the aimed spot explodes there; other fireballs just fizzle out.
+func _on_range_end() -> void:
+	if explodes:
+		_explode()
+	else:
+		_spawn_burst(IMPACT_TEXTURE, scale.x)
+		_finish()

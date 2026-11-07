@@ -11,6 +11,10 @@ var aim_dir: Vector2 = Vector2.DOWN
 var attack_held: bool = false
 var block_held: bool = false
 var dash_held: bool = false
+## Skill button (E): hold to aim an aimed skill, release to cast.
+var skill_held: bool = false
+## World point the skill is aimed at (used by point-aimed skills such as the fireball).
+var skill_target: Vector2 = Vector2.ZERO
 ## Maximum lunge distance for the next attack (AI uses it to keep min distance).
 var lunge_limit: float = INF
 
@@ -20,6 +24,7 @@ func clear() -> void:
 	attack_held = false
 	block_held = false
 	dash_held = false
+	skill_held = false
 	lunge_limit = INF
 
 
@@ -29,4 +34,6 @@ func copy_from(other: CombatIntent) -> void:
 	attack_held = other.attack_held
 	block_held = other.block_held
 	dash_held = other.dash_held
+	skill_held = other.skill_held
+	skill_target = other.skill_target
 	lunge_limit = other.lunge_limit

@@ -24,3 +24,5 @@ var is_heavy: bool = false
 var is_combo_chain: bool = false
 ## Last hit of a combo, or a heavy: gets the bigger hit-confirm effect.
 var is_finisher: bool = false
+## Damage over time (burning ground): ignores block, causes no reaction or hitstop.
+var is_dot: bool = false

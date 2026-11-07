@@ -8,8 +8,9 @@ class_name GamepadControls
 # the starting state.
 #
 #   Left stick / D-pad   move              Right stick   aim (the mouse takes over again when it moves)
-#   RT or X              attack            LB (L1)       block
-#   LT (L2), A or RB     dash              Y             switch character (R)
+#   RT or X              attack            LB (L1)       block            (defaults: rebindable in
+#   LT (L2), A or RB     dash              B             skill             Settings -> Controls, see Keybinds)
+#   Y                    switch character (R)
 #   Start                pause (Esc); B also backs out of the pause menu
 #
 # Only controllers Godot recognises (SDL has a mapping for them: an Xbox 360 / XInput pad, and so a
@@ -25,6 +26,8 @@ const AIM_DOWN := &"aim_down"
 const AIM_DEADZONE := 0.3
 ## A trigger counts as pressed past this much of a pull.
 const TRIGGER_DEADZONE := 0.5
+## The project's own dead zone for the action buttons.
+const BUTTON_DEADZONE := 0.2
 
 ## Start with the controller on, working alongside the keyboard and mouse. False = keyboard and mouse only.
 @export var enabled: bool = true
@@ -38,6 +41,7 @@ var _toggle_button: Button
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS # Start and B must work while the pause menu is open
+	Keybinds.ensure_loaded()
 	for action in [AIM_LEFT, AIM_RIGHT, AIM_UP, AIM_DOWN]:
 		if not InputMap.has_action(action):
 			InputMap.add_action(action, AIM_DEADZONE)
@@ -62,6 +66,8 @@ func set_enabled(value: bool) -> void:
 func _input(event: InputEvent) -> void:
 	if not enabled or not event is InputEventJoypadButton or not event.pressed or not Input.is_joy_known(event.device):
 		return
+	if Keybinds.capturing:
+		return # the key-bindings screen is waiting for this button: it is a binding, not "back" or "pause"
 	match event.button_index:
 		JOY_BUTTON_START:
 			_tap_key(KEY_ESCAPE)
@@ -102,7 +108,8 @@ func _build_button() -> void:
 	_toggle_button.tooltip_text = "Use an Xbox-style controller as well as the keyboard and mouse"
 	_toggle_button.toggled.connect(func(pressed: bool): set_enabled(pressed))
 	layer.add_child(_toggle_button)
-	_toggle_button.add_to_group("game_option") # the pause menu keeps it hidden except while paused
+	_toggle_button.add_to_group("game_option")
+	_toggle_button.set_meta(&"settings_section", "Controls") # a player setting: the pause menu shows it under Settings, not Dev Tools
 
 
 func _update_button() -> void:
@@ -122,8 +129,9 @@ func _update_button() -> void:
 func _rebuild() -> void:
 	_clear()
 	if not enabled:
-		for action in [&"Attack", &"dash"]:
-			InputMap.action_set_deadzone(action, 0.2) # the project's own value
+		for action in Keybinds.pad_actions():
+			if InputMap.has_action(action):
+				InputMap.action_set_deadzone(action, BUTTON_DEADZONE) # the project's own value
 		return
 	for device in Input.get_connected_joypads():
 		if not Input.is_joy_known(device):
@@ -142,19 +150,32 @@ func _rebuild() -> void:
 		_axis(AIM_RIGHT, device, JOY_AXIS_RIGHT_X, 1.0)
 		_axis(AIM_UP, device, JOY_AXIS_RIGHT_Y, -1.0)
 		_axis(AIM_DOWN, device, JOY_AXIS_RIGHT_Y, 1.0)
-		# Actions.
-		_axis(&"Attack", device, JOY_AXIS_TRIGGER_RIGHT, 1.0)
-		_button(&"Attack", device, JOY_BUTTON_X)
-		_button(&"Block", device, JOY_BUTTON_LEFT_SHOULDER) # L1
-		_axis(&"dash", device, JOY_AXIS_TRIGGER_LEFT, 1.0) # L2
-		_button(&"dash", device, JOY_BUTTON_A)
-		_button(&"dash", device, JOY_BUTTON_RIGHT_SHOULDER)
+		# Actions: Keybinds holds them (the defaults, or what was rebound in Settings -> Controls).
+		for action in Keybinds.pad_actions():
+			for binding in Keybinds.pad_bindings(action):
+				var event := Keybinds.event_of(binding, device)
+				if event:
+					_bind(action, event)
 		# Menus: the D-pad and left stick already move the focus (Godot's ui_up / ui_down...), but A does not
 		# confirm by default. (B backs out: see _input.)
 		_button(&"ui_accept", device, JOY_BUTTON_A)
-	# A trigger is only "pressed" when pulled well down (the actions' default dead zone is for sticks).
-	for action in [&"Attack", &"dash"]:
-		InputMap.action_set_deadzone(action, TRIGGER_DEADZONE)
+	# A trigger or stick bound to an action is only "pressed" when pushed well over (the default dead zone
+	# is for movement sticks).
+	for action in Keybinds.pad_actions():
+		if InputMap.has_action(action):
+			InputMap.action_set_deadzone(action, TRIGGER_DEADZONE if _has_axis(action) else BUTTON_DEADZONE)
+
+
+## Re-adds the controller bindings (after a rebind in Settings -> Controls).
+func refresh_bindings() -> void:
+	_rebuild()
+
+
+func _has_axis(action: StringName) -> bool:
+	for binding in Keybinds.pad_bindings(action):
+		if binding.get("type", "") == "joy_axis":
+			return true
+	return false
 
 
 func _clear() -> void:

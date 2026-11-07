@@ -46,6 +46,7 @@ func _apply_globals() -> void:
 	Sfx.set_music_volume(DevSettings.get_value("music_volume"))
 	Combat.show_damage_numbers = DevSettings.get_value("damage_numbers")
 	Combat.enemy_tells = DevSettings.get_value("enemy_tells")
+	_apply_skills()
 
 	var level := get_parent()
 	if level == null:
@@ -104,9 +105,11 @@ func _apply_entity(entity: Node) -> void:
 	combat.post_stun_immunity = v.call("post_stun_immunity")
 	combat.set_parry_window(v.call("parry_window"))
 	combat.armor_hp_max = v.call("armor_hp")
-	if combat.weapon:
+	combat.set_skill_cooldown_scale(v.call("skill_cooldown_scale"))
+	# These two override the weapons table (assets/resources/weapons.gd) only once their slider is moved.
+	if combat.weapon and not DevSettings.is_default("combo_hitstun"):
 		combat.weapon.combo_hitstun = v.call("combo_hitstun")
-	if combat.weapon and combat.weapon.light_move_count() > 1:
+	if combat.weapon and combat.weapon.light_move_count() > 1 and not DevSettings.is_default("light_combo_cooldown"):
 		combat.weapon.light_combo_cooldown = v.call("light_combo_cooldown")
 	if combat.hitbox_component:
 		combat.hitbox_component.base_knockback_force = v.call("knockback_force")
@@ -122,6 +125,7 @@ func _apply_entity(entity: Node) -> void:
 		_scale_from_base(ai, "dodge_reaction_time", diff.dodge_reaction)
 		_scale_from_base(ai, "combo_break_reaction", diff.combo_break)
 		_scale_from_base(ai, "dash_decision_interval", diff.dash_interval)
+		_scale_from_base(ai, "skill_aim_time", diff.dodge_reaction) # harder bots telegraph their skills for less time
 
 
 ## Sets an AI timer to `multiplier` x its original value (remembered the first time, so applying again never compounds).
@@ -140,3 +144,17 @@ func _find_ai(entity: Node) -> AIComponent:
 			if grandchild is AIComponent:
 				return grandchild
 	return null
+
+
+## Skills sliders: each row names a skills-table field (assets/resources/skills.gd) and defaults to its
+## value, so an untouched slider leaves the table in charge. Written into the weapons' shared SkillData
+## resources for this run only (the files on disk keep their values).
+func _apply_skills() -> void:
+	var by_id := {}
+	for weapon in Weapons.WEAPONS.values():
+		var data := Weapons.get_weapon_data(weapon)
+		if data and data.skill:
+			by_id[Skills.id_of(data.skill)] = data.skill
+	for def in DevSettings.DEFS:
+		if def.has("skill") and by_id.has(def.skill):
+			Skills.set_field(by_id[def.skill], def.field, DevSettings.get_value(def.key))

@@ -2,7 +2,7 @@
 
 Melee and ranged fighting: combos, blocking, parry, armor, clashes, stun and dash rules.
 
-**Code:** `assets/combat/`. The rules live in `action_state_machine.gd` (pure logic, unit-tested); `combat_component.gd` feeds it and applies the results. Weapons are data: `weapon_data.gd`, `attack_move.gd`, `hit_data.gd`, and the `.tres` files in `assets/combat/weapons/`. See [CLAUDE.md](../../CLAUDE.md#combat-pipeline) for how the pieces connect.
+**Code:** `assets/combat/`. The rules live in `action_state_machine.gd` (pure logic, unit-tested); `combat_component.gd` feeds it and applies the results. Weapons are data: `weapon_data.gd`, `attack_move.gd`, `hit_data.gd`, and the `.tres` files in `assets/combat/weapons/`. **To balance a weapon, edit its row in `assets/resources/weapons.gd`**: type (sword, dagger, bow, staff), skill, power multiplier, attack speed bonus, damage of each quick and heavy hit, charge multipliers and time, quick-combo cooldown and the bot engage range. The `.tres` files keep how each weapon works: melee or ranged, the projectile, and each move's timing, reach, lunge, knockback and effects. The table is written into the weapon when it loads (`Weapons.get_weapon_data`), and `tests/test_combat_data.gd` checks it fits every weapon's moves. See [CLAUDE.md](../../CLAUDE.md#combat-pipeline) for how the pieces connect.
 
 ## Classes
 
@@ -30,6 +30,10 @@ The sheet's "damage" column is the **power** stat. The formulas are in [Calculat
 - **Quick:** each hit needs its own click. After the full 3-hit quick combo there is a short cooldown.
 - **Combo lock:** hitting someone mid-combo keeps them staggered (can't attack or block) until the combo ends. **A dash is the way out.** Capped at 1.5s total.
 - **Lunge:** your lunge stops just short of the target, so the final hit no longer whiffs by overshooting.
+
+## Skills
+
+Every weapon has a special skill on E: sword spin, dagger dash strike, bow volley, staff fireball with burning ground. See [Skills](skills.md).
 
 ## Ranged
 
